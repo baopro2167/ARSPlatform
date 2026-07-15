@@ -24,7 +24,7 @@ ehthumbs_vista.db
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
+# *.sln
 *.sw?
 .history/
 
