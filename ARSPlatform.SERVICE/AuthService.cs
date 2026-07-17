@@ -36,23 +36,20 @@ namespace ARSPlatform.SERVICES
 
         public async Task<AuthResponse?> RegisterAsync(RegisterRequest request)
         {
-            if (await _userRepository.ExistsAsync(u => u.Username == request.Username))
-                throw new Exception("Username is already taken.");
-
             if (await _userRepository.ExistsAsync(u => u.Email == request.Email))
                 throw new Exception("Email is already registered.");
 
             var user = _mapper.Map<User>(request);
-            user.Id = Guid.NewGuid();
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
             var defaultRole = await _roleRepository.GetByNameAsync("Researcher");
-            user.RoleId = defaultRole != null ? defaultRole.Id : 2;
+            var roleId = defaultRole != null ? defaultRole.RoleId : 2;
+            user.UserRoles = new List<UserRole> { new UserRole { RoleId = roleId, CreatedAt = DateTime.UtcNow } };
 
             await _userRepository.AddAsync(user);
             await _userRepository.SaveChangesAsync();
 
-            var createdUser = await _userRepository.GetWithRoleByIdAsync(user.Id);
+            var createdUser = await _userRepository.GetWithRoleByIdAsync(user.UserId);
             if (createdUser == null) return null;
 
             var token = GenerateJwtToken(createdUser);
@@ -60,19 +57,19 @@ namespace ARSPlatform.SERVICES
             return new AuthResponse
             {
                 Token = token,
-                Username = createdUser.Username,
+                Username = createdUser.FullName,
                 Email = createdUser.Email,
-                Role = createdUser.Role.Name
+                Role = createdUser.UserRoles.FirstOrDefault()?.Role?.Name ?? "Researcher"
             };
         }
 
         public async Task<AuthResponse?> LoginAsync(LoginRequest request)
         {
-            var user = await _userRepository.GetByUsernameAsync(request.Username);
+            var user = await _userRepository.GetByUsernameAsync(request.Email);
             if (user == null)
                 return null;
 
-            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return null;
 
             var token = GenerateJwtToken(user);
@@ -80,9 +77,9 @@ namespace ARSPlatform.SERVICES
             return new AuthResponse
             {
                 Token = token,
-                Username = user.Username,
+                Username = user.FullName,
                 Email = user.Email,
-                Role = user.Role.Name
+                Role = user.UserRoles.FirstOrDefault()?.Role?.Name ?? "Researcher"
             };
         }
 
@@ -95,10 +92,10 @@ namespace ARSPlatform.SERVICES
 
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                new Claim(ClaimTypes.Name, user.FullName),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role?.Name ?? "Researcher")
+                new Claim(ClaimTypes.Role, user.UserRoles.FirstOrDefault()?.Role?.Name ?? "Researcher")
             };
 
             var token = new JwtSecurityToken(

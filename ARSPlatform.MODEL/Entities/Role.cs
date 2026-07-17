@@ -1,13 +1,15 @@
+﻿using System;
 using System.Collections.Generic;
 
-namespace ARSPlatform.MODEL.Entities
-{
-    public class Role
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
+namespace ARSPlatform.MODEL.Entities;
 
-        // Navigation properties
-        public virtual ICollection<User> Users { get; set; } = new List<User>();
-    }
+public partial class Role
+{
+    public int RoleId { get; set; }
+
+    public string Name { get; set; } = null!;
+
+    public DateTime? CreatedAt { get; set; }
+
+    public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }

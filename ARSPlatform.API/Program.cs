@@ -22,9 +22,17 @@ builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
 // Register Repositories
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-builder.Services.AddScoped<IPaperRepository, PaperRepository>();
+
+// Automatically register all repositories ending with "Repository" via reflection
+var repoAssembly = typeof(UserRepository).Assembly;
+foreach (var type in repoAssembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("Repository") && t != typeof(GenericRepository<>)))
+{
+    var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.Name == $"I{type.Name}");
+    if (interfaceType != null)
+    {
+        builder.Services.AddScoped(interfaceType, type);
+    }
+}
 
 // Register External API Service
 builder.Services.AddScoped<IExternalApiService, ExternalApiService>();

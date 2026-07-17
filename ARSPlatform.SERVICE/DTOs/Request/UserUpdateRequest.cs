@@ -7,6 +7,8 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         [Required]
         public string FullName { get; set; } = string.Empty;
 
-        public string? OrcidId { get; set; }
+        public string? AvatarUrl { get; set; }
+
+        public bool? IsActive { get; set; }
     }
 }

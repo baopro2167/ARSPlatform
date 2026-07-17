@@ -30,7 +30,7 @@ namespace ARSPlatform.SERVICES
         public async Task<PagedResult<PaperResponse>> GetPapersAsync(PaginationParams paginationParams)
         {
             var query = _paperRepository.GetQueryable()
-                .Include(p => p.Author)
+                .Include(p => p.Creator)
                 .AsNoTracking();
 
             var totalCount = await query.CountAsync();
@@ -45,59 +45,39 @@ namespace ARSPlatform.SERVICES
             return new PagedResult<PaperResponse>(dtos, totalCount, paginationParams.PageNumber, paginationParams.PageSize);
         }
 
-        public async Task<PaperResponse?> GetPaperByIdAsync(Guid id)
+        public async Task<PaperResponse?> GetPaperByIdAsync(int id)
         {
             var paper = await _paperRepository.GetWithAuthorByIdAsync(id);
             return paper != null ? _mapper.Map<PaperResponse>(paper) : null;
         }
 
-        public async Task<PaperResponse> CreatePaperAsync(PaperCreateRequest request, Guid authorId)
+        public async Task<PaperResponse> CreatePaperAsync(PaperCreateRequest request, int authorId)
         {
-            if (!string.IsNullOrWhiteSpace(request.Doi))
-            {
-                var isValidDoi = await _externalApiService.ValidateDoiAsync(request.Doi);
-                if (!isValidDoi)
-                {
-                    throw new ArgumentException("Invalid DOI format. Must match standard format, e.g. 10.1000/xyz123.");
-                }
-            }
-
             var paper = _mapper.Map<Paper>(request);
-            paper.Id = Guid.NewGuid();
-            paper.AuthorId = authorId;
+            paper.CreatorId = authorId;
             paper.Status = "Submitted";
             paper.CreatedAt = DateTime.UtcNow;
 
             await _paperRepository.AddAsync(paper);
             await _paperRepository.SaveChangesAsync();
 
-            var createdPaper = await _paperRepository.GetWithAuthorByIdAsync(paper.Id);
+            var createdPaper = await _paperRepository.GetWithAuthorByIdAsync(paper.PaperId);
             return _mapper.Map<PaperResponse>(createdPaper);
         }
 
-        public async Task<PaperResponse?> UpdatePaperAsync(Guid id, PaperUpdateRequest request)
+        public async Task<PaperResponse?> UpdatePaperAsync(int id, PaperUpdateRequest request)
         {
             var paper = await _paperRepository.GetWithAuthorByIdAsync(id);
             if (paper == null)
                 return null;
 
-            if (!string.IsNullOrWhiteSpace(request.Doi))
-            {
-                var isValidDoi = await _externalApiService.ValidateDoiAsync(request.Doi);
-                if (!isValidDoi)
-                {
-                    throw new ArgumentException("Invalid DOI format. Must match standard format, e.g. 10.1000/xyz123.");
-                }
-                paper.Doi = request.Doi;
-            }
-            else
-            {
-                paper.Doi = null;
-            }
-
             paper.Title = request.Title;
             paper.Abstract = request.Abstract;
             paper.FileUrl = request.FileUrl;
+            paper.Issn = request.Issn;
+            paper.IsOpenAccess = request.IsOpenAccess;
+            paper.Quartile = request.Quartile;
+            paper.SubFieldId = request.SubFieldId;
             
             if (!string.IsNullOrWhiteSpace(request.Status))
             {
@@ -112,7 +92,7 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<PaperResponse>(paper);
         }
 
-        public async Task<bool> DeletePaperAsync(Guid id)
+        public async Task<bool> DeletePaperAsync(int id)
         {
             var paper = await _paperRepository.GetByIdAsync(id);
             if (paper == null)

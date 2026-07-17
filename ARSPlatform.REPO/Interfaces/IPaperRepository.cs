@@ -6,6 +6,6 @@ namespace ARSPlatform.REPO.Interfaces
 {
     public interface IPaperRepository : IGenericRepository<Paper>
     {
-        Task<Paper?> GetWithAuthorByIdAsync(Guid id);
+        Task<Paper?> GetWithAuthorByIdAsync(int id);
     }
 }
