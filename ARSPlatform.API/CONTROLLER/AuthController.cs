@@ -29,7 +29,8 @@ namespace ARSPlatform.API.CONTROLLER
             }
             catch (System.Exception ex)
             {
-                return BadRequest(new { Message = ex.Message });
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return BadRequest(new { Message = message });
             }
         }
 
