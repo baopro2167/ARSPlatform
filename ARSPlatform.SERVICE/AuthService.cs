@@ -47,8 +47,13 @@ namespace ARSPlatform.SERVICES
             user.UpdatedAt = DateTime.UtcNow;
 
             var defaultRole = await _roleRepository.GetByNameAsync("Researcher");
-            var roleId = defaultRole != null ? defaultRole.RoleId : 2;
-            user.UserRoles = new List<UserRole> { new UserRole { RoleId = roleId, CreatedAt = DateTime.UtcNow } };
+            if (defaultRole == null)
+            {
+                defaultRole = new Role { Name = "Researcher", CreatedAt = DateTime.UtcNow };
+                await _roleRepository.AddAsync(defaultRole);
+                await _roleRepository.SaveChangesAsync();
+            }
+            user.UserRoles = new List<UserRole> { new UserRole { RoleId = defaultRole.RoleId, CreatedAt = DateTime.UtcNow } };
 
             await _userRepository.AddAsync(user);
             await _userRepository.SaveChangesAsync();
