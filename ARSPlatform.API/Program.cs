@@ -130,6 +130,29 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     context.Database.EnsureCreated();
+
+    try
+    {
+        // Drop the old unique constraint that doesn't allow multiple NULLs
+        context.Database.ExecuteSqlRaw(@"
+            IF EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ__User__A6FBF2FBCD0C569B' AND type = 'UQ')
+            BEGIN
+                ALTER TABLE [dbo].[User] DROP CONSTRAINT [UQ__User__A6FBF2FBCD0C569B];
+            END
+        ");
+
+        // Recreate it as a filtered index that allows multiple NULLs but enforces uniqueness for non-null GoogleId
+        context.Database.ExecuteSqlRaw(@"
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UX_User_GoogleId' AND object_id = OBJECT_ID('dbo.User'))
+            BEGIN
+                CREATE UNIQUE NONCLUSTERED INDEX UX_User_GoogleId ON [dbo].[User](GoogleId) WHERE GoogleId IS NOT NULL;
+            END
+        ");
+    }
+    catch (System.Exception ex)
+    {
+        Console.WriteLine($"Error updating GoogleId unique index: {ex.Message}");
+    }
 }
 
 app.UseCors("AllowAll");

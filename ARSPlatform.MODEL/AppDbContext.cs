@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using ARSPlatform.MODEL.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -499,7 +499,7 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable("User", tb => tb.HasTrigger("trg_User_update"));
 
-            entity.HasIndex(e => e.GoogleId, "UQ__User__A6FBF2FBCD0C569B").IsUnique();
+            entity.HasIndex(e => e.GoogleId, "UX_User_GoogleId").HasFilter("[GoogleId] IS NOT NULL").IsUnique();
 
             entity.HasIndex(e => e.Email, "UQ__User__A9D105342E34C60E").IsUnique();
 
