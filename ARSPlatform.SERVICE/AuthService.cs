@@ -41,6 +41,10 @@ namespace ARSPlatform.SERVICES
 
             var user = _mapper.Map<User>(request);
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            user.IsActive = true;
+            user.IsEmailVerified = false;
+            user.CreatedAt = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
 
             var defaultRole = await _roleRepository.GetByNameAsync("Researcher");
             var roleId = defaultRole != null ? defaultRole.RoleId : 2;
@@ -56,6 +60,7 @@ namespace ARSPlatform.SERVICES
 
             return new AuthResponse
             {
+                UserId = createdUser.UserId,
                 Token = token,
                 Username = createdUser.FullName,
                 Email = createdUser.Email,
@@ -69,6 +74,9 @@ namespace ARSPlatform.SERVICES
             if (user == null)
                 return null;
 
+            if (user.IsActive == false)
+                return null;
+
             if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return null;
 
@@ -76,6 +84,7 @@ namespace ARSPlatform.SERVICES
 
             return new AuthResponse
             {
+                UserId = user.UserId,
                 Token = token,
                 Username = user.FullName,
                 Email = user.Email,
