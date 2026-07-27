@@ -5,12 +5,19 @@ import type { LoginRequest, RegisterRequest, AuthResponse } from '../types/auth'
 
 export const authService = {
   login: async (credentials: LoginRequest): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, credentials);
+    const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, {
+      email: credentials.username,
+      password: credentials.password,
+    });
     return response.data;
   },
 
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.REGISTER, data);
+    const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.REGISTER, {
+      email: data.email,
+      password: data.password,
+      fullName: data.fullName,
+    });
     return response.data;
   },
 
