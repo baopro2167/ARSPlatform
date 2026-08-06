@@ -1,0 +1,29 @@
+---
+description: Protect backend folders from unintended modifications
+alwaysApply: true
+---
+
+# Backend Folder Protection Rule
+
+## Protected Folders
+
+Do NOT modify, delete, or change anything in the following folders unless **absolutely necessary**:
+
+- `ARSPlatform.API/`
+- `ARSPlatform.MODEL/`
+- `ARSPlatform.REPO/`
+- `ARSPlatform.SERVICE/`
+
+## Required Actions
+
+1. **Ask the user first** before making any changes to these folders
+2. Explain why the change is necessary
+3. Wait for explicit confirmation before proceeding
+4. If the change is minor or avoidable, suggest an alternative approach
+
+## Exception
+
+Only modify these folders when:
+- The user explicitly requests changes to the backend
+- The fix is critical and cannot be done any other way
+- You have explicitly explained the change and the user has approved it

@@ -4,6 +4,7 @@ import { PrivateRoute, PublicRoute } from './routes/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
 import { AuthLayout } from './layouts/AuthLayout';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import './styles/globals.css';
 
 const App = () => {
@@ -15,6 +16,7 @@ const App = () => {
           <Route element={<PublicRoute />}>
             <Route element={<AuthLayout />}>
               <Route path={ROUTES.LOGIN} element={<Login />} />
+              <Route path={ROUTES.REGISTER} element={<Register />} />
             </Route>
           </Route>
 

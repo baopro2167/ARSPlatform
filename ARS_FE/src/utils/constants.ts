@@ -40,6 +40,7 @@ export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
   REGISTER: '/register',
+  FORUM: '/forum',
   DASHBOARD: '/dashboard',
   USERS: '/users',
   PAPERS: '/papers',
