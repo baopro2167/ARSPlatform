@@ -68,9 +68,6 @@ Edit `.env` and set your values:
 ```env
 # API Base URL — point to your backend
 VITE_API_BASE_URL=http://localhost:5000
-
-# App URL (used for OAuth/email links if needed)
-VITE_APP_URL=http://localhost:3000
 ```
 
 ### Firebase
@@ -81,7 +78,7 @@ The app uses Firebase Storage for PDF uploads. You need a Firebase project with:
 2. **Storage** → Create a bucket and set rules to allow authenticated users
 3. **Firestore** (optional) → For metadata
 
-Copy your Firebase config into the frontend source (or via environment variables if you've set up a config module). The `useFirebaseUpload` hook in `src/hooks/useFirebaseUpload.ts` handles the upload logic — review it to confirm your Firebase config is wired correctly.
+Fill in the `VITE_FIREBASE_*` variables in `.env` with your Firebase project config — get them from Firebase Console → Project Settings → Your apps → Web app → SDK setup and configuration. The `useFirebaseUpload` hook in `src/hooks/useFirebaseUpload.ts` reads these values automatically.
 
 ### Backend
 
@@ -128,13 +125,12 @@ The Docker image only runs the backend. The frontend can still be served via `np
 | `npm run build`          | Type-check + production build                |
 | `npm run preview`        | Preview the production build locally         |
 | `npm run lint`           | Run ESLint                                   |
-| `npm run test:unit`      | Run unit tests only                          |
+| `npm run test`           | Run all unit tests                           |
 | `npm run test:integration`| Run integration tests only                   |
-| `npm run test:all`       | Run all tests (unit + integration)          |
 | `npm run test:coverage`   | Run all tests with coverage report           |
 | `npm run test:ui`        | Run tests with interactive Vitest UI         |
 
-> **Firebase note:** `npm run test:unit` is safe to run at any time — it excludes Firebase integration tests so you won't be charged. Run `npm run test:integration` only when you need to test the upload/view pipeline. See `TESTING.md` for details.
+> `npm run test` is safe to run at any time — it excludes Firebase integration tests so you won't be charged. Run `npm run test:integration` only when you need to test the upload/view pipeline. See `TESTING.md` for details.
 
 ## Default Test Account
 
