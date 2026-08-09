@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { AuthLayout } from './layouts/AuthLayout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { Dashboard } from './pages/Dashboard';
 import './styles/globals.css';
 
 const App = () => {
@@ -22,7 +23,7 @@ const App = () => {
 
           {/* Private Routes */}
           <Route element={<PrivateRoute />}>
-            <Route path={ROUTES.DASHBOARD} element={<div>Dashboard</div>} />
+            <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
             <Route path={ROUTES.HOME} element={<div>Home</div>} />
           </Route>
 
