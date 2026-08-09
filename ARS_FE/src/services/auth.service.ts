@@ -1,7 +1,12 @@
 import api from './axios';
 import { API_ENDPOINTS } from '../utils/constants';
 import { storage } from '../utils/storage';
-import type { LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
+import type {
+  LoginRequest,
+  RegisterRequest,
+  RegisterPayload,
+  AuthResponse,
+} from '../types/auth';
 
 export const authService = {
   login: async (credentials: LoginRequest): Promise<AuthResponse> => {
@@ -18,6 +23,14 @@ export const authService = {
       password: data.password,
       fullName: data.fullName,
     });
+    return response.data;
+  },
+
+  registerUser: async (payload: RegisterPayload): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>(
+      API_ENDPOINTS.AUTH.REGISTER,
+      payload
+    );
     return response.data;
   },
 

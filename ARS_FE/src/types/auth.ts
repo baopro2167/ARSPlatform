@@ -3,6 +3,19 @@ export interface LoginRequest {
   password: string;
 }
 
+export type UserRole = 'Researcher' | 'Reviewer' | 'Lecturer' | 'Graduate Student';
+
+export interface RegisterPayload {
+  username: string;
+  email: string;
+  password: string;
+  fullName: string;
+  phoneNumber: string;
+  role: UserRole;
+  pdfUrl: string;
+  orcidId?: string;
+}
+
 export interface RegisterRequest {
   username: string;
   email: string;

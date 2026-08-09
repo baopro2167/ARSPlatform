@@ -46,6 +46,13 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# =========================
+# Backend Config (Chứa secrets — chỉ dùng appsettings.json.example)
+# =========================
+appsettings.json
+!appsettings.json.example
+
 # =========================
 # Thư mục Build của .NET / C#
 # =========================
