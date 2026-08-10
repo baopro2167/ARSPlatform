@@ -58,3 +58,15 @@ appsettings.json
 # =========================
 [Bb]in/
 [Oo]bj/
+
+# =========================
+# Frontend / React / Vite
+# =========================
+node_modules/
+dist/
+build/
+.eslintcache
+.vite/
+**/coverage/
+**/dist/
+**/node_modules/
