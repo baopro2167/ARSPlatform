@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using ARSPlatform.SERVICE;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +42,11 @@ builder.Services.AddScoped<IExternalApiService, ExternalApiService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPaperService, PaperService>();
+
+// Register PayOS Settings
+builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddHttpClient();
 
 // Configure CORS
 builder.Services.AddCors(options =>

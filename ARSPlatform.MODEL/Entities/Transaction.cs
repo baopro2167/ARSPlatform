@@ -19,5 +19,12 @@ public partial class Transaction
 
     public DateTime? CreatedAt { get; set; }
 
+    // Payment fields (PayOS/VNPay)
+    public string? PaymentOrderId { get; set; }
+
+    public string? PaymentTransactionId { get; set; }
+
+    public string? PaymentResponseCode { get; set; }
+
     public virtual Wallet? Wallet { get; set; }
 }

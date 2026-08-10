@@ -413,6 +413,11 @@ public partial class AppDbContext : DbContext
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Name).HasMaxLength(255);
+
+            entity.HasData(
+                new Role { RoleId = 4, Name = "Lecturer", CreatedAt = DateTime.UtcNow },
+                new Role { RoleId = 5, Name = "Graduate Student", CreatedAt = DateTime.UtcNow }
+            );
         });
 
         modelBuilder.Entity<Seminar>(entity =>
