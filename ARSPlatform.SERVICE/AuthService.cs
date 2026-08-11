@@ -19,17 +19,23 @@ namespace ARSPlatform.SERVICES
     {
         private readonly IUserRepository _userRepository;
         private readonly IRoleRepository _roleRepository;
+        private readonly IWalletRepository _walletRepository;
+        private readonly IProfessionalProfileRepository _professionalProfileRepository;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
 
         public AuthService(
             IUserRepository userRepository,
             IRoleRepository roleRepository,
+            IWalletRepository walletRepository,
+            IProfessionalProfileRepository professionalProfileRepository,
             IMapper mapper,
             IConfiguration configuration)
         {
             _userRepository = userRepository;
             _roleRepository = roleRepository;
+            _walletRepository = walletRepository;
+            _professionalProfileRepository = professionalProfileRepository;
             _mapper = mapper;
             _configuration = configuration;
         }
@@ -56,6 +62,26 @@ namespace ARSPlatform.SERVICES
             user.UserRoles = new List<UserRole> { new UserRole { RoleId = defaultRole.RoleId, CreatedAt = DateTime.UtcNow } };
 
             await _userRepository.AddAsync(user);
+            await _userRepository.SaveChangesAsync();
+
+            // Auto-create ProfessionalProfile for the user
+            var professionalProfile = new ProfessionalProfile
+            {
+                UserId = user.UserId,
+                SyncStatus = "pending",
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _professionalProfileRepository.AddAsync(professionalProfile);
+
+            // Auto-create Wallet for the user
+            var wallet = new Wallet
+            {
+                UserId = user.UserId,
+                Balance = 0,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _walletRepository.AddAsync(wallet);
+
             await _userRepository.SaveChangesAsync();
 
             var createdUser = await _userRepository.GetWithRoleByIdAsync(user.UserId);
