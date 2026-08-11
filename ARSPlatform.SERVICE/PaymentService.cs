@@ -197,9 +197,11 @@ public class PaymentService : IPaymentService
             // PayOS API endpoint
             var apiUrl = $"{_payOSSettings.BaseUrl}/v2/payment-requests";
 
+            // PayOS requires API key in Authorization header as Bearer token
             _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.Add("X-Client-Id", _payOSSettings.ClientId);
             _httpClient.DefaultRequestHeaders.Add("X-Api-Key", _payOSSettings.ApiKey);
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_payOSSettings.ApiKey}");
 
             var response = await _httpClient.PostAsync(apiUrl, content);
             var responseContent = await response.Content.ReadAsStringAsync();
