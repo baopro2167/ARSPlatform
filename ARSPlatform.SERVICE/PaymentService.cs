@@ -108,6 +108,18 @@ public class PaymentService : IPaymentService
             };
         }
 
+        // If the transaction has already been processed successfully, do not credit the wallet again
+        if (transaction.Status == "SUCCESS")
+        {
+            return new PaymentCallbackResponse
+            {
+                Success = true,
+                Message = "Transaction already processed successfully",
+                OrderCode = orderCode,
+                RedirectUrl = $"{_payOSSettings.ReturnUrl}?success=true&orderCode={orderCode}"
+            };
+        }
+
         // Update transaction based on status
         if (status == "PAID" || status == "SUCCESS")
         {
