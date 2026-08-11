@@ -35,7 +35,7 @@ public class PaymentService : IPaymentService
         var orderCode = GenerateOrderCode();
         
         // Convert amount to int (PayOS requires int in VND)
-        var amount = (int)(request.Amount * 100); // Amount in VND (smallest unit)
+        var amount = (int)request.Amount; // Amount in VND
         
         // Create transaction record first
         var transaction = new Transaction
