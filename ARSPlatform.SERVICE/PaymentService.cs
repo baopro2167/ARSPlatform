@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
@@ -129,7 +130,8 @@ public class PaymentService : IPaymentService
                 {
                     wallet.Balance += transaction.Amount.Value;
                     wallet.UpdatedAt = DateTime.UtcNow;
-                    await _walletRepository.UpdateAsync(wallet);
+                    _walletRepository.Update(wallet);
+                    await _walletRepository.SaveChangesAsync();
                 }
             }
         }
