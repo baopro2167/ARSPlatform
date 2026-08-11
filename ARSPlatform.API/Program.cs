@@ -1,4 +1,5 @@
-using ARSPlatform.MODEL;
+﻿using ARSPlatform.MODEL;
+using ARSPlatform.REPO;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPOSITORIES;
 using ARSPlatform.SERVICE.ExternalServices;
@@ -25,9 +26,34 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IPaperRepository, PaperRepository>();
+builder.Services.AddScoped<ISeminarRepository, SeminarRepository>();
 
-// Register External API Service
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+
+// Nâng giới hạn Form Upload lên 500MB
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 524_288_000; // 500 MB
+    options.ValueLengthLimit = 524_288_000;
+});
+
+// Nâng giới hạn Server Kestrel lên 500MB
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = 524_288_000; // 500 MB
+});
+
+// Register External API Service & Cấu hình Timeout 15 phút cho HttpClient
 builder.Services.AddScoped<IExternalApiService, ExternalApiService>();
+builder.Services.AddHttpClient<IAudioSummaryService, AudioSummaryService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(15);
+});
 
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -106,14 +132,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Automatically apply migrations and seed data on startup
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    context.Database.EnsureCreated();
-}
+//app.UseHttpsRedirection();
 
-app.UseHttpsRedirection();
+app.UseCors("AllowAll"); // Bật CORS
 
 app.UseAuthentication();
 app.UseAuthorization();

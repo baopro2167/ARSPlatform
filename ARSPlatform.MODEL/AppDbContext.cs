@@ -1,5 +1,5 @@
-using ARSPlatform.MODEL.Entities;
 using ARSPlatform.MODEL.Configurations;
+using ARSPlatform.MODEL.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace ARSPlatform.MODEL
@@ -13,6 +13,7 @@ namespace ARSPlatform.MODEL
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<Role> Roles { get; set; } = null!;
         public DbSet<Paper> Papers { get; set; } = null!;
+        public DbSet<Seminar> Seminars { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -21,6 +22,7 @@ namespace ARSPlatform.MODEL
             modelBuilder.ApplyConfiguration(new RoleConfiguration());
             modelBuilder.ApplyConfiguration(new UserConfiguration());
             modelBuilder.ApplyConfiguration(new PaperConfiguration());
+            modelBuilder.ApplyConfiguration(new SeminarConfiguration());
         }
     }
 }
