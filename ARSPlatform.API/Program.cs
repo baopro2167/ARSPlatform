@@ -48,6 +48,10 @@ builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayO
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddHttpClient();
 
+// Register Email Settings and Service
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddScoped<IEmailService, EmailService>();
+
 // Configure CORS
 builder.Services.AddCors(options =>
 {
