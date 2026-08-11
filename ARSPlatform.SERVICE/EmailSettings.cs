@@ -8,5 +8,6 @@ namespace ARSPlatform.SERVICE
         public string SenderEmail { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public string VerificationUrl { get; set; } = string.Empty;
     }
 }

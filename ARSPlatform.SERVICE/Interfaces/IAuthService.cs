@@ -8,5 +8,7 @@ namespace ARSPlatform.SERVICE.Interfaces
     {
         Task<AuthResponse?> RegisterAsync(RegisterRequest request);
         Task<AuthResponse?> LoginAsync(LoginRequest request);
+        Task<bool> VerifyEmailAsync(string token);
+        Task<bool> SendApprovalEmailAsync(string email);
     }
 }
