@@ -112,5 +112,52 @@ namespace ARSPlatform.API.CONTROLLER
                 return BadRequest(new { Message = ex.Message });
             }
         }
+
+        /// <summary>
+        /// Webhook nhận thông báo thanh toán tự động từ PayOS
+        /// </summary>
+        [HttpPost("webhook")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ReceiveWebhook([FromBody] PayOSWebhookRequest request)
+        {
+            try
+            {
+                if (request == null || request.Data == null)
+                {
+                    return BadRequest(new { Message = "Invalid payload" });
+                }
+
+                // PayOS success code is "00"
+                var status = request.Data.Code == "00" ? "SUCCESS" : "FAILED";
+                await _paymentService.ProcessCallback(request.Data.OrderCode.ToString(), status);
+                
+                return Ok(new { Success = true });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+    }
+
+    public class PayOSWebhookRequest
+    {
+        public string Code { get; set; }
+        public string Desc { get; set; }
+        public PayOSWebhookData Data { get; set; }
+        public string Signature { get; set; }
+    }
+
+    public class PayOSWebhookData
+    {
+        public long OrderCode { get; set; }
+        public int Amount { get; set; }
+        public string Description { get; set; }
+        public string Reference { get; set; }
+        public string TransactionDateTime { get; set; }
+        public string Currency { get; set; }
+        public string PaymentLinkId { get; set; }
+        public string Code { get; set; }
+        public string Desc { get; set; }
     }
 }
