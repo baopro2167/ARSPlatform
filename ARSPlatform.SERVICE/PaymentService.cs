@@ -61,18 +61,10 @@ public class PaymentService : IPaymentService
             ? request.CancelUrl 
             : _payOSSettings.CancelUrl;
 
-        // Create payment link request
-        var paymentData = new
-        {
-            orderCode = orderCode,
-            amount = amount,
-            description = request.Description ?? $"Thanh toan don hang {orderCode}",
-            returnUrl = returnUrl,
-            cancelUrl = cancelUrl
-        };
+        var description = request.Description ?? $"Thanh toan don hang {orderCode}";
 
-        // Create signature
-        var signatureData = $"amount={amount}&cancelUrl={cancelUrl}&orderCode={orderCode}&returnUrl={returnUrl}";
+        // Create signature (Keys must be in alphabetical order: amount, cancelUrl, description, orderCode, returnUrl)
+        var signatureData = $"amount={amount}&cancelUrl={cancelUrl}&description={description}&orderCode={orderCode}&returnUrl={returnUrl}";
         var signature = ComputeHmacSha256(signatureData, _payOSSettings.ChecksumKey);
 
         // Prepare request body
@@ -80,7 +72,7 @@ public class PaymentService : IPaymentService
         {
             { "orderCode", orderCode },
             { "amount", amount },
-            { "description", paymentData.description },
+            { "description", description },
             { "returnUrl", returnUrl },
             { "cancelUrl", cancelUrl },
             { "signature", signature }
@@ -211,7 +203,15 @@ public class PaymentService : IPaymentService
                 var jsonDoc = JsonDocument.Parse(responseContent);
                 var root = jsonDoc.RootElement;
 
-                if (root.TryGetProperty("data", out var dataElement))
+                var code = root.TryGetProperty("code", out var codeProp) ? codeProp.GetString() : "";
+                var desc = root.TryGetProperty("desc", out var descProp) ? descProp.GetString() : "Unknown error";
+
+                if (code != "00")
+                {
+                    throw new Exception($"PayOS error code {code}: {desc}");
+                }
+
+                if (root.TryGetProperty("data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Object)
                 {
                     var result = new Dictionary<string, object>();
                     foreach (var prop in dataElement.EnumerateObject())
@@ -219,6 +219,20 @@ public class PaymentService : IPaymentService
                         result[prop.Name] = prop.Value;
                     }
                     return result;
+                }
+            }
+            else
+            {
+                try
+                {
+                    var jsonDoc = JsonDocument.Parse(responseContent);
+                    var root = jsonDoc.RootElement;
+                    var desc = root.TryGetProperty("desc", out var descProp) ? descProp.GetString() : response.ReasonPhrase;
+                    throw new Exception(desc);
+                }
+                catch
+                {
+                    throw new Exception($"HTTP {(int)response.StatusCode} - {response.ReasonPhrase}");
                 }
             }
             
