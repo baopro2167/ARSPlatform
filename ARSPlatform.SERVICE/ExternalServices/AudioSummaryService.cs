@@ -40,21 +40,40 @@ namespace ARSPlatform.SERVICE.ExternalServices
             _seminarRepository = seminarRepository;
         }
 
-        public async Task<SeminarAudioSummaryResponse> SummarizeSeminarAudioAsync(int seminarId, SeminarAudioSummaryRequest request, CancellationToken cancellationToken = default)
+        public async Task<SeminarAudioSummaryResponse> SummarizeSeminarAudioAsync(
+    int seminarId,
+    SeminarAudioSummaryRequest request,
+    CancellationToken cancellationToken = default)
         {
             var file = request.AudioFile;
+
             if (file == null || file.Length == 0)
-                throw new ArgumentException("File âm thanh không hợp lệ.", nameof(file));
+            {
+                throw new ArgumentException(
+                    "File âm thanh không hợp lệ.",
+                    nameof(file));
+            }
 
             var apiKey = _configuration["GeminiSettings:ApiKey"];
-            var model = _configuration["GeminiSettings:Model"] ?? "gemini-1.5-flash";
+
+            var model =
+                _configuration["GeminiSettings:Model"]
+                ?? "gemini-1.5-flash";
 
             if (string.IsNullOrEmpty(apiKey))
-                throw new InvalidOperationException("Thiếu GeminiSettings:ApiKey trong appsettings.json.");
+            {
+                throw new InvalidOperationException(
+                    "Thiếu GeminiSettings:ApiKey trong appsettings.json.");
+            }
 
-            var seminar = await _seminarRepository.GetByIdAsync(seminarId);
+            var seminar =
+                await _seminarRepository.GetByIdAsync(seminarId);
+
             if (seminar == null)
-                throw new KeyNotFoundException($"Không tìm thấy Seminar với ID = {seminarId}");
+            {
+                throw new KeyNotFoundException(
+                    $"Không tìm thấy Seminar với ID = {seminarId}");
+            }
 
             string tempInputPath = string.Empty;
             string tempCompressedPath = string.Empty;
@@ -63,34 +82,57 @@ namespace ARSPlatform.SERVICE.ExternalServices
             try
             {
                 // 1. Lưu file tạm thời
-                tempInputPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}");
-                await using (var stream = new FileStream(tempInputPath, FileMode.Create))
+                tempInputPath = Path.Combine(
+                    Path.GetTempPath(),
+                    $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}");
+
+                await using (var stream =
+                    new FileStream(tempInputPath, FileMode.Create))
                 {
-                    await file.CopyToAsync(stream, cancellationToken);
+                    await file.CopyToAsync(
+                        stream,
+                        cancellationToken);
                 }
 
-                // 2. Nén file bằng FFmpeg về mp3 32k mono (Tối ưu cho file dài 3-4 tiếng)
-                tempCompressedPath = await CompressAudioAsync(tempInputPath, cancellationToken);
+                // 2. Nén file bằng FFmpeg
+                tempCompressedPath =
+                    await CompressAudioAsync(
+                        tempInputPath,
+                        cancellationToken);
 
                 // 3. Upload file lên Google Files API
-                var (fileUri, resName) = await UploadToGoogleFilesApiAsync(tempCompressedPath, apiKey, cancellationToken);
+                var (fileUri, resName) =
+                    await UploadToGoogleFilesApiAsync(
+                        tempCompressedPath,
+                        apiKey,
+                        cancellationToken);
+
                 resourceName = resName;
 
-                // 4. Chờ Google xử lý xong file audio
-                await WaitForFileActiveAsync(resourceName, apiKey, cancellationToken);
+                // 4. Chờ Google xử lý file audio
+                await WaitForFileActiveAsync(
+                    resourceName,
+                    apiKey,
+                    cancellationToken);
 
-                // 5. Gửi Prompt phân tích Timeline/Người nói với cơ chế Retry & Fallback
-                string summaryMarkdown = await GenerateSummaryTextAsync(fileUri, apiKey, model, cancellationToken);
+                // 5. Phân tích audio bằng Gemini
+                string summaryMarkdown =
+                    await GenerateSummaryTextAsync(
+                        fileUri,
+                        apiKey,
+                        model,
+                        cancellationToken);
 
-                // 6. Lưu kết quả vào CSDL
+                // 6. Lưu kết quả vào database
                 seminar.AiSummary = summaryMarkdown;
-                _seminarRepository.Update(seminar);
-                await _seminarRepository.SaveChangesAsync();
+
+                var updatedSeminar =
+                    await _seminarRepository.UpdateAsync(seminar);
 
                 return new SeminarAudioSummaryResponse
                 {
-                    SeminarId = seminar.SeminarId,
-                    AiSummary = seminar.AiSummary ?? string.Empty,
+                    SeminarId = updatedSeminar.SeminarId,
+                    AiSummary = updatedSeminar.AiSummary ?? string.Empty,
                     UpdatedAt = DateTime.UtcNow
                 };
             }
@@ -98,9 +140,12 @@ namespace ARSPlatform.SERVICE.ExternalServices
             {
                 DeleteLocalFile(tempInputPath);
                 DeleteLocalFile(tempCompressedPath);
+
                 if (!string.IsNullOrEmpty(resourceName))
                 {
-                    _ = DeleteGoogleFileAsync(resourceName, apiKey);
+                    _ = DeleteGoogleFileAsync(
+                        resourceName,
+                        apiKey);
                 }
             }
         }

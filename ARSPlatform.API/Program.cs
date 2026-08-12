@@ -16,7 +16,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add Database Context
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add AutoMapper
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
@@ -27,29 +28,35 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IPaperRepository, PaperRepository>();
 builder.Services.AddScoped<ISeminarRepository, SeminarRepository>();
+builder.Services.AddScoped<ISeminarParticipantRepository, SeminarParticipantRepository>();
 
 // Configure CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader());
 });
 
 // Nâng giới hạn Form Upload lên 500MB
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 524_288_000; // 500 MB
+    options.MultipartBodyLengthLimit = 524_288_000;
     options.ValueLengthLimit = 524_288_000;
 });
 
 // Nâng giới hạn Server Kestrel lên 500MB
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.Limits.MaxRequestBodySize = 524_288_000; // 500 MB
+    serverOptions.Limits.MaxRequestBodySize = 524_288_000;
 });
 
-// Register External API Service & Cấu hình Timeout 15 phút cho HttpClient
+// Register External API Service
 builder.Services.AddScoped<IExternalApiService, ExternalApiService>();
+
+// Register Audio Summary Service
+// Timeout 15 phút để xử lý audio lớn
 builder.Services.AddHttpClient<IAudioSummaryService, AudioSummaryService>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(15);
@@ -65,47 +72,70 @@ builder.Services.AddControllers();
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var keyString = jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
+
+var keyString =
+    jwtSettings["Key"]
+    ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
+
 var key = Encoding.UTF8.GetBytes(keyString);
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme =
+        JwtBearerDefaults.AuthenticationScheme;
+
+    options.DefaultChallengeScheme =
+        JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
     options.RequireHttpsMetadata = false; // Set to true in production
     options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = true,
-        ValidIssuer = jwtSettings["Issuer"] ?? "ARSPlatformIssuer",
-        ValidateAudience = true,
-        ValidAudience = jwtSettings["Audience"] ?? "ARSPlatformAudience",
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
-    };
+
+    options.TokenValidationParameters =
+        new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+
+            ValidateIssuer = true,
+            ValidIssuer =
+                jwtSettings["Issuer"] ?? "ARSPlatformIssuer",
+
+            ValidateAudience = true,
+            ValidAudience =
+                jwtSettings["Audience"] ?? "ARSPlatformAudience",
+
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
 });
 
 builder.Services.AddAuthorization();
 
 // Configure Swagger with Bearer Authentication support
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "ARSPlatform API", Version = "v1" });
+    c.SwaggerDoc(
+        "v1",
+        new OpenApiInfo
+        {
+            Title = "ARSPlatform API",
+            Version = "v1"
+        });
 
     var securityScheme = new OpenApiSecurityScheme
     {
         Name = "JWT Authentication",
-        Description = "Enter JWT Bearer token **_only_** (without 'Bearer ' prefix)",
+        Description =
+            "Enter JWT Bearer token **_only_** (without 'Bearer ' prefix)",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
+
         Reference = new OpenApiReference
         {
             Id = JwtBearerDefaults.AuthenticationScheme,
@@ -113,11 +143,18 @@ builder.Services.AddSwaggerGen(c =>
         }
     };
 
-    c.AddSecurityDefinition(securityScheme.Reference.Id, securityScheme);
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        { securityScheme, Array.Empty<string>() }
-    });
+    c.AddSecurityDefinition(
+        securityScheme.Reference.Id,
+        securityScheme);
+
+    c.AddSecurityRequirement(
+        new OpenApiSecurityRequirement
+        {
+            {
+                securityScheme,
+                Array.Empty<string>()
+            }
+        });
 });
 
 var app = builder.Build();
@@ -126,15 +163,18 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
+
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ARSPlatform API v1");
+        c.SwaggerEndpoint(
+            "/swagger/v1/swagger.json",
+            "ARSPlatform API v1");
     });
 }
 
-//app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
-app.UseCors("AllowAll"); // Bật CORS
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();

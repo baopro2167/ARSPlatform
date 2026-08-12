@@ -9,18 +9,68 @@ namespace ARSPlatform.SERVICE.Mapping
     {
         public AutoMapperProfile()
         {
+            // =========================
             // User Mapping
-            CreateMap<User, UserResponse>()
-                .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role != null ? src.Role.Name : string.Empty));
-            CreateMap<RegisterRequest, User>()
-                .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
-                .ForMember(dest => dest.Role, opt => opt.Ignore());
+            // =========================
 
+            CreateMap<User, UserResponse>()
+                .ForMember(
+                    dest => dest.RoleName,
+                    opt => opt.MapFrom(
+                        src => src.Role != null
+                            ? src.Role.Name
+                            : string.Empty));
+
+            CreateMap<RegisterRequest, User>()
+                .ForMember(
+                    dest => dest.PasswordHash,
+                    opt => opt.Ignore())
+                .ForMember(
+                    dest => dest.Role,
+                    opt => opt.Ignore());
+
+
+            // =========================
             // Paper Mapping
+            // =========================
+
             CreateMap<Paper, PaperResponse>()
-                .ForMember(dest => dest.AuthorName, opt => opt.MapFrom(src => src.Author != null ? src.Author.FullName : string.Empty));
+                .ForMember(
+                    dest => dest.AuthorName,
+                    opt => opt.MapFrom(
+                        src => src.Author != null
+                            ? src.Author.FullName
+                            : string.Empty));
+
             CreateMap<PaperCreateRequest, Paper>();
+
             CreateMap<PaperUpdateRequest, Paper>();
+
+
+            // =========================
+            // Seminar Mapping
+            // =========================
+
+            CreateMap<SeminarCreateRequest, Seminar>();
+
+            CreateMap<SeminarUpdateRequest, Seminar>();
+
+            CreateMap<Seminar, SeminarResponse>()
+                .ForMember(
+                    dest => dest.Participants,
+                    opt => opt.MapFrom(
+                        src => src.SeminarParticipants));
+
+
+            // =========================
+            // Seminar Participant Mapping
+            // =========================
+
+            CreateMap<SeminarParticipantCreateRequest, SeminarParticipant>();
+
+            CreateMap<SeminarParticipantUpdateRequest, SeminarParticipant>();
+
+            CreateMap<SeminarParticipant, SeminarParticipantResponse>();
         }
     }
 }

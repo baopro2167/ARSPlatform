@@ -14,6 +14,7 @@ namespace ARSPlatform.MODEL
         public DbSet<Role> Roles { get; set; } = null!;
         public DbSet<Paper> Papers { get; set; } = null!;
         public DbSet<Seminar> Seminars { get; set; } = null!;
+        public DbSet<SeminarParticipant> SeminarParticipants { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -23,6 +24,26 @@ namespace ARSPlatform.MODEL
             modelBuilder.ApplyConfiguration(new UserConfiguration());
             modelBuilder.ApplyConfiguration(new PaperConfiguration());
             modelBuilder.ApplyConfiguration(new SeminarConfiguration());
+
+            modelBuilder.Entity<SeminarParticipant>(entity =>
+            {
+                entity.Property(e => e.InvitationStatus)
+                    .HasMaxLength(50)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.ParticipantEvaluation)
+                    .HasMaxLength(255);
+
+                entity.HasOne(e => e.Seminar)
+                    .WithMany(e => e.SeminarParticipants)
+                    .HasForeignKey(e => e.SeminarId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
         }
     }
 }

@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace ARSPlatform.MODEL.Entities
+namespace ARSPlatform.SERVICE.DTOs.Response
 {
-    public class Seminar
+    public class SeminarResponse
     {
         public int SeminarId { get; set; }
 
@@ -26,13 +26,10 @@ namespace ARSPlatform.MODEL.Entities
         // Existing AI feature
         public string? AiSummary { get; set; }
 
-        // Existing seminar feedback feature
+        // Existing feedback feature
         public string? Feedback { get; set; }
 
-        // Navigation
-        public virtual User? Organizer { get; set; }
-
-        public virtual ICollection<SeminarParticipant> SeminarParticipants { get; set; }
-            = new List<SeminarParticipant>();
+        public List<SeminarParticipantResponse> Participants { get; set; }
+            = new();
     }
 }
