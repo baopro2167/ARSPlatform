@@ -11,19 +11,19 @@ namespace ARSPlatform.SERVICE.Mapping
         {
             // =========================
             // User Mapping
-            CreateMap<User, UserResponse>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserId))
-                .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => (src.UserRoles != null && src.UserRoles.Any() && src.UserRoles.First().Role != null) ? src.UserRoles.First().Role!.Name : string.Empty));
-            CreateMap<RegisterRequest, User>()
-                .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
-                .ForMember(dest => dest.UserRoles, opt => opt.Ignore());
+            // =========================
 
             CreateMap<User, UserResponse>()
                 .ForMember(
+                    dest => dest.Id,
+                    opt => opt.MapFrom(src => src.UserId))
+                .ForMember(
                     dest => dest.RoleName,
-                    opt => opt.MapFrom(
-                        src => src.Role != null
-                            ? src.Role.Name
+                    opt => opt.MapFrom(src =>
+                        src.UserRoles != null &&
+                        src.UserRoles.Any() &&
+                        src.UserRoles.First().Role != null
+                            ? src.UserRoles.First().Role!.Name
                             : string.Empty));
 
             CreateMap<RegisterRequest, User>()
@@ -31,7 +31,7 @@ namespace ARSPlatform.SERVICE.Mapping
                     dest => dest.PasswordHash,
                     opt => opt.Ignore())
                 .ForMember(
-                    dest => dest.Role,
+                    dest => dest.UserRoles,
                     opt => opt.Ignore());
 
 
@@ -40,15 +40,28 @@ namespace ARSPlatform.SERVICE.Mapping
             // =========================
 
             CreateMap<Paper, PaperResponse>()
-            CreateMap<Paper, PaperResponse>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.PaperId))
-                .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.CreatorId))
-                .ForMember(dest => dest.AuthorName, opt => opt.MapFrom(src => src.Creator != null ? src.Creator.FullName : string.Empty));
+                .ForMember(
+                    dest => dest.Id,
+                    opt => opt.MapFrom(src => src.PaperId))
+                .ForMember(
+                    dest => dest.AuthorId,
+                    opt => opt.MapFrom(src => src.CreatorId))
+                .ForMember(
+                    dest => dest.AuthorName,
+                    opt => opt.MapFrom(src =>
+                        src.Creator != null
+                            ? src.Creator.FullName
+                            : string.Empty));
+
             CreateMap<PaperCreateRequest, Paper>();
 
             CreateMap<PaperUpdateRequest, Paper>();
 
+
+            // =========================
             // Seminar Mapping
+            // =========================
+
             CreateMap<Seminar, SeminarResponse>()
                 .ForMember(
                     dest => dest.Participants,

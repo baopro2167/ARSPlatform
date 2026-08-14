@@ -15,5 +15,9 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public int? PublicationCount { get; set; }
 
         public string? SyncStatus { get; set; }
+
+        public int? SubFieldId { get; set; }
+
+        public decimal? ReviewFee { get; set; }
     }
 }

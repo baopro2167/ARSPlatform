@@ -5,3 +5,4 @@ namespace ARSPlatform.REPO.Interfaces
     public interface ISeminarRepository : IGenericRepository<Seminar>
     {
     }
+}

@@ -12,3 +12,4 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public string? ParticipantEvaluation { get; set; }
     }
+}

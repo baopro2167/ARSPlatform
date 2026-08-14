@@ -126,13 +126,14 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 // 6. Lưu kết quả vào database
                 seminar.AiSummary = summaryMarkdown;
 
-                var updatedSeminar =
-                    await _seminarRepository.UpdateAsync(seminar);
+                _seminarRepository.Update(seminar);
+
+                await _seminarRepository.SaveChangesAsync();
 
                 return new SeminarAudioSummaryResponse
                 {
-                    SeminarId = updatedSeminar.SeminarId,
-                    AiSummary = updatedSeminar.AiSummary ?? string.Empty,
+                    SeminarId = seminar.SeminarId,
+                    AiSummary = seminar.AiSummary ?? string.Empty,
                     UpdatedAt = DateTime.UtcNow
                 };
             }

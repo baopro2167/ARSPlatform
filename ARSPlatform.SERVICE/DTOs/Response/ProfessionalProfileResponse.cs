@@ -17,5 +17,9 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? SyncStatus { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
+
+        public int? SubFieldId { get; set; }
+
+        public decimal? ReviewFee { get; set; }
     }
 }

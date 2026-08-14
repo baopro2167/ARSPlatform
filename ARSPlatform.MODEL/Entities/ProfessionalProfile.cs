@@ -19,5 +19,11 @@ public partial class ProfessionalProfile
 
     public DateTime? UpdatedAt { get; set; }
 
+    public int? SubFieldId { get; set; }
+
+    public decimal? ReviewFee { get; set; }
+
     public virtual User User { get; set; } = null!;
+
+    public virtual SubField? SubField { get; set; }
 }

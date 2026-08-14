@@ -31,3 +31,5 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public List<SeminarParticipantResponse> Participants { get; set; }
             = new();
+    }
+}   

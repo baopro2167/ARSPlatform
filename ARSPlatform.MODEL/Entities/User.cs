@@ -31,6 +31,10 @@ public partial class User
 
     public DateTime? UpdatedAt { get; set; }
 
+    public bool? IsAvailableForReview { get; set; }
+
+    public int? MaxSimultaneousPapers { get; set; }
+
     public virtual ICollection<CommentVote> CommentVotes { get; set; } = new List<CommentVote>();
 
     public virtual ICollection<DetailedEvaluation> DetailedEvaluations { get; set; } = new List<DetailedEvaluation>();
