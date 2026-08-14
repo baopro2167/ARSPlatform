@@ -29,7 +29,8 @@ namespace ARSPlatform.API.CONTROLLER
             }
             catch (System.Exception ex)
             {
-                return BadRequest(new { Message = ex.Message });
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return BadRequest(new { Message = message });
             }
         }
 
@@ -41,6 +42,26 @@ namespace ARSPlatform.API.CONTROLLER
                 return Unauthorized(new { Message = "Invalid username or password." });
 
             return Ok(result);
+        }
+
+        [HttpPost("verify-email")]
+        public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+        {
+            var result = await _authService.VerifyEmailAsync(token);
+            if (!result)
+                return BadRequest(new { Message = "Email verification failed. Invalid or expired token." });
+
+            return Ok(new { Message = "Email verified successfully!" });
+        }
+
+        [HttpPost("send-approval-email")]
+        public async Task<IActionResult> SendApprovalEmail([FromQuery] string email)
+        {
+            var result = await _authService.SendApprovalEmailAsync(email);
+            if (!result)
+                return BadRequest(new { Message = "Failed to send approval email. User not found." });
+
+            return Ok(new { Message = "Approval email sent successfully!" });
         }
     }
 }

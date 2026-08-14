@@ -28,7 +28,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetPaperById(Guid id)
+        public async Task<IActionResult> GetPaperById(int id)
         {
             var paper = await _paperService.GetPaperByIdAsync(id);
             if (paper == null)
@@ -47,7 +47,7 @@ namespace ARSPlatform.API.CONTROLLER
 
             try
             {
-                var authorId = Guid.Parse(currentUserIdStr);
+                var authorId = int.Parse(currentUserIdStr);
                 var createdPaper = await _paperService.CreatePaperAsync(request, authorId);
                 return CreatedAtAction(nameof(GetPaperById), new { id = createdPaper.Id }, createdPaper);
             }
@@ -59,7 +59,7 @@ namespace ARSPlatform.API.CONTROLLER
 
         [HttpPut("{id}")]
         [Authorize]
-        public async Task<IActionResult> UpdatePaper(Guid id, [FromBody] PaperUpdateRequest request)
+        public async Task<IActionResult> UpdatePaper(int id, [FromBody] PaperUpdateRequest request)
         {
             var paper = await _paperService.GetPaperByIdAsync(id);
             if (paper == null)
@@ -68,7 +68,7 @@ namespace ARSPlatform.API.CONTROLLER
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            if (currentUserRole != "Admin" && paper.AuthorId.ToString() != currentUserIdStr)
+            if (currentUserRole != "Admin" && paper.AuthorId?.ToString() != currentUserIdStr)
             {
                 return Forbid();
             }
@@ -86,7 +86,7 @@ namespace ARSPlatform.API.CONTROLLER
 
         [HttpDelete("{id}")]
         [Authorize]
-        public async Task<IActionResult> DeletePaper(Guid id)
+        public async Task<IActionResult> DeletePaper(int id)
         {
             var paper = await _paperService.GetPaperByIdAsync(id);
             if (paper == null)
@@ -95,7 +95,7 @@ namespace ARSPlatform.API.CONTROLLER
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            if (currentUserRole != "Admin" && paper.AuthorId.ToString() != currentUserIdStr)
+            if (currentUserRole != "Admin" && paper.AuthorId?.ToString() != currentUserIdStr)
             {
                 return Forbid();
             }

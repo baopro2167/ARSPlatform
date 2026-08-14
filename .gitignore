@@ -46,8 +46,27 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# =========================
+# Backend Config (Chứa secrets — chỉ dùng appsettings.json.example)
+# =========================
+appsettings.json
+!appsettings.json.example
+
 # =========================
 # Thư mục Build của .NET / C#
 # =========================
 [Bb]in/
 [Oo]bj/
+
+# =========================
+# Frontend / React / Vite
+# =========================
+node_modules/
+dist/
+build/
+.eslintcache
+.vite/
+**/coverage/
+**/dist/
+**/node_modules/

@@ -13,11 +13,11 @@ namespace ARSPlatform.REPOSITORIES
         {
         }
 
-        public async Task<Paper?> GetWithAuthorByIdAsync(Guid id)
+        public async Task<Paper?> GetWithAuthorByIdAsync(int id)
         {
             return await _dbSet
-                .Include(p => p.Author)
-                .FirstOrDefaultAsync(p => p.Id == id);
+                .Include(p => p.Creator)
+                .FirstOrDefaultAsync(p => p.PaperId == id);
         }
     }
 }

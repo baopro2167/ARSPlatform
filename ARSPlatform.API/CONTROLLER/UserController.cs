@@ -30,7 +30,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetUserById(Guid id)
+        public async Task<IActionResult> GetUserById(int id)
         {
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -48,7 +48,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UserUpdateRequest request)
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UserUpdateRequest request)
         {
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -74,7 +74,7 @@ namespace ARSPlatform.API.CONTROLLER
 
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> DeleteUser(Guid id)
+        public async Task<IActionResult> DeleteUser(int id)
         {
             var result = await _userService.DeleteUserAsync(id);
             if (!result)

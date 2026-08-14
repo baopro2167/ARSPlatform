@@ -12,10 +12,16 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         [MaxLength(2000)]
         public string Abstract { get; set; } = string.Empty;
 
-        [MaxLength(100)]
-        public string? Doi { get; set; }
-
         [MaxLength(500)]
         public string? FileUrl { get; set; }
+
+        public bool? Issn { get; set; }
+
+        public bool? IsOpenAccess { get; set; }
+
+        [MaxLength(50)]
+        public string? Quartile { get; set; }
+
+        public int? SubFieldId { get; set; }
     }
 }

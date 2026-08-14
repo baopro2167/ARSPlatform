@@ -2,16 +2,6 @@
 
 namespace ARSPlatform.REPO.Interfaces
 {
-    public interface ISeminarRepository
+    public interface ISeminarRepository : IGenericRepository<Seminar>
     {
-        Task<IEnumerable<Seminar>> GetAllAsync();
-
-        Task<Seminar?> GetByIdAsync(int seminarId);
-
-        Task<Seminar> CreateAsync(Seminar seminar);
-
-        Task<Seminar> UpdateAsync(Seminar seminar);
-
-        Task<bool> DeleteAsync(int seminarId);
     }
-}

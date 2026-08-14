@@ -5,12 +5,13 @@
 		<ProjectReference Include="..\ARSPlatform.MODEL\ARSPlatform.MODELS.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="AutoMapper" Version="13.0.1" />
-		<PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
-		<PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
-	</ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="13.0.1" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
+  </ItemGroup>
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />

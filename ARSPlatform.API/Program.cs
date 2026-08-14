@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using ARSPlatform.SERVICE;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,11 +25,16 @@ builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
 // Register Repositories
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-builder.Services.AddScoped<IPaperRepository, PaperRepository>();
-builder.Services.AddScoped<ISeminarRepository, SeminarRepository>();
-builder.Services.AddScoped<ISeminarParticipantRepository, SeminarParticipantRepository>();
+// Automatically register all repositories ending with "Repository" via reflection
+var repoAssembly = typeof(UserRepository).Assembly;
+foreach (var type in repoAssembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("Repository") && t != typeof(GenericRepository<>)))
+{
+    var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.Name == $"I{type.Name}");
+    if (interfaceType != null)
+    {
+        builder.Services.AddScoped(interfaceType, type);
+    }
+}
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -66,6 +72,26 @@ builder.Services.AddHttpClient<IAudioSummaryService, AudioSummaryService>(client
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPaperService, PaperService>();
+
+// Register PayOS Settings
+builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddHttpClient();
+
+// Register Email Settings and Service
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 // Configure Controllers
 builder.Services.AddControllers();
@@ -173,6 +199,38 @@ if (app.Environment.IsDevelopment())
 }
 
 // app.UseHttpsRedirection();
+
+// Automatically apply migrations and seed data on startup
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated();
+
+    try
+    {
+        // Drop the old unique constraint that doesn't allow multiple NULLs
+        context.Database.ExecuteSqlRaw(@"
+            IF EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ__User__A6FBF2FBCD0C569B' AND type = 'UQ')
+            BEGIN
+                ALTER TABLE [dbo].[User] DROP CONSTRAINT [UQ__User__A6FBF2FBCD0C569B];
+            END
+        ");
+
+        // Recreate it as a filtered index that allows multiple NULLs but enforces uniqueness for non-null GoogleId
+        context.Database.ExecuteSqlRaw(@"
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UX_User_GoogleId' AND object_id = OBJECT_ID('dbo.User'))
+            BEGIN
+                CREATE UNIQUE NONCLUSTERED INDEX UX_User_GoogleId ON [dbo].[User](GoogleId) WHERE GoogleId IS NOT NULL;
+            END
+        ");
+    }
+    catch (System.Exception ex)
+    {
+        Console.WriteLine($"Error updating GoogleId unique index: {ex.Message}");
+    }
+}
+
+app.UseCors("AllowAll");
 
 app.UseCors("AllowAll");
 

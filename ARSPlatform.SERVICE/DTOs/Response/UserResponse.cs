@@ -4,11 +4,18 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 {
     public class UserResponse
     {
-        public Guid Id { get; set; }
-        public string Username { get; set; } = string.Empty;
+        public int Id { get; set; }
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
-        public string? OrcidId { get; set; }
+        public string? GoogleId { get; set; }
+        public string? AvatarUrl { get; set; }
+        public bool? IsEmailVerified { get; set; }
+        public bool? IsActive { get; set; }
+        public int? AccountTier { get; set; }
+        public string? VerificationStatus { get; set; }
+        public string? ProofDocumentUrl { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public string RoleName { get; set; } = string.Empty;
     }
 }
