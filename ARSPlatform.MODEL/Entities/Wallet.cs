@@ -13,7 +13,11 @@ public partial class Wallet
 
     public DateTime? UpdatedAt { get; set; }
 
-    public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+    public virtual ICollection<Transaction> Transactions { get; set; }
+        = new List<Transaction>();
 
     public virtual User? User { get; set; }
+
+    public virtual ICollection<WithdrawalRequest> WithdrawalRequests { get; set; }
+        = new List<WithdrawalRequest>();
 }

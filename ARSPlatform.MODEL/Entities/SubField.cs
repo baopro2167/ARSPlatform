@@ -20,4 +20,7 @@ public partial class SubField
     public virtual MajorField? MajorField { get; set; }
 
     public virtual ICollection<Paper> Papers { get; set; } = new List<Paper>();
+
+    public virtual ICollection<ProfessionalProfile> ProfessionalProfiles { get; set; }
+    = new List<ProfessionalProfile>();
 }
