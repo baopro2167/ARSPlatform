@@ -310,6 +310,7 @@ public partial class AppDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.TotalCitations).HasDefaultValue(0);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.ReviewFee).HasColumnType("decimal(15, 2)");
 
             entity.HasOne(d => d.User).WithOne(p => p.ProfessionalProfile)
                 .HasForeignKey<ProfessionalProfile>(d => d.UserId)
