@@ -230,7 +230,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.UseCors("AllowAll");
 
 app.UseCors("AllowAll");
 

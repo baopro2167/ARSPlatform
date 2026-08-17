@@ -17,5 +17,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public int? MaxParticipants { get; set; }
 
         public bool? IsReminderSent { get; set; }
+
+        public string? Status { get; set; }
     }
 }
