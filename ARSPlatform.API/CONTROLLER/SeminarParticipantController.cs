@@ -1,21 +1,13 @@
-using Microsoft.AspNetCore.Mvc;
+using ARSPlatform.MODEL.Entities;
+using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.SERVICE.DTOs.Request;
+using ARSPlatform.SERVICE.DTOs.Response;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
-using ARSPlatform.SERVICE.DTOs.Request;
-using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
-using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
-using ARSPlatform.SERVICE.DTOs.Request;
-using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {

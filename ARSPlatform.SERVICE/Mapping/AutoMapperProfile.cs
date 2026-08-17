@@ -61,6 +61,9 @@ namespace ARSPlatform.SERVICE.Mapping
             // Generated Mappings
             // =========================================================
 
+            CreateMap<AuditLog, AuditLogResponse>();
+            CreateMap<AuditLogCreateRequest, AuditLog>();
+
             CreateMap<CommentVote, CommentVoteResponse>();
             CreateMap<CommentVoteCreateRequest, CommentVote>();
             CreateMap<CommentVoteUpdateRequest, CommentVote>();

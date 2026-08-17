@@ -12,6 +12,7 @@ public partial class AppDbContext : DbContext
     {
     }
 
+    public virtual DbSet<AuditLog> AuditLogs { get; set; }
     public virtual DbSet<CommentVote> CommentVotes { get; set; }
 
     public virtual DbSet<DetailedEvaluation> DetailedEvaluations { get; set; }
@@ -74,6 +75,44 @@ public partial class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId)
+                .HasName("PK_AuditLog");
+
+            entity.Property(e => e.AdminName)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.Action)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Target)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+
+            entity.Property(e => e.TargetId)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.Timestamp)
+                .HasColumnType("datetime2")
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(e => e.Admin)
+                .WithMany()
+                .HasForeignKey(e => e.AdminId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_AuditLog_User");
+
+            entity.HasIndex(e => e.AdminId)
+                .HasDatabaseName("IX_AuditLog_AdminId");
+
+            entity.HasIndex(e => e.Timestamp)
+                .HasDatabaseName("IX_AuditLog_Timestamp")
+                .IsDescending();
+        });
+
         modelBuilder.Entity<CommentVote>(entity =>
         {
             entity.HasKey(e => new { e.UserId, e.ForumCommentId });
