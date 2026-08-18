@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Linq;
+using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
@@ -9,224 +10,191 @@ namespace ARSPlatform.SERVICE.Mapping
     {
         public AutoMapperProfile()
         {
-            // =========================================================
-            // User Mapping
-            // =========================================================
-
+            // User
             CreateMap<User, UserResponse>()
-                .ForMember(
-                    dest => dest.Id,
-                    opt => opt.MapFrom(src => src.UserId))
-                .ForMember(
-                    dest => dest.RoleName,
-                    opt => opt.MapFrom(src =>
-                        src.UserRoles != null &&
-                        src.UserRoles.Any() &&
-                        src.UserRoles.First().Role != null
-                            ? src.UserRoles.First().Role!.Name
-                            : string.Empty));
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserId))
+                .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src =>
+                    src.UserRoles != null && src.UserRoles.Any() && src.UserRoles.First().Role != null
+                        ? src.UserRoles.First().Role!.Name
+                        : string.Empty));
 
             CreateMap<RegisterRequest, User>()
-                .ForMember(
-                    dest => dest.PasswordHash,
-                    opt => opt.Ignore())
-                .ForMember(
-                    dest => dest.UserRoles,
-                    opt => opt.Ignore());
+                .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
+                .ForMember(dest => dest.UserRoles, opt => opt.Ignore());
 
-
-            // =========================================================
-            // Paper Mapping
-            // =========================================================
-
+            // Paper
             CreateMap<Paper, PaperResponse>()
-                .ForMember(
-                    dest => dest.Id,
-                    opt => opt.MapFrom(src => src.PaperId))
-                .ForMember(
-                    dest => dest.AuthorId,
-                    opt => opt.MapFrom(src => src.CreatorId))
-                .ForMember(
-                    dest => dest.AuthorName,
-                    opt => opt.MapFrom(src =>
-                        src.Creator != null
-                            ? src.Creator.FullName
-                            : string.Empty));
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.PaperId))
+                .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.CreatorId))
+                .ForMember(dest => dest.AuthorName, opt => opt.MapFrom(src =>
+                    src.Creator != null ? src.Creator.FullName : string.Empty));
 
             CreateMap<PaperCreateRequest, Paper>();
             CreateMap<PaperUpdateRequest, Paper>();
 
-
-            // =========================================================
-            // Generated Mappings
-            // =========================================================
-
+            // AuditLog
             CreateMap<AuditLog, AuditLogResponse>();
             CreateMap<AuditLogCreateRequest, AuditLog>();
 
+            // CommentVote
             CreateMap<CommentVote, CommentVoteResponse>();
             CreateMap<CommentVoteCreateRequest, CommentVote>();
             CreateMap<CommentVoteUpdateRequest, CommentVote>();
 
+            // DetailedEvaluation
             CreateMap<DetailedEvaluation, DetailedEvaluationResponse>();
             CreateMap<DetailedEvaluationCreateRequest, DetailedEvaluation>();
             CreateMap<DetailedEvaluationUpdateRequest, DetailedEvaluation>();
 
+            // Follower
             CreateMap<Follower, FollowerResponse>();
             CreateMap<FollowerCreateRequest, Follower>();
             CreateMap<FollowerUpdateRequest, Follower>();
 
+            // ForumComment
             CreateMap<ForumComment, ForumCommentResponse>();
             CreateMap<ForumCommentCreateRequest, ForumComment>();
             CreateMap<ForumCommentUpdateRequest, ForumComment>();
 
+            // GroupMember
             CreateMap<GroupMember, GroupMemberResponse>();
             CreateMap<GroupMemberCreateRequest, GroupMember>();
             CreateMap<GroupMemberUpdateRequest, GroupMember>();
 
+            // GuidanceProject
             CreateMap<GuidanceProject, GuidanceProjectResponse>();
             CreateMap<GuidanceProjectCreateRequest, GuidanceProject>();
             CreateMap<GuidanceProjectUpdateRequest, GuidanceProject>();
 
+            // LearningMaterial
             CreateMap<LearningMaterial, LearningMaterialResponse>();
             CreateMap<LearningMaterialCreateRequest, LearningMaterial>();
             CreateMap<LearningMaterialUpdateRequest, LearningMaterial>();
 
+            // MajorField
             CreateMap<MajorField, MajorFieldResponse>();
             CreateMap<MajorFieldCreateRequest, MajorField>();
             CreateMap<MajorFieldUpdateRequest, MajorField>();
 
+            // MembershipPackage
             CreateMap<MembershipPackage, MembershipPackageResponse>();
             CreateMap<MembershipPackageCreateRequest, MembershipPackage>();
             CreateMap<MembershipPackageUpdateRequest, MembershipPackage>();
 
+            // MembershipPurchase
             CreateMap<MembershipPurchase, MembershipPurchaseResponse>();
             CreateMap<MembershipPurchaseCreateRequest, MembershipPurchase>();
             CreateMap<MembershipPurchaseUpdateRequest, MembershipPurchase>();
 
+            // Notification
             CreateMap<Notification, NotificationResponse>();
             CreateMap<NotificationCreateRequest, Notification>();
             CreateMap<NotificationUpdateRequest, Notification>();
 
+            // PhasedReport
             CreateMap<PhasedReport, PhasedReportResponse>();
             CreateMap<PhasedReportCreateRequest, PhasedReport>();
             CreateMap<PhasedReportUpdateRequest, PhasedReport>();
 
-            CreateMap<ProfessionalProfile, ProfessionalProfileResponse>();
+            // ProfessionalProfile
+            CreateMap<ProfessionalProfile, ProfessionalProfileResponse>()
+                .ForMember(dest => dest.FullName, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.FullName : null))
+                .ForMember(dest => dest.Email, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.Email : null))
+                .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.AvatarUrl : null))
+                .ForMember(dest => dest.SubFieldName, opt => opt.MapFrom(src =>
+                    src.SubField != null ? src.SubField.Name : null))
+                .ForMember(dest => dest.MajorFieldId, opt => opt.MapFrom(src =>
+                    src.SubField != null ? src.SubField.MajorFieldId : null))
+                .ForMember(dest => dest.MajorFieldName, opt => opt.MapFrom(src =>
+                    src.SubField != null && src.SubField.MajorField != null
+                        ? src.SubField.MajorField.Name
+                        : null));
+
             CreateMap<ProfessionalProfileCreateRequest, ProfessionalProfile>();
             CreateMap<ProfessionalProfileUpdateRequest, ProfessionalProfile>();
 
+            // Profile
             CreateMap<ARSPlatform.MODEL.Entities.Profile, ProfileResponse>();
             CreateMap<ProfileCreateRequest, ARSPlatform.MODEL.Entities.Profile>();
             CreateMap<ProfileUpdateRequest, ARSPlatform.MODEL.Entities.Profile>();
 
+            // Report
             CreateMap<Report, ReportResponse>();
             CreateMap<ReportCreateRequest, Report>();
             CreateMap<ReportUpdateRequest, Report>();
 
+            // ResearchGroup
             CreateMap<ResearchGroup, ResearchGroupResponse>();
             CreateMap<ResearchGroupCreateRequest, ResearchGroup>();
             CreateMap<ResearchGroupUpdateRequest, ResearchGroup>();
 
+            // ResearchTopic
             CreateMap<ResearchTopic, ResearchTopicResponse>();
             CreateMap<ResearchTopicCreateRequest, ResearchTopic>();
             CreateMap<ResearchTopicUpdateRequest, ResearchTopic>();
 
-            CreateMap<ReviewRequest, ReviewRequestResponse>();
+            // ReviewRequest
+            CreateMap<ReviewRequest, ReviewRequestResponse>()
+                .ForMember(dest => dest.ReviewerName, opt => opt.MapFrom(src =>
+                    src.Reviewer != null ? src.Reviewer.FullName : null))
+                .ForMember(dest => dest.ReviewerEmail, opt => opt.MapFrom(src =>
+                    src.Reviewer != null ? src.Reviewer.Email : null))
+                .ForMember(dest => dest.ReviewerAvatarUrl, opt => opt.MapFrom(src =>
+                    src.Reviewer != null ? src.Reviewer.AvatarUrl : null));
+
             CreateMap<ReviewRequestCreateRequest, ReviewRequest>();
             CreateMap<ReviewRequestUpdateRequest, ReviewRequest>();
 
-
-            // =========================================================
-            // Seminar Mapping
-            // =========================================================
-
+            // Seminar
             CreateMap<Seminar, SeminarResponse>()
-                .ForMember(
-                    dest => dest.Participants,
-                    opt => opt.MapFrom(
-                        src => src.SeminarParticipants));
+                .ForMember(dest => dest.Participants, opt => opt.MapFrom(src => src.SeminarParticipants));
 
             CreateMap<SeminarCreateRequest, Seminar>();
             CreateMap<SeminarUpdateRequest, Seminar>();
 
-
-            // =========================================================
-            // SeminarParticipant Mapping
-            // =========================================================
-
+            // SeminarParticipant
             CreateMap<SeminarParticipant, SeminarParticipantResponse>();
             CreateMap<SeminarParticipantCreateRequest, SeminarParticipant>();
             CreateMap<SeminarParticipantUpdateRequest, SeminarParticipant>();
 
-
-            // =========================================================
             // SharedMaterial
-            // =========================================================
-
             CreateMap<SharedMaterial, SharedMaterialResponse>();
             CreateMap<SharedMaterialCreateRequest, SharedMaterial>();
             CreateMap<SharedMaterialUpdateRequest, SharedMaterial>();
 
-
-            // =========================================================
             // SubField
-            // =========================================================
-
             CreateMap<SubField, SubFieldResponse>()
-      .ForMember(
-          dest => dest.MajorFieldName,
-          opt => opt.MapFrom(
-              src => src.MajorField != null
-                  ? src.MajorField.Name
-                  : null));
+                .ForMember(dest => dest.MajorFieldName, opt => opt.MapFrom(src =>
+                    src.MajorField != null ? src.MajorField.Name : null));
 
             CreateMap<SubFieldCreateRequest, SubField>();
             CreateMap<SubFieldUpdateRequest, SubField>();
 
-
-            // =========================================================
             // Transaction
-            // =========================================================
-
             CreateMap<Transaction, TransactionResponse>();
             CreateMap<TransactionCreateRequest, Transaction>();
             CreateMap<TransactionUpdateRequest, Transaction>();
 
-
-            // =========================================================
             // UserRole
-            // =========================================================
-
             CreateMap<UserRole, UserRoleResponse>();
             CreateMap<UserRoleCreateRequest, UserRole>();
             CreateMap<UserRoleUpdateRequest, UserRole>();
 
-
-            // =========================================================
             // UserToken
-            // =========================================================
-
             CreateMap<UserToken, UserTokenResponse>();
             CreateMap<UserTokenCreateRequest, UserToken>();
             CreateMap<UserTokenUpdateRequest, UserToken>();
 
-
-            // =========================================================
             // Wallet
-            // =========================================================
-
             CreateMap<Wallet, WalletResponse>();
             CreateMap<WalletCreateRequest, Wallet>();
             CreateMap<WalletUpdateRequest, Wallet>();
 
-
-            // =========================================================
             // WithdrawalRequest
-            // =========================================================
-
             CreateMap<WithdrawalRequest, WithdrawalRequestResponse>();
-
             CreateMap<WithdrawalRequestCreateRequest, WithdrawalRequest>();
         }
     }
