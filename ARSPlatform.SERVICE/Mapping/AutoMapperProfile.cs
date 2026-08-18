@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System.Text.Json;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -14,7 +15,9 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<User, UserResponse>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserId))
                 .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src =>
-                    src.UserRoles != null && src.UserRoles.Any() && src.UserRoles.First().Role != null
+                    src.UserRoles != null &&
+                    src.UserRoles.Any() &&
+                    src.UserRoles.First().Role != null
                         ? src.UserRoles.First().Role!.Name
                         : string.Empty));
 
@@ -96,7 +99,7 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<PhasedReportCreateRequest, PhasedReport>();
             CreateMap<PhasedReportUpdateRequest, PhasedReport>();
 
-            // ProfessionalProfile
+            // ProfessionalProfile - Mục 3A
             CreateMap<ProfessionalProfile, ProfessionalProfileResponse>()
                 .ForMember(dest => dest.FullName, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.FullName : null))
@@ -116,10 +119,28 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<ProfessionalProfileCreateRequest, ProfessionalProfile>();
             CreateMap<ProfessionalProfileUpdateRequest, ProfessionalProfile>();
 
-            // Profile
-            CreateMap<ARSPlatform.MODEL.Entities.Profile, ProfileResponse>();
-            CreateMap<ProfileCreateRequest, ARSPlatform.MODEL.Entities.Profile>();
-            CreateMap<ProfileUpdateRequest, ARSPlatform.MODEL.Entities.Profile>();
+            // Profile - F.2
+            CreateMap<ARSPlatform.MODEL.Entities.Profile, ProfileResponse>()
+                .ForMember(dest => dest.Email, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.Email : null))
+                .ForMember(dest => dest.Keywords, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.Keywords)
+                        ? Array.Empty<string>()
+                        : JsonSerializer.Deserialize<string[]>(
+                            src.Keywords,
+                            (JsonSerializerOptions?)null) ?? Array.Empty<string>()));
+
+            CreateMap<ProfileCreateRequest, ARSPlatform.MODEL.Entities.Profile>()
+                .ForMember(dest => dest.Keywords, opt => opt.MapFrom(src =>
+                    JsonSerializer.Serialize(
+                        src.Keywords ?? Array.Empty<string>(),
+                        (JsonSerializerOptions?)null)));
+
+            CreateMap<ProfileUpdateRequest, ARSPlatform.MODEL.Entities.Profile>()
+                .ForMember(dest => dest.Keywords, opt => opt.MapFrom(src =>
+                    JsonSerializer.Serialize(
+                        src.Keywords ?? Array.Empty<string>(),
+                        (JsonSerializerOptions?)null)));
 
             // Report
             CreateMap<Report, ReportResponse>();
@@ -136,7 +157,7 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<ResearchTopicCreateRequest, ResearchTopic>();
             CreateMap<ResearchTopicUpdateRequest, ResearchTopic>();
 
-            // ReviewRequest
+            // ReviewRequest - Mục 3A
             CreateMap<ReviewRequest, ReviewRequestResponse>()
                 .ForMember(dest => dest.ReviewerName, opt => opt.MapFrom(src =>
                     src.Reviewer != null ? src.Reviewer.FullName : null))
@@ -165,7 +186,7 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<SharedMaterialCreateRequest, SharedMaterial>();
             CreateMap<SharedMaterialUpdateRequest, SharedMaterial>();
 
-            // SubField
+            // SubField - Mục 2
             CreateMap<SubField, SubFieldResponse>()
                 .ForMember(dest => dest.MajorFieldName, opt => opt.MapFrom(src =>
                     src.MajorField != null ? src.MajorField.Name : null));

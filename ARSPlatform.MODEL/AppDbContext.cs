@@ -14,68 +14,38 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<AuditLog> AuditLogs { get; set; }
     public virtual DbSet<CommentVote> CommentVotes { get; set; }
-
     public virtual DbSet<DetailedEvaluation> DetailedEvaluations { get; set; }
-
     public virtual DbSet<Follower> Followers { get; set; }
-
     public virtual DbSet<ForumComment> ForumComments { get; set; }
-
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
-
     public virtual DbSet<GuidanceProject> GuidanceProjects { get; set; }
-
     public virtual DbSet<LearningMaterial> LearningMaterials { get; set; }
-
     public virtual DbSet<MajorField> MajorFields { get; set; }
-
     public virtual DbSet<MembershipPackage> MembershipPackages { get; set; }
-
     public virtual DbSet<MembershipPurchase> MembershipPurchases { get; set; }
-
     public virtual DbSet<Notification> Notifications { get; set; }
-
     public virtual DbSet<Paper> Papers { get; set; }
-
     public virtual DbSet<PhasedReport> PhasedReports { get; set; }
-
     public virtual DbSet<ProfessionalProfile> ProfessionalProfiles { get; set; }
-
     public virtual DbSet<Profile> Profiles { get; set; }
-
     public virtual DbSet<Report> Reports { get; set; }
-
     public virtual DbSet<ResearchGroup> ResearchGroups { get; set; }
-
     public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
-
     public virtual DbSet<ReviewRequest> ReviewRequests { get; set; }
-
     public virtual DbSet<Role> Roles { get; set; }
-
     public virtual DbSet<Seminar> Seminars { get; set; }
-
     public virtual DbSet<SeminarParticipant> SeminarParticipants { get; set; }
-
     public virtual DbSet<SharedMaterial> SharedMaterials { get; set; }
-
     public virtual DbSet<SubField> SubFields { get; set; }
-
     public virtual DbSet<Transaction> Transactions { get; set; }
-
     public virtual DbSet<User> Users { get; set; }
-
     public virtual DbSet<UserRole> UserRoles { get; set; }
-
     public virtual DbSet<UserToken> UserTokens { get; set; }
-
     public virtual DbSet<Wallet> Wallets { get; set; }
-
     public virtual DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.HasKey(e => e.LogId)
@@ -117,7 +87,8 @@ public partial class AppDbContext : DbContext
         {
             entity.HasKey(e => new { e.UserId, e.ForumCommentId });
 
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.ForumComment).WithMany(p => p.CommentVotes)
                 .HasForeignKey(d => d.ForumCommentId)
@@ -133,7 +104,8 @@ public partial class AppDbContext : DbContext
         {
             entity.HasIndex(e => e.ReviewRequestId, "UQ__Detailed__B13067656CE733B3").IsUnique();
 
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
 
             entity.Property(e => e.FinalDecision)
                 .HasMaxLength(50)
@@ -159,7 +131,8 @@ public partial class AppDbContext : DbContext
         {
             entity.HasKey(e => new { e.FollowerId, e.FollowedId });
 
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.Followed).WithMany(p => p.FollowerFolloweds)
                 .HasForeignKey(d => d.FollowedId)
@@ -176,9 +149,14 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_ForumComments_update"));
 
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.UpvoteCount).HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.UpvoteCount)
+                .HasDefaultValue(0);
 
             entity.HasOne(d => d.Paper).WithMany(p => p.ForumComments)
                 .HasForeignKey(d => d.PaperId)
@@ -199,7 +177,8 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false);
 
-            entity.Property(e => e.JoinedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.JoinedAt)
+                .HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.ResearchGroup).WithMany(p => p.GroupMembers)
                 .HasForeignKey(d => d.ResearchGroupId)
@@ -213,7 +192,8 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<GuidanceProject>(entity =>
         {
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
 
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
@@ -234,7 +214,8 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<LearningMaterial>(entity =>
         {
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
 
             entity.Property(e => e.Title)
                 .HasMaxLength(255);
@@ -252,7 +233,8 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<MajorField>(entity =>
         {
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
 
             entity.Property(e => e.Name)
                 .HasMaxLength(255);
@@ -437,7 +419,27 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.PhoneNumber)
                 .HasMaxLength(255);
 
-            entity.HasOne(d => d.User).WithOne(p => p.Profile)
+            entity.Property(e => e.FullName)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.AcademicTitle)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.Institution)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.Bio)
+                .HasColumnType("nvarchar(max)");
+
+            entity.Property(e => e.Keywords)
+                .HasColumnType("nvarchar(max)");
+
+            entity.Property(e => e.AvatarInitials)
+                .HasMaxLength(8)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.User)
+                .WithOne(p => p.Profile)
                 .HasForeignKey<Profile>(d => d.UserId)
                 .HasConstraintName("FK__Profile__UserId__31B762FC");
         });
