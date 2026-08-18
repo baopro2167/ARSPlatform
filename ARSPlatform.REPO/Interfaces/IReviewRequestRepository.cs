@@ -4,5 +4,7 @@ namespace ARSPlatform.REPO.Interfaces
 {
     public interface IReviewRequestRepository : IGenericRepository<ReviewRequest>
     {
+        Task<IEnumerable<ReviewRequest>> GetAllWithReviewerAsync();
+        Task<ReviewRequest?> GetByIdWithReviewerAsync(int id);
     }
 }

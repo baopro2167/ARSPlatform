@@ -1,6 +1,7 @@
 ﻿using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace ARSPlatform.REPOSITORIES
 {
@@ -8,6 +9,39 @@ namespace ARSPlatform.REPOSITORIES
     {
         public SubFieldRepository(AppDbContext context) : base(context)
         {
+        }
+
+        public async Task<IEnumerable<SubField>> GetAllWithMajorFieldAsync(int? majorFieldId = null)
+        {
+            var query = _dbSet
+                .AsNoTracking()
+                .Include(x => x.MajorField)
+                .AsQueryable();
+
+            if (majorFieldId.HasValue)
+            {
+                query = query.Where(x => x.MajorFieldId == majorFieldId.Value);
+            }
+
+            return await query
+                .OrderBy(x => x.MajorFieldId)
+                .ThenBy(x => x.SubFieldId)
+                .ToListAsync();
+        }
+
+        public async Task<SubField?> GetByIdWithMajorFieldAsync(int id)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Include(x => x.MajorField)
+                .FirstOrDefaultAsync(x => x.SubFieldId == id);
+        }
+
+        public async Task<bool> HasUsageAsync(int id)
+        {
+            return await _context.ProfessionalProfiles.AnyAsync(x => x.SubFieldId == id)
+                || await _context.Papers.AnyAsync(x => x.SubFieldId == id)
+                || await _context.LearningMaterials.AnyAsync(x => x.SubFieldId == id);
         }
     }
 }

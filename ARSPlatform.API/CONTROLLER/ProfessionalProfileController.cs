@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL.Entities;
@@ -28,7 +27,7 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var items = await _repository.GetAllAsync();
+            var items = await _repository.GetAllWithUserAndFieldAsync();
             var response = _mapper.Map<IEnumerable<ProfessionalProfileResponse>>(items);
             return Ok(response);
         }
@@ -39,39 +38,55 @@ namespace ARSPlatform.API.CONTROLLER
             var item = _mapper.Map<ProfessionalProfile>(request);
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            var response = _mapper.Map<ProfessionalProfileResponse>(item);
-            return Ok(response);
+
+            var created = await _repository.GetByIdWithUserAndFieldAsync(item.UserId);
+            var response = _mapper.Map<ProfessionalProfileResponse>(created);
+            return CreatedAtAction(nameof(GetById), new { id = item.UserId }, response);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
+            var item = await _repository.GetByIdWithUserAndFieldAsync(id);
+            if (item == null)
+            {
+                return NotFound();
+            }
+
             var response = _mapper.Map<ProfessionalProfileResponse>(item);
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
+        [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] ProfessionalProfileUpdateRequest request)
         {
             var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
+            if (item == null)
+            {
+                return NotFound();
+            }
+
             _mapper.Map(request, item);
             _repository.Update(item);
             await _repository.SaveChangesAsync();
-            var response = _mapper.Map<ProfessionalProfileResponse>(item);
+
+            var updated = await _repository.GetByIdWithUserAndFieldAsync(id);
+            var response = _mapper.Map<ProfessionalProfileResponse>(updated);
             return Ok(response);
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
             var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
+            if (item == null)
+            {
+                return NotFound();
+            }
+
             _repository.Delete(item);
             await _repository.SaveChangesAsync();
-            return Ok(new { Message = "Deleted successfully." });
+            return NoContent();
         }
     }
 }
