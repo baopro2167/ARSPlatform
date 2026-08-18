@@ -38,6 +38,9 @@ public partial class User
     public virtual ICollection<CommentVote> CommentVotes { get; set; }
         = new List<CommentVote>();
 
+    public virtual ICollection<ForumPost> ForumPosts { get; set; }
+    = new List<ForumPost>();
+
     public virtual ICollection<DetailedEvaluation> DetailedEvaluations { get; set; }
         = new List<DetailedEvaluation>();
 
