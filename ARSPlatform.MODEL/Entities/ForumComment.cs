@@ -11,6 +11,8 @@ public partial class ForumComment
 
     public int? PaperId { get; set; }
 
+    public int? ForumPostId { get; set; }
+
     public string Content { get; set; } = null!;
 
     public int? ReplyId { get; set; }
@@ -21,11 +23,15 @@ public partial class ForumComment
 
     public DateTime? UpdatedAt { get; set; }
 
-    public virtual ICollection<CommentVote> CommentVotes { get; set; } = new List<CommentVote>();
+    public virtual ICollection<CommentVote> CommentVotes { get; set; }
+        = new List<CommentVote>();
 
-    public virtual ICollection<ForumComment> InverseReply { get; set; } = new List<ForumComment>();
+    public virtual ICollection<ForumComment> InverseReply { get; set; }
+        = new List<ForumComment>();
 
     public virtual Paper? Paper { get; set; }
+
+    public virtual ForumPost? ForumPost { get; set; }
 
     public virtual ForumComment? Reply { get; set; }
 

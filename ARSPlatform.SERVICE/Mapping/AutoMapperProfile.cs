@@ -59,6 +59,39 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<ForumCommentCreateRequest, ForumComment>();
             CreateMap<ForumCommentUpdateRequest, ForumComment>();
 
+            // ForumPost
+            CreateMap<ForumPost, ForumPostResponse>()
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ForumPostId))
+                .ForMember(dest => dest.Author, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.FullName : string.Empty))
+                .ForMember(dest => dest.AuthorAvatar, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.AvatarUrl : null))
+                .ForMember(dest => dest.Timestamp, opt => opt.MapFrom(src => src.CreatedAt))
+                .ForMember(dest => dest.Tags, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.Tags)
+                        ? new List<string>()
+                        : JsonSerializer.Deserialize<List<string>>(
+                            src.Tags,
+                            (JsonSerializerOptions?)null) ?? new List<string>()))
+                .ForMember(dest => dest.Likes, opt => opt.MapFrom(src => src.LikeCount))
+                .ForMember(dest => dest.Comments, opt => opt.MapFrom(src => src.ForumComments.Count))
+                .ForMember(dest => dest.Views, opt => opt.MapFrom(src => src.ViewCount))
+                .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.UserId));
+
+            CreateMap<ForumPostCreateRequest, ForumPost>()
+                .ForMember(dest => dest.Tags, opt => opt.MapFrom(src =>
+                    JsonSerializer.Serialize(
+                        src.Tags ?? new List<string>(),
+                        (JsonSerializerOptions?)null)))
+                .ForMember(dest => dest.ForumPostId, opt => opt.Ignore())
+                .ForMember(dest => dest.UserId, opt => opt.Ignore())
+                .ForMember(dest => dest.LikeCount, opt => opt.Ignore())
+                .ForMember(dest => dest.ViewCount, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.User, opt => opt.Ignore())
+                .ForMember(dest => dest.ForumComments, opt => opt.Ignore());
+
             // GroupMember
             CreateMap<GroupMember, GroupMemberResponse>();
             CreateMap<GroupMemberCreateRequest, GroupMember>();

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Security.Claims;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -36,7 +37,16 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] ForumCommentCreateRequest request)
         {
+            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!int.TryParse(userIdValue, out var userId))
+            {
+                return Unauthorized();
+            }
+
             var item = _mapper.Map<ForumComment>(request);
+            item.UserId = userId;
+
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
             var response = _mapper.Map<ForumCommentResponse>(item);

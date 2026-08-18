@@ -10,7 +10,9 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public int? PaperId { get; set; }
 
-        public string Content { get; set; }
+        public int? ForumPostId { get; set; }
+
+        public string Content { get; set; } = string.Empty;
 
         public int? ReplyId { get; set; }
 

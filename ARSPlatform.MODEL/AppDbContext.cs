@@ -17,6 +17,7 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<DetailedEvaluation> DetailedEvaluations { get; set; }
     public virtual DbSet<Follower> Followers { get; set; }
     public virtual DbSet<ForumComment> ForumComments { get; set; }
+    public virtual DbSet<ForumPost> ForumPosts { get; set; }
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
     public virtual DbSet<GuidanceProject> GuidanceProjects { get; set; }
     public virtual DbSet<LearningMaterial> LearningMaterials { get; set; }
@@ -161,6 +162,10 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Paper).WithMany(p => p.ForumComments)
                 .HasForeignKey(d => d.PaperId)
                 .HasConstraintName("FK__ForumComm__Paper__7B5B524B");
+
+            entity.HasOne(d => d.ForumPost).WithMany(p => p.ForumComments)
+                .HasForeignKey(d => d.ForumPostId)
+                .HasConstraintName("FK_ForumComments_ForumPosts");
 
             entity.HasOne(d => d.Reply).WithMany(p => p.InverseReply)
                 .HasForeignKey(d => d.ReplyId)
