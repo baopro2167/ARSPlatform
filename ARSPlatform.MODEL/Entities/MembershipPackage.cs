@@ -17,5 +17,17 @@ public partial class MembershipPackage
 
     public DateTime? CreatedAt { get; set; }
 
+    public string TargetRole { get; set; } = "RESEARCHER";
+
+    public string BillingCycle { get; set; } = "Monthly";
+
+    public string? Features { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public int SubscriberCount { get; set; }
+
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
     public virtual ICollection<MembershipPurchase> MembershipPurchases { get; set; } = new List<MembershipPurchase>();
 }
