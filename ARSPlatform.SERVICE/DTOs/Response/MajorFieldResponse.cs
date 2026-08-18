@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -6,10 +7,13 @@ namespace ARSPlatform.SERVICE.DTOs.Response
     {
         public int MajorFieldId { get; set; }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         public string? Description { get; set; }
 
         public DateTime? CreatedAt { get; set; }
+
+        public IReadOnlyCollection<SubFieldResponse> SubFields { get; set; }
+            = Array.Empty<SubFieldResponse>();
     }
 }

@@ -173,7 +173,14 @@ namespace ARSPlatform.SERVICE.Mapping
             // SubField
             // =========================================================
 
-            CreateMap<SubField, SubFieldResponse>();
+            CreateMap<SubField, SubFieldResponse>()
+      .ForMember(
+          dest => dest.MajorFieldName,
+          opt => opt.MapFrom(
+              src => src.MajorField != null
+                  ? src.MajorField.Name
+                  : null));
+
             CreateMap<SubFieldCreateRequest, SubField>();
             CreateMap<SubFieldUpdateRequest, SubField>();
 
