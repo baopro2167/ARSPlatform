@@ -140,6 +140,8 @@ namespace ARSPlatform.SERVICE.Mapping
                     src.User != null ? src.User.Email : null))
                 .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.AvatarUrl : null))
+                .ForMember(dest => dest.IsAvailable, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.IsAvailableForReview : null))
                 .ForMember(dest => dest.SubFieldName, opt => opt.MapFrom(src =>
                     src.SubField != null ? src.SubField.Name : null))
                 .ForMember(dest => dest.MajorFieldId, opt => opt.MapFrom(src =>
