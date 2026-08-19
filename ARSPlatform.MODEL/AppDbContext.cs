@@ -20,6 +20,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<ForumComment> ForumComments { get; set; }
 
+    public virtual DbSet<ForumPost> ForumPosts { get; set; }
+
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
 
     public virtual DbSet<GuidanceProject> GuidanceProjects { get; set; }
@@ -148,6 +150,18 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.ForumComments)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK__ForumComm__UserI__7A672E12");
+        });
+
+        modelBuilder.Entity<ForumPost>(entity =>
+        {
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.LikeCount).HasDefaultValue(0);
+            entity.Property(e => e.ViewCount).HasDefaultValue(0);
+
+            entity.HasOne(d => d.User).WithMany(p => p.ForumPosts)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK__ForumPosts__UserId__7D439ABD");
         });
 
         modelBuilder.Entity<GroupMember>(entity =>
