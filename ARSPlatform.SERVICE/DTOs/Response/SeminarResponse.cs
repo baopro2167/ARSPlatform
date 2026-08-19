@@ -13,13 +13,17 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public DateTime EndTime { get; set; }
 
-        public string Content { get; set; }
+        public string Content { get; set; } = string.Empty;
 
         public string? OnlineLink { get; set; }
 
         public int? MaxParticipants { get; set; }
 
         public bool? IsReminderSent { get; set; }
+
+        public bool ReminderEnabled { get; set; }
+
+        public DateTime? ReminderSentAt { get; set; }
 
         public string? Status { get; set; }
 
@@ -32,4 +36,4 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public List<SeminarParticipantResponse> Participants { get; set; }
             = new();
     }
-}   
+}

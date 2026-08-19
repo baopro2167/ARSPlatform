@@ -634,6 +634,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.IsReminderSent)
                 .HasDefaultValue(false);
 
+            entity.Property(e => e.ReminderEnabled)
+                .HasDefaultValue(false);
+
             entity.Property(e => e.MaxParticipants)
                 .HasDefaultValue(0);
 
@@ -652,12 +655,26 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SeminarParticipant>(entity =>
         {
+            entity.Property(e => e.InvitedEmail)
+                .HasMaxLength(255)
+                .IsUnicode(false);
+
             entity.Property(e => e.InvitationStatus)
                 .HasMaxLength(50)
                 .IsUnicode(false);
 
             entity.Property(e => e.ParticipantEvaluation)
                 .HasMaxLength(255);
+
+            entity.HasIndex(e => new { e.SeminarId, e.UserId })
+                .IsUnique()
+                .HasFilter("([UserId] IS NOT NULL)")
+                .HasDatabaseName("UX_SeminarParticipants_Seminar_User");
+
+            entity.HasIndex(e => new { e.SeminarId, e.InvitedEmail })
+                .IsUnique()
+                .HasFilter("([InvitedEmail] IS NOT NULL)")
+                .HasDatabaseName("UX_SeminarParticipants_Seminar_InvitedEmail");
 
             entity.HasOne(d => d.Seminar).WithMany(p => p.SeminarParticipants)
                 .HasForeignKey(d => d.SeminarId)

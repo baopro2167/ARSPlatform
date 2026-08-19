@@ -8,6 +8,8 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public int? UserId { get; set; }
 
+        public string? InvitedEmail { get; set; }
+
         public string? InvitationStatus { get; set; }
 
         public string? ParticipantEvaluation { get; set; }

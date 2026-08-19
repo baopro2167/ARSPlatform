@@ -1,4 +1,5 @@
-﻿using ARSPlatform.MODEL;
+﻿using ARSPlatform.API.HostedServices;
+using ARSPlatform.MODEL;
 using ARSPlatform.REPO;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPOSITORIES;
@@ -69,10 +70,17 @@ builder.Services.AddHttpClient<IAudioSummaryService, AudioSummaryService>(client
     client.Timeout = TimeSpan.FromMinutes(15);
 });
 
+// Register Google Meet Settings and Service
+builder.Services.Configure<GoogleMeetSettings>(
+    builder.Configuration.GetSection("GoogleMeetSettings"));
+builder.Services.AddHttpClient<IGoogleMeetService, GoogleMeetService>();
+
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPaperService, PaperService>();
+builder.Services.AddScoped<ISeminarService, SeminarService>();
+builder.Services.AddHostedService<SeminarAutomationHostedService>();
 
 // Register PayOS Settings
 builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
