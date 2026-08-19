@@ -26,8 +26,20 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] int? userId)
         {
+            if (userId.HasValue)
+            {
+                var item = await _repository.GetByUserIdAsync(userId.Value);
+                if (item == null)
+                {
+                    return Ok(Array.Empty<WalletResponse>());
+                }
+
+                var filteredResponse = _mapper.Map<WalletResponse>(item);
+                return Ok(new[] { filteredResponse });
+            }
+
             var items = await _repository.GetAllAsync();
             var response = _mapper.Map<IEnumerable<WalletResponse>>(items);
             return Ok(response);
