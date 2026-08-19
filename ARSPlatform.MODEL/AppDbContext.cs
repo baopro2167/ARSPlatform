@@ -34,6 +34,7 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
     public virtual DbSet<ReviewRequest> ReviewRequests { get; set; }
     public virtual DbSet<Role> Roles { get; set; }
+    public virtual DbSet<RoleRequest> RoleRequests { get; set; }
     public virtual DbSet<Seminar> Seminars { get; set; }
     public virtual DbSet<SeminarParticipant> SeminarParticipants { get; set; }
     public virtual DbSet<SharedMaterial> SharedMaterials { get; set; }
@@ -572,6 +573,60 @@ public partial class AppDbContext : DbContext
                     CreatedAt = DateTime.UtcNow
                 }
             );
+        });
+
+        modelBuilder.Entity<RoleRequest>(entity =>
+        {
+            entity.HasKey(e => e.RoleRequestId)
+                .HasName("PK_RoleRequests");
+
+            entity.ToTable("RoleRequests");
+
+            entity.Property(e => e.PhoneNumber)
+                .HasMaxLength(50);
+
+            entity.Property(e => e.Affiliation)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.Department)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("PENDING");
+
+            entity.Property(e => e.RequestType)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasDefaultValue("INITIAL_REGISTRATION");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_RoleRequests_User");
+
+            entity.HasOne(d => d.RequestedRole).WithMany()
+                .HasForeignKey(d => d.RequestedRoleId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_RoleRequests_RequestedRole");
+
+            entity.HasOne(d => d.ReviewedByAdmin).WithMany()
+                .HasForeignKey(d => d.ReviewedByAdminId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_RoleRequests_ReviewedByAdmin");
+
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_RoleRequests_UserId");
+
+            entity.HasIndex(e => e.Status)
+                .HasDatabaseName("IX_RoleRequests_Status");
         });
 
         modelBuilder.Entity<Seminar>(entity =>

@@ -1,5 +1,6 @@
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
@@ -17,6 +18,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             try
@@ -35,6 +37,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var result = await _authService.LoginAsync(request);
@@ -45,6 +48,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPost("verify-email")]
+        [AllowAnonymous]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
             var result = await _authService.VerifyEmailAsync(token);

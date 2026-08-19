@@ -21,6 +21,7 @@ namespace ARSPlatform.SERVICES
     {
         private readonly IUserRepository _userRepository;
         private readonly IRoleRepository _roleRepository;
+        private readonly IRoleRequestRepository _roleRequestRepository;
         private readonly IWalletRepository _walletRepository;
         private readonly IProfessionalProfileRepository _professionalProfileRepository;
         private readonly IMapper _mapper;
@@ -30,6 +31,7 @@ namespace ARSPlatform.SERVICES
         public AuthService(
             IUserRepository userRepository,
             IRoleRepository roleRepository,
+            IRoleRequestRepository roleRequestRepository,
             IWalletRepository walletRepository,
             IProfessionalProfileRepository professionalProfileRepository,
             IMapper mapper,
@@ -38,6 +40,7 @@ namespace ARSPlatform.SERVICES
         {
             _userRepository = userRepository;
             _roleRepository = roleRepository;
+            _roleRequestRepository = roleRequestRepository;
             _walletRepository = walletRepository;
             _professionalProfileRepository = professionalProfileRepository;
             _mapper = mapper;
@@ -50,43 +53,79 @@ namespace ARSPlatform.SERVICES
             if (await _userRepository.ExistsAsync(u => u.Email == request.Email))
                 throw new Exception("Email is already registered.");
 
+            var requestableRoles = new[]
+            {
+                "Researcher",
+                "Reviewer",
+                "Lecturer",
+                "Graduate Student"
+            };
+
+            var requestedRoleName = requestableRoles.FirstOrDefault(role =>
+                string.Equals(
+                    role,
+                    request.Role.Trim(),
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (requestedRoleName == null)
+                throw new Exception("Requested role is not allowed for self-registration.");
+
+            var requestedRole = await _roleRepository.GetByNameAsync(requestedRoleName);
+            if (requestedRole == null)
+                throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
+
+            var now = DateTime.UtcNow;
+
             var user = _mapper.Map<User>(request);
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-            user.IsActive = true;
+            user.IsActive = false;
             user.IsEmailVerified = false;
-            user.CreatedAt = DateTime.UtcNow;
-            user.UpdatedAt = DateTime.UtcNow;
+            user.VerificationStatus = "Pending";
+            user.ProofDocumentUrl = request.PdfUrl.Trim();
+            user.CreatedAt = now;
+            user.UpdatedAt = now;
 
-            var defaultRole = await _roleRepository.GetByNameAsync("Researcher");
-            if (defaultRole == null)
-            {
-                defaultRole = new Role { Name = "Researcher", CreatedAt = DateTime.UtcNow };
-                await _roleRepository.AddAsync(defaultRole);
-                await _roleRepository.SaveChangesAsync();
-            }
-            user.UserRoles = new List<UserRole> { new UserRole { RoleId = defaultRole.RoleId, CreatedAt = DateTime.UtcNow } };
+            // Pending accounts have no approved business role in UserRole.
+            // "Guest" is only an effective JWT role for read-only Forum access.
+            user.UserRoles = new List<UserRole>();
 
             await _userRepository.AddAsync(user);
-            await _userRepository.SaveChangesAsync();
 
             // Auto-create ProfessionalProfile for the user
             var professionalProfile = new ProfessionalProfile
             {
-                UserId = user.UserId,
+                User = user,
                 SyncStatus = "pending",
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = now
             };
             await _professionalProfileRepository.AddAsync(professionalProfile);
 
             // Auto-create Wallet for the user
             var wallet = new Wallet
             {
-                UserId = user.UserId,
+                User = user,
                 Balance = 0,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = now
             };
             await _walletRepository.AddAsync(wallet);
 
+            // Create pending role request for Admin review.
+            // The requested role is not inserted into UserRole until Admin approval.
+            var roleRequest = new RoleRequest
+            {
+                User = user,
+                RequestedRoleId = requestedRole.RoleId,
+                PhoneNumber = request.PhoneNumber.Trim(),
+                ProofDocumentUrl = request.PdfUrl.Trim(),
+                Status = "PENDING",
+                RequestType = "INITIAL_REGISTRATION",
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            await _roleRequestRepository.AddAsync(roleRequest);
+
+            // All registration entities share the same scoped AppDbContext.
+            // A single SaveChanges call persists the registration atomically.
             await _userRepository.SaveChangesAsync();
 
             // Send registration email confirmation using MailKit
@@ -107,7 +146,7 @@ namespace ARSPlatform.SERVICES
             var createdUser = await _userRepository.GetWithRoleByIdAsync(user.UserId);
             if (createdUser == null) return null;
 
-            var token = GenerateJwtToken(createdUser);
+            var token = GenerateJwtToken(createdUser, "Guest");
 
             return new AuthResponse
             {
@@ -115,7 +154,10 @@ namespace ARSPlatform.SERVICES
                 Token = token,
                 Username = createdUser.FullName,
                 Email = createdUser.Email,
-                Role = createdUser.UserRoles.FirstOrDefault()?.Role?.Name ?? "Researcher"
+                Role = "Guest",
+                IsEmailVerified = createdUser.IsEmailVerified,
+                IsActive = createdUser.IsActive,
+                VerificationStatus = createdUser.VerificationStatus
             };
         }
 
@@ -125,10 +167,30 @@ namespace ARSPlatform.SERVICES
             if (user == null)
                 return null;
 
-            if (user.IsActive == false)
+            if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return null;
 
-            if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            if (string.Equals(user.VerificationStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            if (string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                var guestToken = GenerateJwtToken(user, "Guest");
+
+                return new AuthResponse
+                {
+                    UserId = user.UserId,
+                    Token = guestToken,
+                    Username = user.FullName,
+                    Email = user.Email,
+                    Role = "Guest",
+                    IsEmailVerified = user.IsEmailVerified,
+                    IsActive = user.IsActive,
+                    VerificationStatus = user.VerificationStatus
+                };
+            }
+
+            if (user.IsActive == false)
                 return null;
 
             var token = GenerateJwtToken(user);
@@ -139,11 +201,14 @@ namespace ARSPlatform.SERVICES
                 Token = token,
                 Username = user.FullName,
                 Email = user.Email,
-                Role = user.UserRoles.FirstOrDefault()?.Role?.Name ?? "Researcher"
+                Role = user.UserRoles.FirstOrDefault()?.Role?.Name,
+                IsEmailVerified = user.IsEmailVerified,
+                IsActive = user.IsActive,
+                VerificationStatus = user.VerificationStatus
             };
         }
 
-        private string GenerateJwtToken(User user)
+        private string GenerateJwtToken(User user, string? effectiveRole = null)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
             var keyString = jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
@@ -154,9 +219,14 @@ namespace ARSPlatform.SERVICES
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Name, user.FullName),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.UserRoles.FirstOrDefault()?.Role?.Name ?? "Researcher")
+                new Claim(ClaimTypes.Email, user.Email)
             };
+
+            var roleName = effectiveRole ?? user.UserRoles.FirstOrDefault()?.Role?.Name;
+            if (!string.IsNullOrWhiteSpace(roleName))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, roleName));
+            }
 
             var token = new JwtSecurityToken(
                 issuer: jwtSettings["Issuer"] ?? "ARSPlatformIssuer",
@@ -270,7 +340,7 @@ namespace ARSPlatform.SERVICES
     </div>
     <div style=""padding: 30px 40px;"">
       <h3 style=""margin-top: 0; font-size: 18px; color: #243257;"">Hello {fullName},</h3>
-      <p style=""line-height: 1.6; font-size: 14px; color: #555555;"">Thank you for registering on the <strong>Academic Research Sharing (ARS)</strong> platform. Please confirm your email address by clicking the button below to activate your account.</p>
+      <p style=""line-height: 1.6; font-size: 14px; color: #555555;"">Thank you for registering on the <strong>Academic Research Sharing (ARS)</strong> platform. Please confirm your email address by clicking the button below. Your account will remain pending until Administrator approval is completed.</p>
       
       <div style=""text-align: center; margin: 30px 0;"">
         <a href=""{verifyUrl}"" style=""background-color: #007aff; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 6px rgba(0,122,255,0.2);"">Verify Email Address</a>
@@ -278,7 +348,7 @@ namespace ARSPlatform.SERVICES
       
       <div style=""background-color: #fff9e6; border: 1px solid #ffe0b2; border-radius: 6px; padding: 15px; margin-top: 25px;"">
         <h4 style=""margin: 0 0 8px 0; color: #e65100; font-size: 14px;"">Account Status Note:</h4>
-        <p style=""margin: 0; font-size: 13px; color: #6d4c41; line-height: 1.5;"">Your verification dossier for the Researcher role has been received and is pending Administrator review. In the meantime, you can log in to participate in the ARS Community Forums.</p>
+        <p style=""margin: 0; font-size: 13px; color: #6d4c41; line-height: 1.5;"">Your account is pending Administrator verification. Until approval, your account has read-only access to public ARS Community Forum posts.</p>
       </div>
     </div>
     <div style=""background-color: #fbfcfd; border-top: 1px solid #f0f2f5; padding: 20px; text-align: center; font-size: 12px; color: #888888;"">

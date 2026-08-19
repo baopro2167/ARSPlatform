@@ -14,7 +14,6 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
     public class ForumCommentController : ControllerBase
     {
         private readonly IForumCommentRepository _repository;
@@ -27,6 +26,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpGet]
+        [Authorize(Policy = "ForumRead")]
         public async Task<IActionResult> GetAll()
         {
             var items = await _repository.GetAllAsync();
@@ -35,6 +35,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPost]
+        [Authorize]
         public async Task<IActionResult> Create([FromBody] ForumCommentCreateRequest request)
         {
             var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -54,6 +55,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpGet("{id}")]
+        [Authorize(Policy = "ForumRead")]
         public async Task<IActionResult> GetById(int id)
         {
             var item = await _repository.GetByIdAsync(id);
@@ -63,6 +65,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPut("{id}")]
+        [Authorize]
         public async Task<IActionResult> Update(int id, [FromBody] ForumCommentUpdateRequest request)
         {
             var item = await _repository.GetByIdAsync(id);
@@ -75,6 +78,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
             var item = await _repository.GetByIdAsync(id);

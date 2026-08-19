@@ -15,7 +15,6 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
     public class ForumPostController : ControllerBase
     {
         private readonly IForumPostRepository _repository;
@@ -36,6 +35,7 @@ namespace ARSPlatform.API.CONTROLLER
         // /api/ForumPost?search=RAG
         // /api/ForumPost?category=AI&sort=popular&search=RAG
         [HttpGet]
+        [Authorize(Policy = "ForumRead")]
         public async Task<IActionResult> GetAll(
             [FromQuery] string? category,
             [FromQuery] string? sort,
@@ -55,6 +55,7 @@ namespace ARSPlatform.API.CONTROLLER
         // GET:
         // /api/ForumPost/1
         [HttpGet("{id:int}")]
+        [Authorize(Policy = "ForumRead")]
         public async Task<IActionResult> GetById(int id)
         {
             var item = await _repository
@@ -77,6 +78,7 @@ namespace ARSPlatform.API.CONTROLLER
         // POST:
         // /api/ForumPost
         [HttpPost]
+        [Authorize]
         public async Task<IActionResult> Create(
             [FromBody] ForumPostCreateRequest request)
         {
