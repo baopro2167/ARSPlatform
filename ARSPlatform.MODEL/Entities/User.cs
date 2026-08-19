@@ -81,6 +81,9 @@ public partial class User
     public virtual ICollection<Report> Reports { get; set; }
         = new List<Report>();
 
+    public virtual ICollection<RoleRequest> RoleRequests { get; set; }
+        = new List<RoleRequest>();
+
     public virtual ICollection<ResearchGroup> ResearchGroups { get; set; }
         = new List<ResearchGroup>();
 

@@ -12,4 +12,6 @@ public partial class Role
     public DateTime? CreatedAt { get; set; }
 
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+
+    public virtual ICollection<RoleRequest> RoleRequests { get; set; } = new List<RoleRequest>();
 }

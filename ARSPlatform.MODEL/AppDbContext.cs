@@ -54,6 +54,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Role> Roles { get; set; }
 
+    public virtual DbSet<RoleRequest> RoleRequests { get; set; }
+
     public virtual DbSet<Seminar> Seminars { get; set; }
 
     public virtual DbSet<SeminarParticipant> SeminarParticipants { get; set; }
@@ -433,6 +435,23 @@ public partial class AppDbContext : DbContext
                 new Role { RoleId = 4, Name = "Lecturer", CreatedAt = DateTime.UtcNow },
                 new Role { RoleId = 5, Name = "Graduate Student", CreatedAt = DateTime.UtcNow }
             );
+        });
+
+        modelBuilder.Entity<RoleRequest>(entity =>
+        {
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Status).HasMaxLength(50);
+            entity.Property(e => e.RequestType).HasMaxLength(50);
+
+            entity.HasOne(d => d.User)
+                .WithMany(p => p.RoleRequests)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK__RoleRequests__UserId");
+
+            entity.HasOne(d => d.RequestedRole)
+                .WithMany(p => p.RoleRequests)
+                .HasForeignKey(d => d.RequestedRoleId)
+                .HasConstraintName("FK__RoleRequests__RequestedRoleId");
         });
 
         modelBuilder.Entity<Seminar>(entity =>
