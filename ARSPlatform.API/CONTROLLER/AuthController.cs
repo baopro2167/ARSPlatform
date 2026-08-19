@@ -47,6 +47,24 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(result);
         }
 
+        [HttpPost("google-login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
+        {
+            try
+            {
+                var result = await _authService.GoogleLoginAsync(request);
+                if (result == null)
+                    return Unauthorized(new { Message = "Invalid Google token or user is not allowed to login." });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
         [HttpPost("verify-email")]
         [AllowAnonymous]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)

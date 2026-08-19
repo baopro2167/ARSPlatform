@@ -5,6 +5,7 @@ using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
 using AutoMapper;
+using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -202,6 +203,93 @@ namespace ARSPlatform.SERVICES
                 Username = user.FullName,
                 Email = user.Email,
                 Role = user.UserRoles.FirstOrDefault()?.Role?.Name,
+                IsEmailVerified = user.IsEmailVerified,
+                IsActive = user.IsActive,
+                VerificationStatus = user.VerificationStatus
+            };
+        }
+
+        public async Task<AuthResponse?> GoogleLoginAsync(GoogleLoginRequest request)
+        {
+            var googleSettings = _configuration.GetSection("GoogleAuth");
+            var clientId = googleSettings["ClientId"];
+
+            if (string.IsNullOrEmpty(clientId))
+                throw new Exception("Google ClientId is not configured.");
+
+            GoogleJsonWebSignature.Payload? payload;
+            try
+            {
+                var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+                {
+                    Audience = new[] { clientId }
+                };
+                payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+
+            var user = await _userRepository.GetByUsernameAsync(payload.Email);
+            string effectiveRole;
+
+            if (user == null)
+            {
+                var now = DateTime.UtcNow;
+                user = new User
+                {
+                    Email = payload.Email,
+                    FullName = payload.Name ?? payload.Email.Split('@')[0],
+                    PasswordHash = string.Empty,
+                    IsActive = true,
+                    IsEmailVerified = true,
+                    VerificationStatus = "Approved",
+                    GoogleId = payload.Subject,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    UserRoles = new List<UserRole>()
+                };
+
+                await _userRepository.AddAsync(user);
+
+                var wallet = new Wallet
+                {
+                    User = user,
+                    Balance = 0,
+                    UpdatedAt = now
+                };
+                await _walletRepository.AddAsync(wallet);
+
+                var professionalProfile = new ProfessionalProfile
+                {
+                    User = user,
+                    SyncStatus = "synced",
+                    UpdatedAt = now
+                };
+                await _professionalProfileRepository.AddAsync(professionalProfile);
+
+                await _userRepository.SaveChangesAsync();
+
+                effectiveRole = "Guest";
+            }
+            else
+            {
+                if (user.IsActive == false)
+                    return null;
+
+                effectiveRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? "Guest";
+            }
+
+            var token = GenerateJwtToken(user, effectiveRole);
+
+            return new AuthResponse
+            {
+                UserId = user.UserId,
+                Token = token,
+                Username = user.FullName,
+                Email = user.Email,
+                Role = effectiveRole,
                 IsEmailVerified = user.IsEmailVerified,
                 IsActive = user.IsActive,
                 VerificationStatus = user.VerificationStatus
