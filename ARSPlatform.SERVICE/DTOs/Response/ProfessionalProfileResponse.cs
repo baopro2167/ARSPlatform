@@ -19,5 +19,6 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int? MajorFieldId { get; set; }
         public string? MajorFieldName { get; set; }
         public decimal? ReviewFee { get; set; }
+        public bool? IsAvailable { get; set; }
     }
 }

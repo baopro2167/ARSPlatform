@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
@@ -72,6 +73,35 @@ namespace ARSPlatform.API.CONTROLLER
 
             var updated = await _repository.GetByIdWithUserAndFieldAsync(id);
             var response = _mapper.Map<ProfessionalProfileResponse>(updated);
+            return Ok(response);
+        }
+
+        [HttpPatch("{id:int}/availability")]
+        [Authorize(Roles = "Reviewer")]
+        public async Task<IActionResult> UpdateAvailability(
+            int id,
+            [FromBody] ProfessionalProfileAvailabilityUpdateRequest request)
+        {
+            var currentUserIdValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(currentUserIdValue, out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            if (currentUserId != id)
+            {
+                return Forbid();
+            }
+
+            var item = await _repository.UpdateAvailabilityAsync(id, request.IsAvailable);
+            if (item == null)
+            {
+                return NotFound();
+            }
+
+            await _repository.SaveChangesAsync();
+
+            var response = _mapper.Map<ProfessionalProfileResponse>(item);
             return Ok(response);
         }
 

@@ -31,5 +31,25 @@ namespace ARSPlatform.REPOSITORIES
                     .ThenInclude(x => x!.MajorField)
                 .FirstOrDefaultAsync(x => x.UserId == userId);
         }
+
+        public async Task<ProfessionalProfile?> UpdateAvailabilityAsync(int userId, bool isAvailable)
+        {
+            var profile = await _dbSet
+                .Include(x => x.User)
+                .Include(x => x.SubField)
+                    .ThenInclude(x => x!.MajorField)
+                .FirstOrDefaultAsync(x => x.UserId == userId);
+
+            if (profile == null)
+            {
+                return null;
+            }
+
+            profile.User.IsAvailableForReview = isAvailable;
+            profile.User.UpdatedAt = DateTime.UtcNow;
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            return profile;
+        }
     }
 }

@@ -6,5 +6,6 @@ namespace ARSPlatform.REPO.Interfaces
     {
         Task<IEnumerable<ProfessionalProfile>> GetAllWithUserAndFieldAsync();
         Task<ProfessionalProfile?> GetByIdWithUserAndFieldAsync(int userId);
+        Task<ProfessionalProfile?> UpdateAvailabilityAsync(int userId, bool isAvailable);
     }
 }
