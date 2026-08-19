@@ -14,5 +14,16 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         [Required]
         public string FullName { get; set; } = string.Empty;
+
+        [Required]
+        [RegularExpression(@"^[+\d\s\-()]{8,20}$")]
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        [Required]
+        public string Role { get; set; } = string.Empty;
+
+        [Required]
+        [Url]
+        public string PdfUrl { get; set; } = string.Empty;
     }
 }
