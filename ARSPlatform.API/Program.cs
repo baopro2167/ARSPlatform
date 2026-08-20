@@ -83,6 +83,21 @@ builder.Services.AddHttpClient();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// Register Google Calendar Settings from Environment Variables
+var googleClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? "";
+var googleClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") ?? "";
+var serviceAccountEmail = Environment.GetEnvironmentVariable("GOOGLE_SERVICE_ACCOUNT_EMAIL") ?? "";
+var privateKey = Environment.GetEnvironmentVariable("GOOGLE_PRIVATE_KEY") ?? "";
+
+builder.Services.Configure<GoogleCalendarSettings>(options =>
+{
+    options.ClientId = googleClientId;
+    options.ClientSecret = googleClientSecret;
+    options.ServiceAccountEmail = serviceAccountEmail;
+    options.PrivateKey = privateKey;
+});
+builder.Services.AddHttpClient<IGoogleCalendarService, GoogleCalendarService>();
+
 // Configure CORS
 builder.Services.AddCors(options =>
 {

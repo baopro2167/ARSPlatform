@@ -12,6 +12,8 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public string Content { get; set; }
 
+        public bool IsOnline { get; set; } = false;
+
         public string? OnlineLink { get; set; }
 
         public int? MaxParticipants { get; set; }

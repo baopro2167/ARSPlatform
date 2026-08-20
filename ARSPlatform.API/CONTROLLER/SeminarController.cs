@@ -22,12 +22,18 @@ namespace ARSPlatform.API.CONTROLLER
         private readonly ISeminarRepository _repository;
         private readonly IMapper _mapper;
         private readonly IAudioSummaryService _audioSummaryService;
+        private readonly IGoogleCalendarService _googleCalendarService;
 
-        public SeminarController(ISeminarRepository repository, IMapper mapper, IAudioSummaryService audioSummaryService)
+        public SeminarController(
+            ISeminarRepository repository, 
+            IMapper mapper, 
+            IAudioSummaryService audioSummaryService,
+            IGoogleCalendarService googleCalendarService)
         {
             _repository = repository;
             _mapper = mapper;
             _audioSummaryService = audioSummaryService;
+            _googleCalendarService = googleCalendarService;
         }
 
         [HttpGet]
@@ -42,6 +48,25 @@ namespace ARSPlatform.API.CONTROLLER
         public async Task<IActionResult> Create([FromBody] SeminarCreateRequest request)
         {
             var item = _mapper.Map<Seminar>(request);
+            
+            // Create Google Meet link if seminar is online
+            if (request.IsOnline && !string.IsNullOrEmpty(request.Content))
+            {
+                try
+                {
+                    var meetLink = await _googleCalendarService.CreateGoogleMeetLinkAsync(
+                        request.Content,
+                        request.StartTime,
+                        request.EndTime
+                    );
+                    item.OnlineLink = meetLink;
+                }
+                catch (Exception ex)
+                {
+                    return BadRequest(new { message = "Failed to create Google Meet link", error = ex.Message });
+                }
+            }
+            
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
             var response = _mapper.Map<SeminarResponse>(item);
