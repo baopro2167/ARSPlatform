@@ -96,7 +96,10 @@ builder.Services.Configure<GoogleCalendarSettings>(options =>
     options.ServiceAccountEmail = serviceAccountEmail;
     options.PrivateKey = privateKey;
 });
-builder.Services.AddHttpClient<IGoogleCalendarService, GoogleCalendarService>();
+builder.Services.AddHttpClient<IGoogleCalendarService, GoogleCalendarService>(client =>
+{
+    // HttpClient configuration if needed
+});
 
 // Configure CORS
 builder.Services.AddCors(options =>
