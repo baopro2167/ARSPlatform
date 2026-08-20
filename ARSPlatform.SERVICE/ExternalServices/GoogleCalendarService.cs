@@ -22,10 +22,10 @@ namespace ARSPlatform.SERVICE.ExternalServices
         private static DateTime _tokenExpiry = DateTime.MinValue;
         private static readonly SemaphoreSlim _tokenLock = new SemaphoreSlim(1, 1);
 
-        public GoogleCalendarService(HttpClient httpClient, GoogleCalendarSettings settings)
+        public GoogleCalendarService(HttpClient httpClient, IOptions<GoogleCalendarSettings> options)
         {
             _httpClient = httpClient;
-            _settings = settings;
+            _settings = options.Value;
         }
 
         private async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
