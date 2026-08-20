@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Google.Apis.Auth;
+using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Options;
 
 namespace ARSPlatform.SERVICE.ExternalServices
@@ -54,65 +54,23 @@ namespace ARSPlatform.SERVICE.ExternalServices
         {
             try
             {
-                var now = DateTimeOffset.UtcNow;
-                var expiry = now.AddHours(1);
+                var serviceAccountCredential = new ServiceAccountCredential(
+                    new ServiceAccountCredential.Initializer(_settings.ServiceAccountEmail)
+                    {
+                        Scopes = new[] { "https://www.googleapis.com/auth/calendar.events" }
+                    }.FromPrivateKey(_settings.PrivateKey));
 
-                var header = Base64UrlEncode("{\"alg\":\"RS256\",\"typ\":\"JWT\"}");
-                var payload = Base64UrlEncode($"{{\"iss\":\"{_settings.ServiceAccountEmail}\",\"scope\":\"https://www.googleapis.com/auth/calendar.events\",\"aud\":\"https://oauth2.googleapis.com/token\",\"iat\":{now.ToUnixTimeSeconds()},\"exp\":{expiry.ToUnixTimeSeconds()}}}");
-
-                var signatureInput = $"{header}.{payload}";
-                var signature = SignWithRsa(signatureInput);
-
-                var jwt = $"{signatureInput}.{signature}";
-
-                var requestBody = new FormUrlEncodedContent(new Dictionary<string, string>
+                if (!await serviceAccountCredential.RequestAccessTokenAsync(cancellationToken))
                 {
-                    { "grant_type", "urn:ietf:params:oauth2:grant-type:jwt-bearer" },
-                    { "assertion", jwt }
-                });
-
-                var response = await _httpClient.PostAsync("https://oauth2.googleapis.com/token", requestBody, cancellationToken);
-                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    throw new InvalidOperationException($"Failed to get access token: {responseContent}");
+                    throw new InvalidOperationException("Failed to get access token from Google");
                 }
 
-                var result = JsonSerializer.Deserialize<JsonElement>(responseContent);
-                return result.GetProperty("access_token").GetString() ?? throw new InvalidOperationException("No access_token in response");
+                return serviceAccountCredential.GetAccessTokenForRequestAsync().Result;
             }
-            catch (Exception ex) when (!ex.Message.Contains("access token"))
+            catch (Exception ex)
             {
                 throw new InvalidOperationException($"Google authentication failed: {ex.Message}", ex);
             }
-        }
-
-        private string Base64UrlEncode(string input)
-        {
-            var bytes = Encoding.UTF8.GetBytes(input);
-            return Convert.ToBase64String(bytes)
-                .Replace("+", "-")
-                .Replace("/", "_")
-                .TrimEnd('=');
-        }
-
-        private string SignWithRsa(string data)
-        {
-            using var rsa = System.Security.Cryptography.RSA.Create();
-            
-            var privateKeyPem = _settings.PrivateKey
-                .Replace("-----BEGIN PRIVATE KEY-----", "")
-                .Replace("-----END PRIVATE KEY-----", "")
-                .Replace("\n", "")
-                .Replace("\r", "")
-                .Replace(" ", "");
-
-            var keyBytes = Convert.FromBase64String(privateKeyPem);
-            rsa.ImportPkcs8PrivateKey(keyBytes, out _);
-
-            var signature = rsa.SignData(Encoding.UTF8.GetBytes(data), System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-            return Base64UrlEncode(Convert.ToBase64String(signature));
         }
 
         public async Task<string> CreateGoogleMeetLinkAsync(string summary, DateTime startTime, DateTime endTime, CancellationToken cancellationToken = default)
