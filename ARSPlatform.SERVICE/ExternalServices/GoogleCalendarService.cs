@@ -1,10 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Google.Apis.Auth;
 using Microsoft.Extensions.Options;
 
 namespace ARSPlatform.SERVICE.ExternalServices
@@ -39,8 +39,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     return _cachedAccessToken;
                 }
 
-                var jwtToken = CreateJwtToken();
-                _cachedAccessToken = await ExchangeJwtForAccessTokenAsync(jwtToken, cancellationToken);
+                _cachedAccessToken = await GetAccessTokenFromGoogleAsync(cancellationToken);
                 _tokenExpiry = DateTime.UtcNow.AddMinutes(55);
 
                 return _cachedAccessToken;
@@ -51,18 +50,42 @@ namespace ARSPlatform.SERVICE.ExternalServices
             }
         }
 
-        private string CreateJwtToken()
+        private async Task<string> GetAccessTokenFromGoogleAsync(CancellationToken cancellationToken)
         {
-            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var expiry = now + 3600;
+            try
+            {
+                var now = DateTimeOffset.UtcNow;
+                var expiry = now.AddHours(1);
 
-            var header = Base64UrlEncode("{\"alg\":\"RS256\",\"typ\":\"JWT\"}");
-            var payload = Base64UrlEncode($"{{\"iss\":\"{_settings.ServiceAccountEmail}\",\"scope\":\"https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly\",\"aud\":\"https://oauth2.googleapis.com/token\",\"iat\":{now},\"exp\":{expiry}}}");
+                var header = Base64UrlEncode("{\"alg\":\"RS256\",\"typ\":\"JWT\"}");
+                var payload = Base64UrlEncode($"{{\"iss\":\"{_settings.ServiceAccountEmail}\",\"scope\":\"https://www.googleapis.com/auth/calendar.events\",\"aud\":\"https://oauth2.googleapis.com/token\",\"iat\":{now.ToUnixTimeSeconds()},\"exp\":{expiry.ToUnixTimeSeconds()}}}");
 
-            var signatureInput = $"{header}.{payload}";
-            var signature = SignWithRsa(signatureInput, _settings.PrivateKey);
+                var signatureInput = $"{header}.{payload}";
+                var signature = SignWithRsa(signatureInput);
 
-            return $"{signatureInput}.{signature}";
+                var jwt = $"{signatureInput}.{signature}";
+
+                var requestBody = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "grant_type", "urn:ietf:params:oauth2:grant-type:jwt-bearer" },
+                    { "assertion", jwt }
+                });
+
+                var response = await _httpClient.PostAsync("https://oauth2.googleapis.com/token", requestBody, cancellationToken);
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new InvalidOperationException($"Failed to get access token: {responseContent}");
+                }
+
+                var result = JsonSerializer.Deserialize<JsonElement>(responseContent);
+                return result.GetProperty("access_token").GetString() ?? throw new InvalidOperationException("No access_token in response");
+            }
+            catch (Exception ex) when (!ex.Message.Contains("access token"))
+            {
+                throw new InvalidOperationException($"Google authentication failed: {ex.Message}", ex);
+            }
         }
 
         private string Base64UrlEncode(string input)
@@ -74,42 +97,22 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 .TrimEnd('=');
         }
 
-        private string SignWithRsa(string data, string privateKeyPem)
+        private string SignWithRsa(string data)
         {
             using var rsa = System.Security.Cryptography.RSA.Create();
             
-            privateKeyPem = privateKeyPem
+            var privateKeyPem = _settings.PrivateKey
                 .Replace("-----BEGIN PRIVATE KEY-----", "")
                 .Replace("-----END PRIVATE KEY-----", "")
                 .Replace("\n", "")
-                .Replace("\r", "");
+                .Replace("\r", "")
+                .Replace(" ", "");
 
             var keyBytes = Convert.FromBase64String(privateKeyPem);
             rsa.ImportPkcs8PrivateKey(keyBytes, out _);
 
             var signature = rsa.SignData(Encoding.UTF8.GetBytes(data), System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);
             return Base64UrlEncode(Convert.ToBase64String(signature));
-        }
-
-        private async Task<string> ExchangeJwtForAccessTokenAsync(string jwt, CancellationToken cancellationToken)
-        {
-            var requestBody = new Dictionary<string, string>
-            {
-                { "grant_type", "urn:ietf:params:oauth2:grant-type:jwt-bearer" },
-                { "assertion", jwt }
-            };
-
-            var content = new FormUrlEncodedContent(requestBody);
-            var response = await _httpClient.PostAsync("https://oauth2.googleapis.com/token", content, cancellationToken);
-            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new InvalidOperationException($"Failed to get access token: {responseContent}");
-            }
-
-            var result = JsonSerializer.Deserialize<JsonElement>(responseContent);
-            return result.GetProperty("access_token").GetString() ?? throw new InvalidOperationException("No access_token in response");
         }
 
         public async Task<string> CreateGoogleMeetLinkAsync(string summary, DateTime startTime, DateTime endTime, CancellationToken cancellationToken = default)
