@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -35,5 +36,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? FinalDecision { get; set; }
 
         public DateTime? CreatedAt { get; set; }
+
+        public List<SpecializedEvaluationItemResponse> SpecializedEvaluation { get; set; }
+            = new List<SpecializedEvaluationItemResponse>();
     }
 }

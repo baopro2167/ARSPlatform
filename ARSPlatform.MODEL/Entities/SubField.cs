@@ -13,6 +13,8 @@ public partial class SubField
 
     public string? Description { get; set; }
 
+    public string GradingRubric { get; set; } = "[]";
+
     public DateTime? CreatedAt { get; set; }
 
     public virtual ICollection<LearningMaterial> LearningMaterials { get; set; } = new List<LearningMaterial>();

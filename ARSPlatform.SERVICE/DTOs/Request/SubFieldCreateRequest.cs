@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
@@ -9,5 +10,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string Name { get; set; }
 
         public string? Description { get; set; }
+
+        public List<GradingRubricCriterionRequest>? GradingRubric { get; set; }
     }
 }

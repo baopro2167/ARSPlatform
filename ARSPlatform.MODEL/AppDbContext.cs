@@ -12,85 +12,71 @@ public partial class AppDbContext : DbContext
     {
     }
 
-    public virtual DbSet<AuditLog> AuditLogs { get; set; }
     public virtual DbSet<CommentVote> CommentVotes { get; set; }
+
     public virtual DbSet<DetailedEvaluation> DetailedEvaluations { get; set; }
+
     public virtual DbSet<Follower> Followers { get; set; }
+
     public virtual DbSet<ForumComment> ForumComments { get; set; }
-    public virtual DbSet<ForumPost> ForumPosts { get; set; }
+
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
+
     public virtual DbSet<GuidanceProject> GuidanceProjects { get; set; }
+
     public virtual DbSet<LearningMaterial> LearningMaterials { get; set; }
+
     public virtual DbSet<MajorField> MajorFields { get; set; }
+
     public virtual DbSet<MembershipPackage> MembershipPackages { get; set; }
+
     public virtual DbSet<MembershipPurchase> MembershipPurchases { get; set; }
+
     public virtual DbSet<Notification> Notifications { get; set; }
+
     public virtual DbSet<Paper> Papers { get; set; }
+
     public virtual DbSet<PhasedReport> PhasedReports { get; set; }
+
     public virtual DbSet<ProfessionalProfile> ProfessionalProfiles { get; set; }
+
     public virtual DbSet<Profile> Profiles { get; set; }
+
     public virtual DbSet<Report> Reports { get; set; }
+
     public virtual DbSet<ResearchGroup> ResearchGroups { get; set; }
+
     public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
+
     public virtual DbSet<ReviewRequest> ReviewRequests { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
-    public virtual DbSet<RoleRequest> RoleRequests { get; set; }
+
     public virtual DbSet<Seminar> Seminars { get; set; }
+
     public virtual DbSet<SeminarParticipant> SeminarParticipants { get; set; }
+
     public virtual DbSet<SharedMaterial> SharedMaterials { get; set; }
+
     public virtual DbSet<SubField> SubFields { get; set; }
+
     public virtual DbSet<Transaction> Transactions { get; set; }
+
     public virtual DbSet<User> Users { get; set; }
+
     public virtual DbSet<UserRole> UserRoles { get; set; }
+
     public virtual DbSet<UserToken> UserTokens { get; set; }
+
     public virtual DbSet<Wallet> Wallets { get; set; }
-    public virtual DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<AuditLog>(entity =>
-        {
-            entity.HasKey(e => e.LogId)
-                .HasName("PK_AuditLog");
-
-            entity.Property(e => e.AdminName)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Action)
-                .HasMaxLength(100)
-                .IsUnicode(false);
-
-            entity.Property(e => e.Target)
-                .HasMaxLength(100)
-                .IsUnicode(false);
-
-            entity.Property(e => e.TargetId)
-                .HasMaxLength(100);
-
-            entity.Property(e => e.Timestamp)
-                .HasColumnType("datetime2")
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.HasOne(e => e.Admin)
-                .WithMany()
-                .HasForeignKey(e => e.AdminId)
-                .OnDelete(DeleteBehavior.NoAction)
-                .HasConstraintName("FK_AuditLog_User");
-
-            entity.HasIndex(e => e.AdminId)
-                .HasDatabaseName("IX_AuditLog_AdminId");
-
-            entity.HasIndex(e => e.Timestamp)
-                .HasDatabaseName("IX_AuditLog_Timestamp")
-                .IsDescending();
-        });
-
         modelBuilder.Entity<CommentVote>(entity =>
         {
             entity.HasKey(e => new { e.UserId, e.ForumCommentId });
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.ForumComment).WithMany(p => p.CommentVotes)
                 .HasForeignKey(d => d.ForumCommentId)
@@ -106,18 +92,18 @@ public partial class AppDbContext : DbContext
         {
             entity.HasIndex(e => e.ReviewRequestId, "UQ__Detailed__B13067656CE733B3").IsUnique();
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.FinalDecision)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
             entity.Property(e => e.NotesFormatting).HasMaxLength(255);
             entity.Property(e => e.NotesLiterature).HasMaxLength(255);
             entity.Property(e => e.NotesMethodology).HasMaxLength(255);
             entity.Property(e => e.NotesOriginality).HasMaxLength(255);
             entity.Property(e => e.NotesResults).HasMaxLength(255);
+            entity.Property(e => e.SpecializedEvaluation)
+                .HasColumnType("nvarchar(max)")
+                .HasDefaultValue("[]");
 
             entity.HasOne(d => d.ReviewRequest).WithOne(p => p.DetailedEvaluation)
                 .HasForeignKey<DetailedEvaluation>(d => d.ReviewRequestId)
@@ -133,8 +119,7 @@ public partial class AppDbContext : DbContext
         {
             entity.HasKey(e => new { e.FollowerId, e.FollowedId });
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.Followed).WithMany(p => p.FollowerFolloweds)
                 .HasForeignKey(d => d.FollowedId)
@@ -151,22 +136,13 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_ForumComments_update"));
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.UpvoteCount)
-                .HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpvoteCount).HasDefaultValue(0);
 
             entity.HasOne(d => d.Paper).WithMany(p => p.ForumComments)
                 .HasForeignKey(d => d.PaperId)
                 .HasConstraintName("FK__ForumComm__Paper__7B5B524B");
-
-            entity.HasOne(d => d.ForumPost).WithMany(p => p.ForumComments)
-                .HasForeignKey(d => d.ForumPostId)
-                .HasConstraintName("FK_ForumComments_ForumPosts");
 
             entity.HasOne(d => d.Reply).WithMany(p => p.InverseReply)
                 .HasForeignKey(d => d.ReplyId)
@@ -182,9 +158,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ActivityStatus)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.JoinedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.JoinedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.ResearchGroup).WithMany(p => p.GroupMembers)
                 .HasForeignKey(d => d.ResearchGroupId)
@@ -198,15 +172,11 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<GuidanceProject>(entity =>
         {
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.Title)
-                .HasMaxLength(255);
+            entity.Property(e => e.Title).HasMaxLength(255);
 
             entity.HasOne(d => d.Lecturer).WithMany(p => p.GuidanceProjectLecturers)
                 .HasForeignKey(d => d.LecturerId)
@@ -220,11 +190,8 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<LearningMaterial>(entity =>
         {
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.Title)
-                .HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Title).HasMaxLength(255);
 
             entity.HasOne(d => d.Lecturer).WithMany(p => p.LearningMaterials)
                 .HasForeignKey(d => d.LecturerId)
@@ -239,36 +206,25 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<MajorField>(entity =>
         {
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.Name)
-                .HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Name).HasMaxLength(255);
         });
 
         modelBuilder.Entity<MembershipPackage>(entity =>
         {
             entity.HasKey(e => e.PackageId);
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.Name)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Price)
-                .HasColumnType("decimal(15, 2)");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Name).HasMaxLength(255);
+            entity.Property(e => e.Price).HasColumnType("decimal(15, 2)");
         });
 
         modelBuilder.Entity<MembershipPurchase>(entity =>
         {
             entity.HasKey(e => e.PurchasesId);
 
-            entity.Property(e => e.PricePaid)
-                .HasColumnType("decimal(15, 2)");
-
-            entity.Property(e => e.PurchasedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.PricePaid).HasColumnType("decimal(15, 2)");
+            entity.Property(e => e.PurchasedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.Package).WithMany(p => p.MembershipPurchases)
                 .HasForeignKey(d => d.PackageId)
@@ -282,14 +238,9 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Notification>(entity =>
         {
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.IsRead)
-                .HasDefaultValue(false);
-
-            entity.Property(e => e.Message)
-                .HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.IsRead).HasDefaultValue(false);
+            entity.Property(e => e.Message).HasMaxLength(255);
 
             entity.HasOne(d => d.User).WithMany(p => p.Notifications)
                 .HasForeignKey(d => d.UserId)
@@ -301,28 +252,17 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_Papers_update"));
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.IsOpenAccess)
-                .HasDefaultValue(false);
-
-            entity.Property(e => e.Issn)
-                .HasDefaultValue(false);
-
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.IsOpenAccess).HasDefaultValue(false);
+            entity.Property(e => e.Issn).HasDefaultValue(false);
             entity.Property(e => e.Quartile)
                 .HasMaxLength(10)
                 .IsUnicode(false);
-
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.Title)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Title).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.Creator).WithMany(p => p.Papers)
                 .HasForeignKey(d => d.CreatorId)
@@ -339,17 +279,10 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_PhasedReports_update"));
 
-            entity.Property(e => e.CapacityEvaluation)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.FinalOutcomeEvaluation)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.LectureFeedback)
-                .HasColumnType("decimal(15, 2)");
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CapacityEvaluation).HasMaxLength(255);
+            entity.Property(e => e.FinalOutcomeEvaluation).HasMaxLength(255);
+            entity.Property(e => e.LectureFeedback).HasColumnType("decimal(15, 2)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.GroupMember).WithMany(p => p.PhasedReports)
                 .HasForeignKey(d => d.GroupMemberId)
@@ -367,41 +300,24 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable(tb => tb.HasTrigger("trg_ProfessionalProfiles_update"));
 
-            entity.Property(e => e.UserId)
-                .ValueGeneratedNever();
-
+            entity.Property(e => e.UserId).ValueGeneratedNever();
             entity.Property(e => e.Hindex)
                 .HasDefaultValue(0)
                 .HasColumnName("HIndex");
-
             entity.Property(e => e.OrcidId)
                 .HasMaxLength(255)
                 .IsUnicode(false);
-
-            entity.Property(e => e.PublicationCount)
-                .HasDefaultValue(0);
-
+            entity.Property(e => e.PublicationCount).HasDefaultValue(0);
             entity.Property(e => e.SyncStatus)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.TotalCitations)
-                .HasDefaultValue(0);
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.ReviewFee)
-                .HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.TotalCitations).HasDefaultValue(0);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.ReviewFee).HasColumnType("decimal(15, 2)");
 
             entity.HasOne(d => d.User).WithOne(p => p.ProfessionalProfile)
                 .HasForeignKey<ProfessionalProfile>(d => d.UserId)
                 .HasConstraintName("FK__Professio__UserI__4222D4EF");
-
-            entity.HasOne(d => d.SubField).WithMany(p => p.ProfessionalProfiles)
-                .HasForeignKey(d => d.SubFieldId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("FK_ProfessionalProfiles_SubFields_SubFieldId");
         });
 
         modelBuilder.Entity<Profile>(entity =>
@@ -410,42 +326,13 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("Profile");
 
-            entity.Property(e => e.UserId)
-                .ValueGeneratedNever();
+            entity.Property(e => e.UserId).ValueGeneratedNever();
+            entity.Property(e => e.Address).HasMaxLength(255);
+            entity.Property(e => e.DateOfBirth).HasMaxLength(255);
+            entity.Property(e => e.Gender).HasMaxLength(20);
+            entity.Property(e => e.PhoneNumber).HasMaxLength(255);
 
-            entity.Property(e => e.Address)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.DateOfBirth)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Gender)
-                .HasMaxLength(20);
-
-            entity.Property(e => e.PhoneNumber)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.FullName)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.AcademicTitle)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Institution)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Bio)
-                .HasColumnType("nvarchar(max)");
-
-            entity.Property(e => e.Keywords)
-                .HasColumnType("nvarchar(max)");
-
-            entity.Property(e => e.AvatarInitials)
-                .HasMaxLength(8)
-                .IsUnicode(false);
-
-            entity.HasOne(d => d.User)
-                .WithOne(p => p.Profile)
+            entity.HasOne(d => d.User).WithOne(p => p.Profile)
                 .HasForeignKey<Profile>(d => d.UserId)
                 .HasConstraintName("FK__Profile__UserId__31B762FC");
         });
@@ -454,24 +341,14 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_Reports_update"));
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.Reason)
-                .HasMaxLength(255);
-
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Reason).HasMaxLength(255);
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.TargetType)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.ViolationNotes)
-                .HasMaxLength(255);
+            entity.Property(e => e.TargetType).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.ViolationNotes).HasMaxLength(255);
 
             entity.HasOne(d => d.Reporter).WithMany(p => p.Reports)
                 .HasForeignKey(d => d.ReporterId)
@@ -480,11 +357,8 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<ResearchGroup>(entity =>
         {
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.Name)
-                .HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Name).HasMaxLength(255);
 
             entity.HasOne(d => d.Lecturer).WithMany(p => p.ResearchGroups)
                 .HasForeignKey(d => d.LecturerId)
@@ -503,38 +377,26 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable(tb => tb.HasTrigger("trg_ResearchTopics_update"));
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.Title)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Title).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
         });
 
         modelBuilder.Entity<ReviewRequest>(entity =>
         {
             entity.ToTable("ReviewRequest");
 
-            entity.Property(e => e.Airecommended)
-                .HasColumnName("AIRecommended");
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.Airecommended).HasColumnName("AIRecommended");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Fee)
                 .HasDefaultValue(0.00m)
                 .HasColumnType("decimal(15, 2)");
-
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
             entity.Property(e => e.Type)
                 .HasMaxLength(50)
                 .IsUnicode(false);
@@ -553,96 +415,20 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable("Role");
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.Name)
-                .HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Name).HasMaxLength(255);
 
             entity.HasData(
-                new Role
-                {
-                    RoleId = 4,
-                    Name = "Lecturer",
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Role
-                {
-                    RoleId = 5,
-                    Name = "Graduate Student",
-                    CreatedAt = DateTime.UtcNow
-                }
+                new Role { RoleId = 4, Name = "Lecturer", CreatedAt = DateTime.UtcNow },
+                new Role { RoleId = 5, Name = "Graduate Student", CreatedAt = DateTime.UtcNow }
             );
-        });
-
-        modelBuilder.Entity<RoleRequest>(entity =>
-        {
-            entity.HasKey(e => e.RoleRequestId)
-                .HasName("PK_RoleRequests");
-
-            entity.ToTable("RoleRequests");
-
-            entity.Property(e => e.PhoneNumber)
-                .HasMaxLength(50);
-
-            entity.Property(e => e.Affiliation)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Department)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .IsUnicode(false)
-                .HasDefaultValue("PENDING");
-
-            entity.Property(e => e.RequestType)
-                .HasMaxLength(50)
-                .IsUnicode(false)
-                .HasDefaultValue("INITIAL_REGISTRATION");
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.HasOne(d => d.User).WithMany()
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK_RoleRequests_User");
-
-            entity.HasOne(d => d.RequestedRole).WithMany()
-                .HasForeignKey(d => d.RequestedRoleId)
-                .OnDelete(DeleteBehavior.NoAction)
-                .HasConstraintName("FK_RoleRequests_RequestedRole");
-
-            entity.HasOne(d => d.ReviewedByAdmin).WithMany()
-                .HasForeignKey(d => d.ReviewedByAdminId)
-                .OnDelete(DeleteBehavior.NoAction)
-                .HasConstraintName("FK_RoleRequests_ReviewedByAdmin");
-
-            entity.HasIndex(e => e.UserId)
-                .HasDatabaseName("IX_RoleRequests_UserId");
-
-            entity.HasIndex(e => e.Status)
-                .HasDatabaseName("IX_RoleRequests_Status");
         });
 
         modelBuilder.Entity<Seminar>(entity =>
         {
-            entity.Property(e => e.IsReminderSent)
-                .HasDefaultValue(false);
-
-            entity.Property(e => e.ReminderEnabled)
-                .HasDefaultValue(false);
-
-            entity.Property(e => e.MaxParticipants)
-                .HasDefaultValue(0);
-
-            entity.Property(e => e.OnlineLink)
-                .HasMaxLength(255);
-
+            entity.Property(e => e.IsReminderSent).HasDefaultValue(false);
+            entity.Property(e => e.MaxParticipants).HasDefaultValue(0);
+            entity.Property(e => e.OnlineLink).HasMaxLength(255);
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
@@ -655,26 +441,10 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SeminarParticipant>(entity =>
         {
-            entity.Property(e => e.InvitedEmail)
-                .HasMaxLength(255)
-                .IsUnicode(false);
-
             entity.Property(e => e.InvitationStatus)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.ParticipantEvaluation)
-                .HasMaxLength(255);
-
-            entity.HasIndex(e => new { e.SeminarId, e.UserId })
-                .IsUnique()
-                .HasFilter("([UserId] IS NOT NULL)")
-                .HasDatabaseName("UX_SeminarParticipants_Seminar_User");
-
-            entity.HasIndex(e => new { e.SeminarId, e.InvitedEmail })
-                .IsUnique()
-                .HasFilter("([InvitedEmail] IS NOT NULL)")
-                .HasDatabaseName("UX_SeminarParticipants_Seminar_InvitedEmail");
+            entity.Property(e => e.ParticipantEvaluation).HasMaxLength(255);
 
             entity.HasOne(d => d.Seminar).WithMany(p => p.SeminarParticipants)
                 .HasForeignKey(d => d.SeminarId)
@@ -688,9 +458,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SharedMaterial>(entity =>
         {
-            entity.Property(e => e.SharedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.SharedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
@@ -713,6 +481,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(getutcdate())");
 
+            entity.Property(e => e.GradingRubric)
+                .HasColumnType("nvarchar(max)")
+                .HasDefaultValue("[]");
+
             entity.Property(e => e.Name)
                 .HasMaxLength(255);
 
@@ -724,16 +496,11 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Transaction>(entity =>
         {
-            entity.Property(e => e.Amount)
-                .HasColumnType("decimal(15, 2)");
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.Amount).HasColumnType("decimal(15, 2)");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
             entity.Property(e => e.Type)
                 .HasMaxLength(50)
                 .IsUnicode(false);
@@ -746,51 +513,26 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
-            entity.ToTable(
-                "User",
-                tb => tb.HasTrigger("trg_User_update")
-            );
+            entity.ToTable("User", tb => tb.HasTrigger("trg_User_update"));
 
-            entity.HasIndex(
-                e => e.GoogleId,
-                "UX_User_GoogleId"
-            )
-            .HasFilter("[GoogleId] IS NOT NULL")
-            .IsUnique();
+            entity.HasIndex(e => e.GoogleId, "UX_User_GoogleId").HasFilter("[GoogleId] IS NOT NULL").IsUnique();
 
-            entity.HasIndex(
-                e => e.Email,
-                "UQ__User__A9D105342E34C60E"
-            )
-            .IsUnique();
+            entity.HasIndex(e => e.Email, "UQ__User__A9D105342E34C60E").IsUnique();
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Email)
                 .HasMaxLength(255)
                 .IsUnicode(false);
-
-            entity.Property(e => e.FullName)
-                .HasMaxLength(255);
-
+            entity.Property(e => e.FullName).HasMaxLength(255);
             entity.Property(e => e.GoogleId)
                 .HasMaxLength(255)
                 .IsUnicode(false);
-
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(false);
-
-            entity.Property(e => e.IsEmailVerified)
-                .HasDefaultValue(false);
-
+            entity.Property(e => e.IsActive).HasDefaultValue(false);
+            entity.Property(e => e.IsEmailVerified).HasDefaultValue(false);
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)
                 .IsUnicode(false);
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.VerificationStatus)
                 .HasMaxLength(50)
                 .IsUnicode(false);
@@ -800,9 +542,7 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable("UserRole");
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.UserRole1)
                 .HasMaxLength(255)
                 .HasColumnName("UserRole");
@@ -822,17 +562,11 @@ public partial class AppDbContext : DbContext
         {
             entity.HasKey(e => e.TokenId);
 
-            entity.HasIndex(e => e.RefreshToken, "UQ__UserToke__DEA298DA118F54B9")
-                .IsUnique();
+            entity.HasIndex(e => e.RefreshToken, "UQ__UserToke__DEA298DA118F54B9").IsUnique();
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.DeviceInfo)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.RefreshToken)
-                .IsUnicode(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.DeviceInfo).HasMaxLength(255);
+            entity.Property(e => e.RefreshToken).IsUnicode(false);
 
             entity.HasOne(d => d.User).WithMany(p => p.UserTokens)
                 .HasForeignKey(d => d.UserId)
@@ -844,63 +578,17 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_Wallets_update"));
 
-            entity.HasIndex(
-                e => e.UserId,
-                "UQ__Wallets__1788CC4D1AA07263"
-            ).IsUnique();
+            entity.HasIndex(e => e.UserId, "UQ__Wallets__1788CC4D1AA07263").IsUnique();
 
             entity.Property(e => e.Balance)
                 .HasDefaultValue(0.00m)
                 .HasColumnType("decimal(15, 2)");
-
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.User).WithOne(p => p.Wallet)
                 .HasForeignKey<Wallet>(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__Wallets__UserId__5CD6CB2B");
-        });
-
-        modelBuilder.Entity<WithdrawalRequest>(entity =>
-        {
-            entity.HasKey(e => e.WithdrawalRequestId);
-
-            entity.Property(e => e.BankName)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.AccountNumber)
-                .HasMaxLength(100);
-
-            entity.Property(e => e.AccountName)
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Amount)
-                .HasColumnType("decimal(15, 2)");
-
-            entity.Property(e => e.Status)
-                .HasMaxLength(50)
-                .IsUnicode(false)
-                .HasDefaultValue("PENDING");
-
-            entity.Property(e => e.Note)
-                .HasMaxLength(1000);
-
-            entity.Property(e => e.RejectionReason)
-                .HasMaxLength(1000);
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.HasOne(d => d.User)
-                .WithMany(p => p.WithdrawalRequests)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("FK_WithdrawalRequests_User");
-
-            entity.HasOne(d => d.Wallet)
-                .WithMany(p => p.WithdrawalRequests)
-                .HasForeignKey(d => d.WalletId)
-                .HasConstraintName("FK_WithdrawalRequests_Wallet");
         });
 
         OnModelCreatingPartial(modelBuilder);

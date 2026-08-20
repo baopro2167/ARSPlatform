@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
@@ -31,5 +32,8 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? GeneralComments { get; set; }
 
         public string? FinalDecision { get; set; }
+
+        public List<SpecializedEvaluationItemRequest> SpecializedEvaluation { get; set; }
+            = new List<SpecializedEvaluationItemRequest>();
     }
 }
