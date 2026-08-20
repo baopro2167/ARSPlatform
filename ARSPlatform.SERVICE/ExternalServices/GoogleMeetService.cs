@@ -1,4 +1,4 @@
-﻿using ARSPlatform.SERVICE;
+using ARSPlatform.SERVICE;
 using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.Extensions.Options;
 using System;
@@ -105,7 +105,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
             if (!response.IsSuccessStatusCode)
             {
                 throw new HttpRequestException(
-                    $"Google OAuth token request failed with status {(int)response.StatusCode}.");
+                    $"Google OAuth token request failed with status {(int)response.StatusCode}. Response: {responseBody}");
             }
 
             using var document = JsonDocument.Parse(responseBody);

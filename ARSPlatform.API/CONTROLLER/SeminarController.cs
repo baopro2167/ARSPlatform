@@ -71,11 +71,11 @@ namespace ARSPlatform.API.CONTROLLER
                     StatusCodes.Status503ServiceUnavailable,
                     new { message = ex.Message });
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
                 return StatusCode(
                     StatusCodes.Status502BadGateway,
-                    new { message = "Failed to generate Google Meet link." });
+                    new { message = "Failed to generate Google Meet link.", details = ex.Message });
             }
         }
 
