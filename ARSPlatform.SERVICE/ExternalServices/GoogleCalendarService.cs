@@ -98,8 +98,9 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         requestId = Guid.NewGuid().ToString(),
                         conferenceSolutionKey = new
                         {
-                            type = "hangoutsMeet"
-                        }
+                            type = "eventNamedType"
+                        },
+                        notes = "Google Meet"
                     }
                 }
             };
