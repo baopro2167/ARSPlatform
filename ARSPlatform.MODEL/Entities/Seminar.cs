@@ -15,6 +15,8 @@ public partial class Seminar
 
     public string Content { get; set; } = null!;
 
+    public bool IsOnline { get; set; } = false;
+
     public string? OnlineLink { get; set; }
 
     public int? MaxParticipants { get; set; }

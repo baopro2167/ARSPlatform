@@ -24,7 +24,6 @@ ehthumbs_vista.db
 *.suo
 *.ntvs*
 *.njsproj
-# *.sln
 *.sw?
 .history/
 
@@ -39,19 +38,15 @@ yarn-error.log*
 *.db
 
 # =========================
-# File môi trường (Chứa mật khẩu/API Key)
+# File môi trường (Chứa secrets)
 # =========================
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# =========================
-# Backend Config (Chứa secrets — chỉ dùng appsettings.json.example)
-# =========================
+.env.*
 appsettings.json
-!appsettings.json.example
+appsettings.Development.json
+appsettings.Production.json
+publish/
 
 # =========================
 # Thư mục Build của .NET / C#
