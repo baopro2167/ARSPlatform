@@ -1,4 +1,4 @@
-﻿using ARSPlatform.API.HostedServices;
+using ARSPlatform.API.HostedServices;
 using ARSPlatform.MODEL;
 using ARSPlatform.REPO;
 using ARSPlatform.REPO.Interfaces;
@@ -83,7 +83,16 @@ builder.Services.AddScoped<ISeminarService, SeminarService>();
 builder.Services.AddHostedService<SeminarAutomationHostedService>();
 
 // Register PayOS Settings
-builder.Services.Configure<PayOSSettings>(builder.Configuration.GetSection("PayOSSettings"));
+builder.Services.Configure<PayOSSettings>(options =>
+{
+    var section = builder.Configuration.GetSection("PayOSSettings");
+    options.ClientId = Environment.GetEnvironmentVariable("PAYOS_CLIENT_ID") ?? section["ClientId"] ?? "";
+    options.ApiKey = Environment.GetEnvironmentVariable("PAYOS_API_KEY") ?? section["ApiKey"] ?? "";
+    options.ChecksumKey = Environment.GetEnvironmentVariable("PAYOS_CHECKSUM_KEY") ?? section["ChecksumKey"] ?? "";
+    options.BaseUrl = section["BaseUrl"] ?? "https://api-merchant.payos.vn";
+    options.ReturnUrl = section["ReturnUrl"] ?? "";
+    options.CancelUrl = section["CancelUrl"] ?? "";
+});
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddHttpClient();
 
