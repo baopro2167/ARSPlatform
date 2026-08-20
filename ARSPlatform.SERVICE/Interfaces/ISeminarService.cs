@@ -1,0 +1,57 @@
+﻿using ARSPlatform.SERVICE.DTOs.Request;
+using ARSPlatform.SERVICE.DTOs.Response;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace ARSPlatform.SERVICE.Interfaces
+{
+    public interface ISeminarService
+    {
+        Task<IEnumerable<SeminarResponse>> GetAllAsync(int organizerId);
+
+        Task<SeminarResponse?> GetByIdAsync(
+            int seminarId,
+            int organizerId);
+
+        Task<SeminarResponse> CreateAsync(
+            int organizerId,
+            SeminarCreateRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<SeminarResponse?> UpdateAsync(
+            int seminarId,
+            int organizerId,
+            SeminarUpdateRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<bool> DeleteAsync(
+            int seminarId,
+            int organizerId);
+
+        Task<SeminarInviteResponse> InviteAsync(
+            int seminarId,
+            int organizerId,
+            SeminarInviteRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<SeminarStatsResponse?> GetStatsAsync(
+            int seminarId,
+            int organizerId);
+
+        Task<SeminarReminderResponse> SendFeedbackRemindersAsync(
+            int seminarId,
+            int organizerId,
+            CancellationToken cancellationToken = default);
+
+        Task<bool> IsOwnedByOrganizerAsync(
+            int seminarId,
+            int organizerId);
+
+        Task UpdateLifecycleStatusesAsync(
+            CancellationToken cancellationToken = default);
+
+        Task SendDueEventRemindersAsync(
+            CancellationToken cancellationToken = default);
+    }
+}

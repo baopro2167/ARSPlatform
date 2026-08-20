@@ -21,6 +21,10 @@ public partial class Seminar
 
     public bool? IsReminderSent { get; set; }
 
+    public bool ReminderEnabled { get; set; }
+
+    public DateTime? ReminderSentAt { get; set; }
+
     public string? Status { get; set; }
 
     // Existing AI feature
