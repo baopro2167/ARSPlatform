@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
@@ -45,9 +46,29 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<CommentVoteUpdateRequest, CommentVote>();
 
             // DetailedEvaluation
-            CreateMap<DetailedEvaluation, DetailedEvaluationResponse>();
-            CreateMap<DetailedEvaluationCreateRequest, DetailedEvaluation>();
-            CreateMap<DetailedEvaluationUpdateRequest, DetailedEvaluation>();
+            CreateMap<DetailedEvaluation, DetailedEvaluationResponse>()
+                .ForMember(dest => dest.SpecializedEvaluation, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.SpecializedEvaluation)
+                        ? new List<SpecializedEvaluationItemResponse>()
+                        : JsonSerializer.Deserialize<List<SpecializedEvaluationItemResponse>>(
+                            src.SpecializedEvaluation,
+                            (JsonSerializerOptions?)null) ?? new List<SpecializedEvaluationItemResponse>()));
+
+            CreateMap<DetailedEvaluationCreateRequest, DetailedEvaluation>()
+                .ForMember(dest => dest.SpecializedEvaluation, opt => opt.MapFrom(src =>
+                    JsonSerializer.Serialize(
+                        src.SpecializedEvaluation ?? new List<SpecializedEvaluationItemRequest>(),
+                        (JsonSerializerOptions?)null)));
+
+            CreateMap<DetailedEvaluationUpdateRequest, DetailedEvaluation>()
+                .ForMember(dest => dest.SpecializedEvaluation, opt =>
+                {
+                    opt.PreCondition(src => src.SpecializedEvaluation != null);
+                    opt.MapFrom(src =>
+                        JsonSerializer.Serialize(
+                            src.SpecializedEvaluation,
+                            (JsonSerializerOptions?)null));
+                });
 
             // Follower
             CreateMap<Follower, FollowerResponse>();
@@ -212,9 +233,7 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<SeminarUpdateRequest, Seminar>();
 
             // SeminarParticipant
-            CreateMap<SeminarParticipant, SeminarParticipantResponse>()
-                .ForMember(dest => dest.UserFullName, opt => opt.MapFrom(src => src.User != null ? src.User.FullName : null))
-                .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src => src.User != null ? src.User.Email : src.InvitedEmail));
+            CreateMap<SeminarParticipant, SeminarParticipantResponse>();
             CreateMap<SeminarParticipantCreateRequest, SeminarParticipant>();
             CreateMap<SeminarParticipantUpdateRequest, SeminarParticipant>();
 
@@ -226,10 +245,29 @@ namespace ARSPlatform.SERVICE.Mapping
             // SubField - Mục 2
             CreateMap<SubField, SubFieldResponse>()
                 .ForMember(dest => dest.MajorFieldName, opt => opt.MapFrom(src =>
-                    src.MajorField != null ? src.MajorField.Name : null));
+                    src.MajorField != null ? src.MajorField.Name : null))
+                .ForMember(dest => dest.GradingRubric, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.GradingRubric)
+                        ? new List<GradingRubricCriterionResponse>()
+                        : JsonSerializer.Deserialize<List<GradingRubricCriterionResponse>>(
+                            src.GradingRubric,
+                            (JsonSerializerOptions?)null) ?? new List<GradingRubricCriterionResponse>()));
 
-            CreateMap<SubFieldCreateRequest, SubField>();
-            CreateMap<SubFieldUpdateRequest, SubField>();
+            CreateMap<SubFieldCreateRequest, SubField>()
+                .ForMember(dest => dest.GradingRubric, opt => opt.MapFrom(src =>
+                    JsonSerializer.Serialize(
+                        src.GradingRubric ?? new List<GradingRubricCriterionRequest>(),
+                        (JsonSerializerOptions?)null)));
+
+            CreateMap<SubFieldUpdateRequest, SubField>()
+                .ForMember(dest => dest.GradingRubric, opt =>
+                {
+                    opt.PreCondition(src => src.GradingRubric != null);
+                    opt.MapFrom(src =>
+                        JsonSerializer.Serialize(
+                            src.GradingRubric,
+                            (JsonSerializerOptions?)null));
+                });
 
             // Transaction
             CreateMap<Transaction, TransactionResponse>();

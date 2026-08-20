@@ -37,6 +37,8 @@ public partial class DetailedEvaluation
 
     public DateTime? CreatedAt { get; set; }
 
+    public string SpecializedEvaluation { get; set; } = "[]";
+
     public virtual ReviewRequest? ReviewRequest { get; set; }
 
     public virtual User? Reviewer { get; set; }
