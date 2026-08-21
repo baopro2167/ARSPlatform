@@ -55,7 +55,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
             if (!response.IsSuccessStatusCode)
             {
                 throw new HttpRequestException(
-                    $"Google Meet space creation failed with status {(int)response.StatusCode}.");
+                    $"Google Meet space creation failed with status {(int)response.StatusCode}. Response: {responseBody}");
             }
 
             using var document = JsonDocument.Parse(responseBody);
