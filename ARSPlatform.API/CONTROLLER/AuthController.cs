@@ -90,7 +90,8 @@ namespace ARSPlatform.API.CONTROLLER
         [AllowAnonymous]
         public IActionResult GoogleOAuthLogin()
         {
-            var redirectUri = $"{Request.Scheme}://{Request.Host}/api/Auth/google-callback";
+            var scheme = Request.Host.Host.Contains("localhost") ? Request.Scheme : "https";
+            var redirectUri = $"{scheme}://{Request.Host}/api/Auth/google-callback";
             var url = _authService.GetGoogleAuthorizationUrl(redirectUri);
             return Redirect(url);
         }
@@ -106,7 +107,8 @@ namespace ARSPlatform.API.CONTROLLER
 
             try
             {
-                var redirectUri = $"{Request.Scheme}://{Request.Host}/api/Auth/google-callback";
+                var scheme = Request.Host.Host.Contains("localhost") ? Request.Scheme : "https";
+                var redirectUri = $"{scheme}://{Request.Host}/api/Auth/google-callback";
                 var result = await _authService.ExchangeCodeForRefreshTokenAsync(code, redirectUri);
                 
                 var htmlContent = $@"
