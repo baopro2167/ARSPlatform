@@ -1,6 +1,7 @@
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE;
+using System.Net.Http;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -501,6 +502,62 @@ namespace ARSPlatform.SERVICES
     </div>
   </div>
 </div>";
+        }
+
+        public string GetGoogleAuthorizationUrl(string redirectUri)
+        {
+            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
+                ?? _configuration["GoogleMeetSettings:ClientId"] 
+                ?? "";
+            
+            var scopes = "openid profile email https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/meetings.space.created";
+            
+            return $"https://accounts.google.com/o/oauth2/v2/auth?" +
+                   $"client_id={Uri.EscapeDataString(clientId)}" +
+                   $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+                   $"&response_type=code" +
+                   $"&scope={Uri.EscapeDataString(scopes)}" +
+                   $"&access_type=offline" +
+                   $"&prompt=consent";
+        }
+
+        public async Task<string?> ExchangeCodeForRefreshTokenAsync(string code, string redirectUri)
+        {
+            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
+                ?? _configuration["GoogleMeetSettings:ClientId"] 
+                ?? "";
+            var clientSecret = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientSecret") 
+                ?? _configuration["GoogleMeetSettings:ClientSecret"] 
+                ?? "";
+
+            using var httpClient = new HttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token")
+            {
+                Content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["code"] = code,
+                    ["client_id"] = clientId,
+                    ["client_secret"] = clientSecret,
+                    ["redirect_uri"] = redirectUri,
+                    ["grant_type"] = "authorization_code"
+                })
+            };
+
+            using var response = await httpClient.SendAsync(request);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception($"Failed to exchange code: {responseBody}");
+            }
+
+            using var document = System.Text.Json.JsonDocument.Parse(responseBody);
+            if (document.RootElement.TryGetProperty("refresh_token", out var refreshTokenElement))
+            {
+                return refreshTokenElement.GetString();
+            }
+
+            return $"Error: refresh_token not found in response. Make sure you selected prompt=consent and have not already authorized this client. Response: {responseBody}";
         }
     }
 }

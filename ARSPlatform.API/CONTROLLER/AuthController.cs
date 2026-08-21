@@ -85,5 +85,59 @@ namespace ARSPlatform.API.CONTROLLER
 
             return Ok(new { Message = "Approval email sent successfully!" });
         }
+
+        [HttpGet("google-oauth-login")]
+        [AllowAnonymous]
+        public IActionResult GoogleOAuthLogin()
+        {
+            var redirectUri = $"{Request.Scheme}://{Request.Host}/api/Auth/google-callback";
+            var url = _authService.GetGoogleAuthorizationUrl(redirectUri);
+            return Redirect(url);
+        }
+
+        [HttpGet("google-callback")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string? error)
+        {
+            if (!string.IsNullOrEmpty(error))
+            {
+                return BadRequest(new { Message = $"Google login failed: {error}" });
+            }
+
+            try
+            {
+                var redirectUri = $"{Request.Scheme}://{Request.Host}/api/Auth/google-callback";
+                var result = await _authService.ExchangeCodeForRefreshTokenAsync(code, redirectUri);
+                
+                var htmlContent = $@"
+                    <html>
+                    <head>
+                        <title>Google Authentication Successful</title>
+                        <style>
+                            body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f6f9; }}
+                            .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }}
+                            h1 {{ color: #243257; }}
+                            p {{ color: #555; }}
+                            .token-box {{ background: #eee; padding: 15px; border-radius: 4px; font-family: monospace; word-break: break-all; margin: 20px 0; border: 1px solid #ccc; font-size: 14px; text-align: left; }}
+                            .btn {{ background-color: #007aff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class='container'>
+                            <h1>Google Auth Successful</h1>
+                            <p>Copy the Google Refresh Token below and update it in your Render settings under the key <strong>GoogleMeetSettings__RefreshToken</strong>:</p>
+                            <div class='token-box'>{result}</div>
+                            <p>After saving on Render, wait for it to deploy and try creating a Seminar again!</p>
+                        </div>
+                    </body>
+                    </html>";
+                
+                return Content(htmlContent, "text/html");
+            }
+            catch (System.Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
     }
 }
