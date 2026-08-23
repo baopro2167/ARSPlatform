@@ -709,7 +709,7 @@ namespace ARSPlatform.SERVICES
 
             var validationSettings = new GoogleJsonWebSignature.ValidationSettings
             {
-                Audience = new[] { clientId }
+                Audience = GetAcceptedGoogleAudiences(idToken)
             };
             var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, validationSettings);
 
