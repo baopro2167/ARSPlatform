@@ -269,7 +269,7 @@ namespace ARSPlatform.SERVICES
                     PasswordHash = string.Empty,
                     IsActive = false,
                     IsEmailVerified = true,
-                    VerificationStatus = "Pending",
+                    VerificationStatus = null,
                     GoogleId = payload.Subject,
                     CreatedAt = now,
                     UpdatedAt = now,
@@ -308,7 +308,7 @@ namespace ARSPlatform.SERVICES
                     Role = null,
                     IsEmailVerified = user.IsEmailVerified,
                     IsActive = user.IsActive,
-                    VerificationStatus = user.VerificationStatus,
+                    VerificationStatus = null,
                     IsNewUser = true,
                     RequiresOnboarding = true,
                     EffectiveRole = null,
@@ -317,7 +317,7 @@ namespace ARSPlatform.SERVICES
             }
             else
             {
-                if (user.IsActive == false && !string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
+                if (user.IsActive == false && !string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase) && user.VerificationStatus != null)
                     return null;
 
                 if (string.Equals(user.VerificationStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
@@ -342,7 +342,7 @@ namespace ARSPlatform.SERVICES
                         Role = null,
                         IsEmailVerified = user.IsEmailVerified,
                         IsActive = user.IsActive,
-                        VerificationStatus = user.VerificationStatus ?? "Pending",
+                        VerificationStatus = null,
                         IsNewUser = true,
                         RequiresOnboarding = true,
                         EffectiveRole = null,
