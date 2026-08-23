@@ -4,6 +4,7 @@ using ARSPlatform.SERVICE;
 using System.Net.Http;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
+using ARSPlatform.SERVICE.ExternalServices;
 using ARSPlatform.SERVICE.Interfaces;
 using AutoMapper;
 using Google.Apis.Auth;
@@ -76,10 +77,44 @@ namespace ARSPlatform.SERVICES
             if (requestedRole == null)
                 throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
 
+            string? normalizedOrcidId = null;
+
+            if (string.Equals(
+                    requestedRoleName,
+                    "Reviewer",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                if (!OrcidIdUtility.TryNormalizeAndValidate(
+                        request.OrcidId,
+                        out var normalized))
+                {
+                    throw new Exception(
+                        "A valid ORCID iD is required for Reviewer registration.");
+                }
+
+                var orcidAlreadyExists =
+                    await _userRepository.ExistsAsync(
+                        user => user.OrcidId == normalized);
+
+                if (orcidAlreadyExists)
+                {
+                    throw new Exception(
+                        "This ORCID iD is already registered.");
+                }
+
+                normalizedOrcidId = normalized;
+            }
+            else if (!string.IsNullOrWhiteSpace(request.OrcidId))
+            {
+                throw new Exception(
+                    "ORCID iD is only allowed for Reviewer registration.");
+            }
+
             var now = DateTime.UtcNow;
 
             var user = _mapper.Map<User>(request);
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            user.OrcidId = normalizedOrcidId;
             user.IsActive = false;
             user.IsEmailVerified = false;
             user.VerificationStatus = "Pending";
@@ -93,16 +128,11 @@ namespace ARSPlatform.SERVICES
 
             await _userRepository.AddAsync(user);
 
-            // Auto-create ProfessionalProfile for the user
-            var professionalProfile = new ProfessionalProfile
-            {
-                User = user,
-                SyncStatus = "pending",
-                UpdatedAt = now
-            };
-            await _professionalProfileRepository.AddAsync(professionalProfile);
+            // IMPORTANT:
+            // Pending registration must NOT create ProfessionalProfile.
+            // ProfessionalProfile is created only after Admin approves the requested role.
 
-            // Auto-create Wallet for the user
+            // Keep existing Wallet creation behavior unchanged in this scope.
             var wallet = new Wallet
             {
                 User = user,
@@ -126,11 +156,11 @@ namespace ARSPlatform.SERVICES
             };
             await _roleRequestRepository.AddAsync(roleRequest);
 
-            // All registration entities share the same scoped AppDbContext.
-            // A single SaveChanges call persists the registration atomically.
+            // User + Wallet + RoleRequest share the same scoped AppDbContext.
+            // One SaveChanges call persists registration atomically.
             await _userRepository.SaveChangesAsync();
 
-            // Send registration email confirmation using MailKit
+            // Send registration email confirmation using MailKit.
             var verificationToken = GenerateEmailVerificationToken(user.Email);
             try
             {
@@ -138,7 +168,10 @@ namespace ARSPlatform.SERVICES
                 var verifyUrl = $"{baseVerifyUrl}?token={Uri.EscapeDataString(verificationToken)}";
 
                 var emailBody = BuildRegisterEmailBody(user.FullName, verifyUrl);
-                await _emailService.SendEmailAsync(user.Email, "[ARS] Confirm Your Email Address & Account Registration", emailBody);
+                await _emailService.SendEmailAsync(
+                    user.Email,
+                    "[ARS] Confirm Your Email Address & Account Registration",
+                    emailBody);
             }
             catch (Exception ex)
             {
@@ -146,7 +179,8 @@ namespace ARSPlatform.SERVICES
             }
 
             var createdUser = await _userRepository.GetWithRoleByIdAsync(user.UserId);
-            if (createdUser == null) return null;
+            if (createdUser == null)
+                return null;
 
             var token = GenerateJwtToken(createdUser, "Guest");
 
@@ -323,8 +357,8 @@ namespace ARSPlatform.SERVICES
                 if (string.Equals(user.VerificationStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
                     return null;
 
-                var hasOnboarded = await _roleRequestRepository.ExistsAsync(rr => 
-                    rr.User.UserId == user.UserId && 
+                var hasOnboarded = await _roleRequestRepository.ExistsAsync(rr =>
+                    rr.User.UserId == user.UserId &&
                     (rr.Status == "PENDING" || rr.Status == "APPROVED"));
                 var hasRoles = user.UserRoles != null && user.UserRoles.Any();
 
@@ -606,7 +640,7 @@ namespace ARSPlatform.SERVICES
         public string GetGoogleAuthorizationUrl(string redirectUri, string scopes)
         {
             var isGoogleMeet = scopes.Contains("meetings.space.created");
-            var clientId = isGoogleMeet 
+            var clientId = isGoogleMeet
                 ? (Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") ?? _configuration["GoogleMeetSettings:ClientId"])
                 : (Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? _configuration["GoogleAuth:ClientId"]);
 
@@ -614,7 +648,7 @@ namespace ARSPlatform.SERVICES
                 throw new Exception("Google Client ID is not configured.");
 
             var accessType = isGoogleMeet ? "&access_type=offline&prompt=consent" : "";
-            
+
             return $"https://accounts.google.com/o/oauth2/v2/auth?" +
                    $"client_id={Uri.EscapeDataString(clientId)}" +
                    $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
@@ -625,11 +659,11 @@ namespace ARSPlatform.SERVICES
 
         public async Task<string?> ExchangeCodeForRefreshTokenAsync(string code, string redirectUri)
         {
-            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
-                ?? _configuration["GoogleMeetSettings:ClientId"] 
+            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId")
+                ?? _configuration["GoogleMeetSettings:ClientId"]
                 ?? "";
-            var clientSecret = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientSecret") 
-                ?? _configuration["GoogleMeetSettings:ClientSecret"] 
+            var clientSecret = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientSecret")
+                ?? _configuration["GoogleMeetSettings:ClientSecret"]
                 ?? "";
 
             using var httpClient = new HttpClient();
@@ -664,11 +698,11 @@ namespace ARSPlatform.SERVICES
 
         public async Task<AuthResponse?> AuthenticateGoogleLoginAsync(string code, string redirectUri)
         {
-            var clientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") 
-                ?? _configuration["GoogleAuth:ClientId"] 
+            var clientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID")
+                ?? _configuration["GoogleAuth:ClientId"]
                 ?? "";
-            var clientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") 
-                ?? _configuration["GoogleAuth:ClientSecret"] 
+            var clientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET")
+                ?? _configuration["GoogleAuth:ClientSecret"]
                 ?? "";
 
             if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
@@ -820,10 +854,10 @@ namespace ARSPlatform.SERVICES
             }
             else
             {
-                var existingRequests = await _roleRequestRepository.ExistsAsync(rr => 
-                    rr.User.UserId == user.UserId && 
+                var existingRequests = await _roleRequestRepository.ExistsAsync(rr =>
+                    rr.User.UserId == user.UserId &&
                     (rr.Status == "PENDING" || rr.Status == "APPROVED"));
-                
+
                 if (existingRequests)
                 {
                     throw new Exception("A role request already exists or has already been approved.");
@@ -883,7 +917,7 @@ namespace ARSPlatform.SERVICES
                 throw new Exception("User is inactive.");
             }
 
-            var hasRole = user.UserRoles.Any(ur => 
+            var hasRole = user.UserRoles.Any(ur =>
                 string.Equals(ur.Role?.Name, roleName, StringComparison.OrdinalIgnoreCase));
 
             if (!hasRole)
@@ -891,7 +925,7 @@ namespace ARSPlatform.SERVICES
                 throw new Exception($"Role '{roleName}' is not assigned to this user.");
             }
 
-            var chosenRole = user.UserRoles.First(ur => 
+            var chosenRole = user.UserRoles.First(ur =>
                 string.Equals(ur.Role?.Name, roleName, StringComparison.OrdinalIgnoreCase)).Role!.Name;
 
             var token = GenerateJwtToken(user, chosenRole);
@@ -957,7 +991,7 @@ namespace ARSPlatform.SERVICES
                 audiences.Add(envClientId);
             }
 
-            var meetClientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
+            var meetClientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId")
                 ?? _configuration["GoogleMeetSettings:ClientId"];
             if (!string.IsNullOrEmpty(meetClientId))
             {
