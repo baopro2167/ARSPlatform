@@ -34,6 +34,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create([FromBody] UserRoleCreateRequest request)
         {
             var item = _mapper.Map<UserRole>(request);
@@ -53,6 +54,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] UserRoleUpdateRequest request)
         {
             var item = await _repository.GetByIdAsync(id);
@@ -65,6 +67,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var item = await _repository.GetByIdAsync(id);

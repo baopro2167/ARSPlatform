@@ -15,6 +15,9 @@ public partial class User
 
     public string? GoogleId { get; set; }
 
+    public string? OrcidId { get; set; }
+
+
     public string? AvatarUrl { get; set; }
 
     public bool? IsEmailVerified { get; set; }

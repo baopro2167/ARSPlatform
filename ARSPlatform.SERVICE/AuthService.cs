@@ -16,6 +16,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using ARSPlatform.SERVICE.ExternalServices;
 
 namespace ARSPlatform.SERVICES
 {
@@ -75,11 +76,45 @@ namespace ARSPlatform.SERVICES
             var requestedRole = await _roleRepository.GetByNameAsync(requestedRoleName);
             if (requestedRole == null)
                 throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
+            string? normalizedOrcidId = null;
+
+            if (string.Equals(
+                    requestedRoleName,
+                    "Reviewer",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                if (!OrcidIdUtility.TryNormalizeAndValidate(
+                        request.OrcidId,
+                        out var normalized))
+                {
+                    throw new Exception(
+                        "A valid ORCID iD is required for Reviewer registration.");
+                }
+
+                var orcidAlreadyExists =
+                    await _userRepository.ExistsAsync(
+                        user =>
+                            user.OrcidId == normalized);
+
+                if (orcidAlreadyExists)
+                {
+                    throw new Exception(
+                        "This ORCID iD is already registered.");
+                }
+
+                normalizedOrcidId = normalized;
+            }
+            else if (!string.IsNullOrWhiteSpace(request.OrcidId))
+            {
+                throw new Exception(
+                    "ORCID iD is only allowed for Reviewer registration.");
+            }
 
             var now = DateTime.UtcNow;
 
             var user = _mapper.Map<User>(request);
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            user.OrcidId = normalizedOrcidId;
             user.IsActive = false;
             user.IsEmailVerified = false;
             user.VerificationStatus = "Pending";
@@ -93,14 +128,8 @@ namespace ARSPlatform.SERVICES
 
             await _userRepository.AddAsync(user);
 
-            // Auto-create ProfessionalProfile for the user
-            var professionalProfile = new ProfessionalProfile
-            {
-                User = user,
-                SyncStatus = "pending",
-                UpdatedAt = now
-            };
-            await _professionalProfileRepository.AddAsync(professionalProfile);
+            // Pending registration does not create ProfessionalProfile.
+            // ProfessionalProfile will be created only after Admin approves the requested role.
 
             // Auto-create Wallet for the user
             var wallet = new Wallet
@@ -506,12 +535,12 @@ namespace ARSPlatform.SERVICES
 
         public string GetGoogleAuthorizationUrl(string redirectUri)
         {
-            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
-                ?? _configuration["GoogleMeetSettings:ClientId"] 
+            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId")
+                ?? _configuration["GoogleMeetSettings:ClientId"]
                 ?? "";
-            
+
             var scopes = "openid profile email https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/meetings.space.created";
-            
+
             return $"https://accounts.google.com/o/oauth2/v2/auth?" +
                    $"client_id={Uri.EscapeDataString(clientId)}" +
                    $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
@@ -523,11 +552,11 @@ namespace ARSPlatform.SERVICES
 
         public async Task<string?> ExchangeCodeForRefreshTokenAsync(string code, string redirectUri)
         {
-            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
-                ?? _configuration["GoogleMeetSettings:ClientId"] 
+            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId")
+                ?? _configuration["GoogleMeetSettings:ClientId"]
                 ?? "";
-            var clientSecret = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientSecret") 
-                ?? _configuration["GoogleMeetSettings:ClientSecret"] 
+            var clientSecret = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientSecret")
+                ?? _configuration["GoogleMeetSettings:ClientSecret"]
                 ?? "";
 
             using var httpClient = new HttpClient();

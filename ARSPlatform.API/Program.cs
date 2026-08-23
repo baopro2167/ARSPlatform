@@ -63,6 +63,70 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 // Register External API Service
 builder.Services.AddScoped<IExternalApiService, ExternalApiService>();
 
+// Register OpenAlex Settings and Service
+builder.Services.Configure<OpenAlexSettings>(options =>
+{
+    var section = builder.Configuration.GetSection("OpenAlexSettings");
+
+    options.BaseUrl =
+        section["BaseUrl"]
+        ?? "https://api.openalex.org";
+
+    options.ApiKey =
+        Environment.GetEnvironmentVariable("OPENALEX_API_KEY")
+        ?? section["ApiKey"]
+        ?? "";
+
+    options.TimeoutSeconds =
+        int.TryParse(
+            section["TimeoutSeconds"],
+            out var timeoutSeconds)
+            ? timeoutSeconds
+            : 15;
+
+    options.MaxWorks =
+        int.TryParse(
+            section["MaxWorks"],
+            out var maxWorks)
+            ? maxWorks
+            : 100;
+});
+
+builder.Services.AddHttpClient<IOpenAlexService, OpenAlexService>(
+    (serviceProvider, client) =>
+    {
+        var settings = serviceProvider
+            .GetRequiredService<
+                Microsoft.Extensions.Options.IOptions<OpenAlexSettings>>()
+            .Value;
+
+        var baseUrl =
+            string.IsNullOrWhiteSpace(settings.BaseUrl)
+                ? "https://api.openalex.org"
+                : settings.BaseUrl.TrimEnd('/');
+
+        client.BaseAddress =
+            new Uri($"{baseUrl}/");
+
+        client.Timeout =
+            TimeSpan.FromSeconds(
+                Math.Clamp(
+                    settings.TimeoutSeconds,
+                    3,
+                    60));
+
+        client.DefaultRequestHeaders.Accept.ParseAdd(
+            "application/json");
+
+        if (!string.IsNullOrWhiteSpace(settings.ApiKey))
+        {
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    settings.ApiKey);
+        }
+    });
+
 // Register Audio Summary Service
 // Timeout 15 phút để xử lý audio lớn
 builder.Services.AddHttpClient<IAudioSummaryService, AudioSummaryService>(client =>
@@ -78,6 +142,7 @@ builder.Services.AddHttpClient<IGoogleMeetService, GoogleMeetService>();
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IRoleRequestService, RoleRequestService>();
 builder.Services.AddScoped<IPaperService, PaperService>();
 builder.Services.AddScoped<ISeminarService, SeminarService>();
 builder.Services.AddHostedService<SeminarAutomationHostedService>();
