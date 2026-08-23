@@ -3,6 +3,10 @@ using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using System.Security.Claims;
+using System.Collections.Generic;
+using System;
+using Microsoft.Extensions.Configuration;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -11,10 +15,12 @@ namespace ARSPlatform.API.CONTROLLER
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IConfiguration _configuration;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, IConfiguration configuration)
         {
             _authService = authService;
+            _configuration = configuration;
         }
 
         [HttpPost("register")]
@@ -66,14 +72,44 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPost("complete-google-registration")]
-        [AllowAnonymous]
+        [Authorize]
         public async Task<IActionResult> CompleteGoogleRegistration([FromBody] CompleteGoogleRegistrationRequest request)
         {
+            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdValue, out var userId))
+            {
+                return Unauthorized(new { Message = "User is not authenticated." });
+            }
+
             try
             {
-                var result = await _authService.CompleteGoogleRegistrationAsync(request);
+                var result = await _authService.CompleteGoogleRegistrationAsync(userId, request);
                 if (result == null)
                     return BadRequest(new { Message = "Failed to complete Google registration." });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("select-role")]
+        [Authorize]
+        public async Task<IActionResult> SelectRole([FromBody] SelectRoleRequest request)
+        {
+            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdValue, out var userId))
+            {
+                return Unauthorized(new { Message = "User is not authenticated." });
+            }
+
+            try
+            {
+                var result = await _authService.SelectRoleAsync(userId, request.Role);
+                if (result == null)
+                    return BadRequest(new { Message = "Failed to select role." });
 
                 return Ok(result);
             }
@@ -110,7 +146,7 @@ namespace ARSPlatform.API.CONTROLLER
         {
             var scheme = Request.Host.Host.Contains("localhost") ? Request.Scheme : "https";
             var redirectUri = $"{scheme}://{Request.Host}/api/Auth/google-callback";
-            var url = _authService.GetGoogleAuthorizationUrl(redirectUri);
+            var url = _authService.GetGoogleAuthorizationUrl(redirectUri, "openid profile email");
             return Redirect(url);
         }
 
@@ -118,45 +154,43 @@ namespace ARSPlatform.API.CONTROLLER
         [AllowAnonymous]
         public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string? error)
         {
+            var baseVerifyUrl = _configuration["EmailSettings:VerificationUrl"] ?? "https://fe-ars.vercel.app/verify-email";
+            var frontendOrigin = new Uri(baseVerifyUrl).GetLeftPart(UriPartial.Authority);
+            var frontendCallbackUrl = $"{frontendOrigin}/auth/google/callback";
+
             if (!string.IsNullOrEmpty(error))
             {
-                return BadRequest(new { Message = $"Google login failed: {error}" });
+                return Redirect($"{frontendCallbackUrl}?error={Uri.EscapeDataString(error)}");
             }
 
             try
             {
                 var scheme = Request.Host.Host.Contains("localhost") ? Request.Scheme : "https";
                 var redirectUri = $"{scheme}://{Request.Host}/api/Auth/google-callback";
-                var result = await _authService.ExchangeCodeForRefreshTokenAsync(code, redirectUri);
+                var result = await _authService.AuthenticateGoogleLoginAsync(code, redirectUri);
                 
-                var htmlContent = $@"
-                    <html>
-                    <head>
-                        <title>Google Authentication Successful</title>
-                        <style>
-                            body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f6f9; }}
-                            .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }}
-                            h1 {{ color: #243257; }}
-                            p {{ color: #555; }}
-                            .token-box {{ background: #eee; padding: 15px; border-radius: 4px; font-family: monospace; word-break: break-all; margin: 20px 0; border: 1px solid #ccc; font-size: 14px; text-align: left; }}
-                            .btn {{ background-color: #007aff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class='container'>
-                            <h1>Google Auth Successful</h1>
-                            <p>Copy the Google Refresh Token below and update it in your Render settings under the key <strong>GoogleMeetSettings__RefreshToken</strong>:</p>
-                            <div class='token-box'>{result}</div>
-                            <p>After saving on Render, wait for it to deploy and try creating a Seminar again!</p>
-                        </div>
-                    </body>
-                    </html>";
-                
-                return Content(htmlContent, "text/html");
+                if (result == null)
+                {
+                    throw new Exception("Google authentication returned no account details.");
+                }
+
+                var query = $"?token={Uri.EscapeDataString(result.Token ?? "")}" +
+                            $"&userId={result.UserId}" +
+                            $"&email={Uri.EscapeDataString(result.Email ?? "")}" +
+                            $"&fullName={Uri.EscapeDataString(result.FullName ?? "")}" +
+                            $"&isNewUser={(result.IsNewUser ?? false).ToString().ToLower()}" +
+                            $"&requiresOnboarding={(result.RequiresOnboarding ?? false).ToString().ToLower()}" +
+                            $"&roles={Uri.EscapeDataString(string.Join(",", result.Roles ?? new List<string>()))}" +
+                            $"&role={Uri.EscapeDataString(result.Role ?? "")}" +
+                            $"&isActive={(result.IsActive ?? false).ToString().ToLower()}" +
+                            $"&verificationStatus={Uri.EscapeDataString(result.VerificationStatus ?? "")}" +
+                            $"&effectiveRole={Uri.EscapeDataString(result.EffectiveRole ?? "")}";
+
+                return Redirect($"{frontendCallbackUrl}{query}");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                return BadRequest(new { Message = ex.Message });
+                return Redirect($"{frontendCallbackUrl}?error={Uri.EscapeDataString(ex.Message)}");
             }
         }
     }

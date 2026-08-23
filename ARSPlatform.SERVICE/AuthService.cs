@@ -291,121 +291,6 @@ namespace ARSPlatform.SERVICES
             };
         }
 
-        public async Task<AuthResponse?> CompleteGoogleRegistrationAsync(CompleteGoogleRegistrationRequest request)
-        {
-            var googleSettings = _configuration.GetSection("GoogleAuth");
-            var clientId = googleSettings["ClientId"];
-
-            if (string.IsNullOrEmpty(clientId))
-                throw new Exception("Google ClientId is not configured.");
-
-            GoogleJsonWebSignature.Payload? payload;
-            try
-            {
-                var validationSettings = new GoogleJsonWebSignature.ValidationSettings
-                {
-                    Audience = new[] { clientId }
-                };
-                payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
-            }
-            catch (Exception)
-            {
-                throw new Exception("Invalid Google credential.");
-            }
-
-            var existingUser = await _userRepository.GetByUsernameAsync(payload.Email);
-            if (existingUser != null)
-            {
-                throw new Exception("User is already registered.");
-            }
-
-            var requestableRoles = new[]
-            {
-                "Researcher",
-                "Reviewer",
-                "Lecturer",
-                "Graduate Student"
-            };
-
-            var requestedRoleName = requestableRoles.FirstOrDefault(role =>
-                string.Equals(
-                    role,
-                    request.Role.Trim(),
-                    StringComparison.OrdinalIgnoreCase));
-
-            if (requestedRoleName == null)
-                throw new Exception("Requested role is not allowed.");
-
-            var requestedRole = await _roleRepository.GetByNameAsync(requestedRoleName);
-            if (requestedRole == null)
-                throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
-
-            var now = DateTime.UtcNow;
-
-            var user = new User
-            {
-                Email = payload.Email,
-                FullName = payload.Name ?? payload.Email.Split('@')[0],
-                PasswordHash = string.Empty,
-                IsActive = false,
-                IsEmailVerified = true,
-                VerificationStatus = "Pending",
-                ProofDocumentUrl = request.PdfUrl.Trim(),
-                GoogleId = payload.Subject,
-                CreatedAt = now,
-                UpdatedAt = now,
-                UserRoles = new List<UserRole>()
-            };
-
-            await _userRepository.AddAsync(user);
-
-            var professionalProfile = new ProfessionalProfile
-            {
-                User = user,
-                SyncStatus = "pending",
-                UpdatedAt = now
-            };
-            await _professionalProfileRepository.AddAsync(professionalProfile);
-
-            var wallet = new Wallet
-            {
-                User = user,
-                Balance = 0,
-                UpdatedAt = now
-            };
-            await _walletRepository.AddAsync(wallet);
-
-            var roleRequest = new RoleRequest
-            {
-                User = user,
-                RequestedRoleId = requestedRole.RoleId,
-                PhoneNumber = request.PhoneNumber.Trim(),
-                ProofDocumentUrl = request.PdfUrl.Trim(),
-                Status = "PENDING",
-                RequestType = "INITIAL_REGISTRATION",
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-            await _roleRequestRepository.AddAsync(roleRequest);
-
-            await _userRepository.SaveChangesAsync();
-
-            var token = GenerateJwtToken(user, "Guest");
-
-            return new AuthResponse
-            {
-                UserId = user.UserId,
-                Token = token,
-                Username = user.FullName,
-                Email = user.Email,
-                Role = "Guest",
-                IsEmailVerified = user.IsEmailVerified,
-                IsActive = user.IsActive,
-                VerificationStatus = user.VerificationStatus,
-                IsNewUser = false
-            };
-        }
-
         private string GenerateJwtToken(User user, string? effectiveRole = null)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
@@ -613,21 +498,24 @@ namespace ARSPlatform.SERVICES
 </div>";
         }
 
-        public string GetGoogleAuthorizationUrl(string redirectUri)
+        public string GetGoogleAuthorizationUrl(string redirectUri, string scopes)
         {
-            var clientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
-                ?? _configuration["GoogleMeetSettings:ClientId"] 
-                ?? "";
-            
-            var scopes = "openid profile email https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/meetings.space.created";
+            var isGoogleMeet = scopes.Contains("meetings.space.created");
+            var clientId = isGoogleMeet 
+                ? (Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") ?? _configuration["GoogleMeetSettings:ClientId"])
+                : (Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? _configuration["GoogleAuth:ClientId"]);
+
+            if (string.IsNullOrEmpty(clientId))
+                throw new Exception("Google Client ID is not configured.");
+
+            var accessType = isGoogleMeet ? "&access_type=offline&prompt=consent" : "";
             
             return $"https://accounts.google.com/o/oauth2/v2/auth?" +
                    $"client_id={Uri.EscapeDataString(clientId)}" +
                    $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
                    $"&response_type=code" +
                    $"&scope={Uri.EscapeDataString(scopes)}" +
-                   $"&access_type=offline" +
-                   $"&prompt=consent";
+                   accessType;
         }
 
         public async Task<string?> ExchangeCodeForRefreshTokenAsync(string code, string redirectUri)
@@ -667,6 +555,186 @@ namespace ARSPlatform.SERVICES
             }
 
             return $"Error: refresh_token not found in response. Make sure you selected prompt=consent and have not already authorized this client. Response: {responseBody}";
+        }
+
+        public async Task<AuthResponse?> AuthenticateGoogleLoginAsync(string code, string redirectUri)
+        {
+            var clientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") 
+                ?? _configuration["GoogleAuth:ClientId"] 
+                ?? "";
+            var clientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") 
+                ?? _configuration["GoogleAuth:ClientSecret"] 
+                ?? "";
+
+            if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+                throw new Exception("Google login credentials are not configured on the backend.");
+
+            using var httpClient = new HttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token")
+            {
+                Content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["code"] = code,
+                    ["client_id"] = clientId,
+                    ["client_secret"] = clientSecret,
+                    ["redirect_uri"] = redirectUri,
+                    ["grant_type"] = "authorization_code"
+                })
+            };
+
+            using var response = await httpClient.SendAsync(request);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception($"Failed to exchange Google OAuth code: {responseBody}");
+            }
+
+            using var document = System.Text.Json.JsonDocument.Parse(responseBody);
+            if (!document.RootElement.TryGetProperty("id_token", out var idTokenElement))
+            {
+                throw new Exception("Google OAuth response did not contain an id_token.");
+            }
+
+            var idToken = idTokenElement.GetString();
+            if (string.IsNullOrEmpty(idToken))
+            {
+                throw new Exception("Empty id_token returned from Google.");
+            }
+
+            var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { clientId }
+            };
+            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, validationSettings);
+
+            var requestDto = new GoogleLoginRequest { Credential = idToken };
+            return await GoogleLoginAsync(requestDto);
+        }
+
+        public async Task<AuthResponse?> CompleteGoogleRegistrationAsync(int userId, CompleteGoogleRegistrationRequest request)
+        {
+            var user = await _userRepository.GetWithRoleByIdAsync(userId);
+            if (user == null)
+            {
+                throw new Exception("User not found.");
+            }
+
+            var existingRequests = await _roleRequestRepository.ExistsAsync(rr => 
+                rr.User.UserId == userId && 
+                (rr.Status == "PENDING" || rr.Status == "APPROVED"));
+            
+            if (existingRequests)
+            {
+                throw new Exception("A role request already exists or has already been approved.");
+            }
+
+            var requestableRoles = new[]
+            {
+                "Researcher",
+                "Reviewer",
+                "Lecturer",
+                "Graduate Student"
+            };
+
+            var requestedRoleName = requestableRoles.FirstOrDefault(role =>
+                string.Equals(
+                    role,
+                    request.Role.Trim(),
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (requestedRoleName == null)
+                throw new Exception("Requested role is not allowed.");
+
+            var requestedRole = await _roleRepository.GetByNameAsync(requestedRoleName);
+            if (requestedRole == null)
+                throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
+
+            var now = DateTime.UtcNow;
+
+            user.ProofDocumentUrl = request.PdfUrl.Trim();
+            user.VerificationStatus = "Pending";
+            user.IsActive = false;
+            user.UpdatedAt = now;
+
+            var roleRequest = new RoleRequest
+            {
+                User = user,
+                RequestedRoleId = requestedRole.RoleId,
+                PhoneNumber = request.PhoneNumber.Trim(),
+                ProofDocumentUrl = request.PdfUrl.Trim(),
+                Status = "PENDING",
+                RequestType = "INITIAL_REGISTRATION",
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            await _roleRequestRepository.AddAsync(roleRequest);
+
+            await _userRepository.SaveChangesAsync();
+
+            var token = GenerateJwtToken(user, "Guest");
+
+            return new AuthResponse
+            {
+                UserId = user.UserId,
+                Token = token,
+                Username = user.FullName,
+                FullName = user.FullName,
+                Email = user.Email,
+                Role = null,
+                IsEmailVerified = user.IsEmailVerified,
+                IsActive = user.IsActive,
+                VerificationStatus = user.VerificationStatus,
+                IsNewUser = false,
+                RequiresOnboarding = false,
+                EffectiveRole = "Guest",
+                Roles = new List<string>()
+            };
+        }
+
+        public async Task<AuthResponse?> SelectRoleAsync(int userId, string roleName)
+        {
+            var user = await _userRepository.GetWithRoleByIdAsync(userId);
+            if (user == null)
+            {
+                throw new Exception("User not found.");
+            }
+
+            if (user.IsActive == false)
+            {
+                throw new Exception("User is inactive.");
+            }
+
+            var hasRole = user.UserRoles.Any(ur => 
+                string.Equals(ur.Role?.Name, roleName, StringComparison.OrdinalIgnoreCase));
+
+            if (!hasRole)
+            {
+                throw new Exception($"Role '{roleName}' is not assigned to this user.");
+            }
+
+            var chosenRole = user.UserRoles.First(ur => 
+                string.Equals(ur.Role?.Name, roleName, StringComparison.OrdinalIgnoreCase)).Role!.Name;
+
+            var token = GenerateJwtToken(user, chosenRole);
+            var rolesList = user.UserRoles.Where(ur => ur.Role != null).Select(ur => ur.Role!.Name).ToList();
+
+            return new AuthResponse
+            {
+                UserId = user.UserId,
+                Token = token,
+                Username = user.FullName,
+                FullName = user.FullName,
+                Email = user.Email,
+                Role = chosenRole,
+                IsEmailVerified = user.IsEmailVerified,
+                IsActive = user.IsActive,
+                VerificationStatus = user.VerificationStatus,
+                IsNewUser = false,
+                RequiresOnboarding = false,
+                EffectiveRole = chosenRole,
+                Roles = rolesList
+            };
         }
     }
 }
