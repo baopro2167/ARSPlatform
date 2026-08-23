@@ -323,10 +323,37 @@ namespace ARSPlatform.SERVICES
                 if (string.Equals(user.VerificationStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
                     return null;
 
+                var hasOnboarded = await _roleRequestRepository.ExistsAsync(rr => 
+                    rr.User.UserId == user.UserId && 
+                    (rr.Status == "PENDING" || rr.Status == "APPROVED"));
+                var hasRoles = user.UserRoles != null && user.UserRoles.Any();
+
+                // If user has not submitted onboarding yet, force them to the onboarding page
+                if (!hasRoles && !hasOnboarded)
+                {
+                    var guestToken = GenerateJwtToken(user, "Guest");
+                    return new AuthResponse
+                    {
+                        UserId = user.UserId,
+                        Token = guestToken,
+                        Username = user.FullName,
+                        FullName = user.FullName,
+                        Email = user.Email,
+                        Role = null,
+                        IsEmailVerified = user.IsEmailVerified,
+                        IsActive = user.IsActive,
+                        VerificationStatus = user.VerificationStatus ?? "Pending",
+                        IsNewUser = true,
+                        RequiresOnboarding = true,
+                        EffectiveRole = "Guest",
+                        Roles = new List<string>()
+                    };
+                }
+
+                // If user has submitted onboarding and is awaiting Admin approval, let them view Forum as Guest
                 if (string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
                 {
                     var guestToken = GenerateJwtToken(user, "Guest");
-                    var hasOnboarded = await _roleRequestRepository.ExistsAsync(rr => rr.User.UserId == user.UserId);
                     return new AuthResponse
                     {
                         UserId = user.UserId,
@@ -339,7 +366,7 @@ namespace ARSPlatform.SERVICES
                         IsActive = user.IsActive,
                         VerificationStatus = user.VerificationStatus,
                         IsNewUser = false,
-                        RequiresOnboarding = !hasOnboarded,
+                        RequiresOnboarding = false,
                         EffectiveRole = "Guest",
                         Roles = new List<string>()
                     };
@@ -356,12 +383,15 @@ namespace ARSPlatform.SERVICES
                 UserId = user.UserId,
                 Token = token,
                 Username = user.FullName,
+                FullName = user.FullName,
                 Email = user.Email,
                 Role = effectiveRole,
                 IsEmailVerified = user.IsEmailVerified,
                 IsActive = user.IsActive,
                 VerificationStatus = user.VerificationStatus,
                 IsNewUser = false,
+                RequiresOnboarding = false,
+                EffectiveRole = effectiveRole,
                 Roles = rolesList
             };
         }
