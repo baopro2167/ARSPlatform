@@ -215,6 +215,11 @@ namespace ARSPlatform.SERVICES
             var googleSettings = _configuration.GetSection("GoogleAuth");
             var clientId = googleSettings["ClientId"];
 
+            if (string.IsNullOrEmpty(clientId) || clientId.Contains("REPLACE_WITH"))
+            {
+                clientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
+            }
+
             if (string.IsNullOrEmpty(clientId))
                 throw new Exception("Google ClientId is not configured.");
 
@@ -227,8 +232,9 @@ namespace ARSPlatform.SERVICES
                 };
                 payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine($"[GoogleLoginAsync] Google token validation failed using Client ID '{clientId}': {ex}");
                 return null;
             }
 
