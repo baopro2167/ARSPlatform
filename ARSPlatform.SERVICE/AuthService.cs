@@ -228,7 +228,7 @@ namespace ARSPlatform.SERVICES
             {
                 var validationSettings = new GoogleJsonWebSignature.ValidationSettings
                 {
-                    Audience = new[] { clientId }
+                    Audience = GetAcceptedGoogleAudiences()
                 };
                 payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
             }
@@ -636,7 +636,7 @@ namespace ARSPlatform.SERVICES
             {
                 var validationSettings = new GoogleJsonWebSignature.ValidationSettings
                 {
-                    Audience = new[] { clientId }
+                    Audience = GetAcceptedGoogleAudiences()
                 };
                 payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
             }
@@ -800,6 +800,38 @@ namespace ARSPlatform.SERVICES
                 EffectiveRole = chosenRole,
                 Roles = rolesList
             };
+        }
+
+        private IEnumerable<string> GetAcceptedGoogleAudiences()
+        {
+            var audiences = new List<string>
+            {
+                "900095631091-0u6kiosgvmgf9j7ujrpodkms46k8sfbb.apps.googleusercontent.com",
+                "782594816534-gi0o1s413e117t6l1b5h7k3j2bglh1g1.apps.googleusercontent.com",
+                "782594816534-i1sfjl4ostsab3cnkegivtun896fb8b3.apps.googleusercontent.com"
+            };
+
+            var googleSettings = _configuration.GetSection("GoogleAuth");
+            var clientId = googleSettings["ClientId"];
+            if (!string.IsNullOrEmpty(clientId) && !clientId.Contains("REPLACE_WITH"))
+            {
+                audiences.Add(clientId);
+            }
+
+            var envClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
+            if (!string.IsNullOrEmpty(envClientId))
+            {
+                audiences.Add(envClientId);
+            }
+
+            var meetClientId = Environment.GetEnvironmentVariable("GoogleMeetSettings__ClientId") 
+                ?? _configuration["GoogleMeetSettings:ClientId"];
+            if (!string.IsNullOrEmpty(meetClientId))
+            {
+                audiences.Add(meetClientId);
+            }
+
+            return audiences.Distinct();
         }
     }
 }
