@@ -261,12 +261,58 @@ namespace ARSPlatform.SERVICES
 
             if (user == null)
             {
-                return new AuthResponse
+                var now = DateTime.UtcNow;
+                user = new User
                 {
                     Email = payload.Email,
-                    Username = payload.Name ?? payload.Email.Split('@')[0],
+                    FullName = payload.Name ?? payload.Email.Split('@')[0],
+                    PasswordHash = string.Empty,
+                    IsActive = false,
+                    IsEmailVerified = true,
+                    VerificationStatus = "Pending",
+                    GoogleId = payload.Subject,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    UserRoles = new List<UserRole>()
+                };
+
+                await _userRepository.AddAsync(user);
+
+                var professionalProfile = new ProfessionalProfile
+                {
+                    User = user,
+                    SyncStatus = "pending",
+                    UpdatedAt = now
+                };
+                await _professionalProfileRepository.AddAsync(professionalProfile);
+
+                var wallet = new Wallet
+                {
+                    User = user,
+                    Balance = 0,
+                    UpdatedAt = now
+                };
+                await _walletRepository.AddAsync(wallet);
+
+                await _userRepository.SaveChangesAsync();
+
+                var guestToken = GenerateJwtToken(user, "Guest");
+
+                return new AuthResponse
+                {
+                    UserId = user.UserId,
+                    Token = guestToken,
+                    Username = user.FullName,
+                    FullName = user.FullName,
+                    Email = user.Email,
+                    Role = null,
+                    IsEmailVerified = user.IsEmailVerified,
+                    IsActive = user.IsActive,
+                    VerificationStatus = user.VerificationStatus,
                     IsNewUser = true,
-                    VerificationStatus = "Pending"
+                    RequiresOnboarding = true,
+                    EffectiveRole = "Guest",
+                    Roles = new List<string>()
                 };
             }
             else
@@ -280,17 +326,22 @@ namespace ARSPlatform.SERVICES
                 if (string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
                 {
                     var guestToken = GenerateJwtToken(user, "Guest");
+                    var hasOnboarded = await _roleRequestRepository.ExistsAsync(rr => rr.User.UserId == user.UserId);
                     return new AuthResponse
                     {
                         UserId = user.UserId,
                         Token = guestToken,
                         Username = user.FullName,
+                        FullName = user.FullName,
                         Email = user.Email,
-                        Role = "Guest",
+                        Role = null,
                         IsEmailVerified = user.IsEmailVerified,
                         IsActive = user.IsActive,
                         VerificationStatus = user.VerificationStatus,
-                        IsNewUser = false
+                        IsNewUser = false,
+                        RequiresOnboarding = !hasOnboarded,
+                        EffectiveRole = "Guest",
+                        Roles = new List<string>()
                     };
                 }
 
