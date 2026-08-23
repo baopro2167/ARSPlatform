@@ -223,6 +223,24 @@ namespace ARSPlatform.SERVICES
             if (string.IsNullOrEmpty(clientId))
                 throw new Exception("Google ClientId is not configured.");
 
+            try
+            {
+                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                if (handler.CanReadToken(request.Credential))
+                {
+                    var jwtToken = handler.ReadJwtToken(request.Credential);
+                    Console.WriteLine($"[GoogleLoginAsync] Received token with Audiences: '{string.Join(",", jwtToken.Audiences)}'");
+                    foreach (var aud in jwtToken.Audiences)
+                    {
+                        Console.WriteLine($"[GoogleLoginAsync] Received token with Audiences list: '{aud}'");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GoogleLoginAsync] Failed to parse JWT token manually: {ex.Message}");
+            }
+
             GoogleJsonWebSignature.Payload? payload;
             try
             {
@@ -630,6 +648,20 @@ namespace ARSPlatform.SERVICES
 
             if (string.IsNullOrEmpty(clientId))
                 throw new Exception("Google ClientId is not configured.");
+
+            try
+            {
+                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                if (handler.CanReadToken(request.Credential))
+                {
+                    var jwtToken = handler.ReadJwtToken(request.Credential);
+                    Console.WriteLine($"[CompleteGoogleRegistrationAsync] Received token with Audiences: '{string.Join(",", jwtToken.Audiences)}'");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CompleteGoogleRegistrationAsync] Failed to parse JWT token manually: {ex.Message}");
+            }
 
             GoogleJsonWebSignature.Payload? payload;
             try
