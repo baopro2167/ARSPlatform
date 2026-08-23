@@ -65,6 +65,24 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        [HttpPost("complete-google-registration")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CompleteGoogleRegistration([FromBody] CompleteGoogleRegistrationRequest request)
+        {
+            try
+            {
+                var result = await _authService.CompleteGoogleRegistrationAsync(request);
+                if (result == null)
+                    return BadRequest(new { Message = "Failed to complete Google registration." });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
         [HttpPost("verify-email")]
         [AllowAnonymous]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)

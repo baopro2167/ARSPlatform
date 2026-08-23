@@ -237,52 +237,44 @@ namespace ARSPlatform.SERVICES
 
             if (user == null)
             {
-                var now = DateTime.UtcNow;
-                user = new User
+                return new AuthResponse
                 {
                     Email = payload.Email,
-                    FullName = payload.Name ?? payload.Email.Split('@')[0],
-                    PasswordHash = string.Empty,
-                    IsActive = true,
-                    IsEmailVerified = true,
-                    VerificationStatus = "Approved",
-                    GoogleId = payload.Subject,
-                    CreatedAt = now,
-                    UpdatedAt = now,
-                    UserRoles = new List<UserRole>()
+                    Username = payload.Name ?? payload.Email.Split('@')[0],
+                    IsNewUser = true,
+                    VerificationStatus = "Pending"
                 };
-
-                await _userRepository.AddAsync(user);
-
-                var wallet = new Wallet
-                {
-                    User = user,
-                    Balance = 0,
-                    UpdatedAt = now
-                };
-                await _walletRepository.AddAsync(wallet);
-
-                var professionalProfile = new ProfessionalProfile
-                {
-                    User = user,
-                    SyncStatus = "synced",
-                    UpdatedAt = now
-                };
-                await _professionalProfileRepository.AddAsync(professionalProfile);
-
-                await _userRepository.SaveChangesAsync();
-
-                effectiveRole = "Guest";
             }
             else
             {
-                if (user.IsActive == false)
+                if (user.IsActive == false && !string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
                     return null;
+
+                if (string.Equals(user.VerificationStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
+                    return null;
+
+                if (string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
+                {
+                    var guestToken = GenerateJwtToken(user, "Guest");
+                    return new AuthResponse
+                    {
+                        UserId = user.UserId,
+                        Token = guestToken,
+                        Username = user.FullName,
+                        Email = user.Email,
+                        Role = "Guest",
+                        IsEmailVerified = user.IsEmailVerified,
+                        IsActive = user.IsActive,
+                        VerificationStatus = user.VerificationStatus,
+                        IsNewUser = false
+                    };
+                }
 
                 effectiveRole = user.UserRoles.FirstOrDefault()?.Role?.Name ?? "Guest";
             }
 
             var token = GenerateJwtToken(user, effectiveRole);
+            var rolesList = user.UserRoles.Where(ur => ur.Role != null).Select(ur => ur.Role!.Name).ToList();
 
             return new AuthResponse
             {
@@ -293,7 +285,124 @@ namespace ARSPlatform.SERVICES
                 Role = effectiveRole,
                 IsEmailVerified = user.IsEmailVerified,
                 IsActive = user.IsActive,
-                VerificationStatus = user.VerificationStatus
+                VerificationStatus = user.VerificationStatus,
+                IsNewUser = false,
+                Roles = rolesList
+            };
+        }
+
+        public async Task<AuthResponse?> CompleteGoogleRegistrationAsync(CompleteGoogleRegistrationRequest request)
+        {
+            var googleSettings = _configuration.GetSection("GoogleAuth");
+            var clientId = googleSettings["ClientId"];
+
+            if (string.IsNullOrEmpty(clientId))
+                throw new Exception("Google ClientId is not configured.");
+
+            GoogleJsonWebSignature.Payload? payload;
+            try
+            {
+                var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+                {
+                    Audience = new[] { clientId }
+                };
+                payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
+            }
+            catch (Exception)
+            {
+                throw new Exception("Invalid Google credential.");
+            }
+
+            var existingUser = await _userRepository.GetByUsernameAsync(payload.Email);
+            if (existingUser != null)
+            {
+                throw new Exception("User is already registered.");
+            }
+
+            var requestableRoles = new[]
+            {
+                "Researcher",
+                "Reviewer",
+                "Lecturer",
+                "Graduate Student"
+            };
+
+            var requestedRoleName = requestableRoles.FirstOrDefault(role =>
+                string.Equals(
+                    role,
+                    request.Role.Trim(),
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (requestedRoleName == null)
+                throw new Exception("Requested role is not allowed.");
+
+            var requestedRole = await _roleRepository.GetByNameAsync(requestedRoleName);
+            if (requestedRole == null)
+                throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
+
+            var now = DateTime.UtcNow;
+
+            var user = new User
+            {
+                Email = payload.Email,
+                FullName = payload.Name ?? payload.Email.Split('@')[0],
+                PasswordHash = string.Empty,
+                IsActive = false,
+                IsEmailVerified = true,
+                VerificationStatus = "Pending",
+                ProofDocumentUrl = request.PdfUrl.Trim(),
+                GoogleId = payload.Subject,
+                CreatedAt = now,
+                UpdatedAt = now,
+                UserRoles = new List<UserRole>()
+            };
+
+            await _userRepository.AddAsync(user);
+
+            var professionalProfile = new ProfessionalProfile
+            {
+                User = user,
+                SyncStatus = "pending",
+                UpdatedAt = now
+            };
+            await _professionalProfileRepository.AddAsync(professionalProfile);
+
+            var wallet = new Wallet
+            {
+                User = user,
+                Balance = 0,
+                UpdatedAt = now
+            };
+            await _walletRepository.AddAsync(wallet);
+
+            var roleRequest = new RoleRequest
+            {
+                User = user,
+                RequestedRoleId = requestedRole.RoleId,
+                PhoneNumber = request.PhoneNumber.Trim(),
+                ProofDocumentUrl = request.PdfUrl.Trim(),
+                Status = "PENDING",
+                RequestType = "INITIAL_REGISTRATION",
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            await _roleRequestRepository.AddAsync(roleRequest);
+
+            await _userRepository.SaveChangesAsync();
+
+            var token = GenerateJwtToken(user, "Guest");
+
+            return new AuthResponse
+            {
+                UserId = user.UserId,
+                Token = token,
+                Username = user.FullName,
+                Email = user.Email,
+                Role = "Guest",
+                IsEmailVerified = user.IsEmailVerified,
+                IsActive = user.IsActive,
+                VerificationStatus = user.VerificationStatus,
+                IsNewUser = false
             };
         }
 

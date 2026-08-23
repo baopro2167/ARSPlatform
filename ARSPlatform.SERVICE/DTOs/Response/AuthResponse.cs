@@ -10,5 +10,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public bool? IsEmailVerified { get; set; }
         public bool? IsActive { get; set; }
         public string? VerificationStatus { get; set; }
+        public bool? IsNewUser { get; set; }
+        public System.Collections.Generic.List<string>? Roles { get; set; }
     }
 }
