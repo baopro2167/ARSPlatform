@@ -12,6 +12,8 @@ public partial class AppDbContext : DbContext
     {
     }
 
+    public virtual DbSet<AuditLog> AuditLogs { get; set; }
+
     public virtual DbSet<CommentVote> CommentVotes { get; set; }
 
     public virtual DbSet<DetailedEvaluation> DetailedEvaluations { get; set; }
@@ -76,6 +78,32 @@ public partial class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("AuditLog");
+
+            entity.HasKey(e => e.LogId);
+
+            entity.HasIndex(e => e.AdminId, "IX_AuditLog_AdminId");
+
+            entity.HasIndex(e => e.Timestamp, "IX_AuditLog_Timestamp").IsDescending();
+
+            entity.Property(e => e.Action)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.AdminName).HasMaxLength(255);
+            entity.Property(e => e.Target)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.TargetId).HasMaxLength(100);
+            entity.Property(e => e.Timestamp).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.Admin).WithMany()
+                .HasForeignKey(d => d.AdminId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_AuditLog_User");
+        });
+
         modelBuilder.Entity<CommentVote>(entity =>
         {
             entity.HasKey(e => new { e.UserId, e.ForumCommentId });
@@ -540,6 +568,8 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.GoogleId, "UX_User_GoogleId").HasFilter("[GoogleId] IS NOT NULL").IsUnique();
 
+            entity.HasIndex(e => e.OrcidId, "UX_User_OrcidId").HasFilter("[OrcidId] IS NOT NULL").IsUnique();
+
             entity.HasIndex(e => e.Email, "UQ__User__A9D105342E34C60E").IsUnique();
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
@@ -552,6 +582,9 @@ public partial class AppDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.IsActive).HasDefaultValue(false);
             entity.Property(e => e.IsEmailVerified).HasDefaultValue(false);
+            entity.Property(e => e.OrcidId)
+                .HasMaxLength(19)
+                .IsUnicode(false);
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)
                 .IsUnicode(false);
@@ -564,6 +597,12 @@ public partial class AppDbContext : DbContext
         modelBuilder.Entity<UserRole>(entity =>
         {
             entity.ToTable("UserRole");
+
+            entity.HasIndex(
+                    e => new { e.UserId, e.RoleId },
+                    "UX_UserRole_UserId_RoleId")
+                .HasFilter("[UserId] IS NOT NULL AND [RoleId] IS NOT NULL")
+                .IsUnique();
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.UserRole1)
