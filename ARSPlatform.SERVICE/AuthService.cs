@@ -618,21 +618,31 @@ namespace ARSPlatform.SERVICES
             return await GoogleLoginAsync(requestDto);
         }
 
-        public async Task<AuthResponse?> CompleteGoogleRegistrationAsync(int userId, CompleteGoogleRegistrationRequest request)
+        public async Task<AuthResponse?> CompleteGoogleRegistrationAsync(CompleteGoogleRegistrationRequest request)
         {
-            var user = await _userRepository.GetWithRoleByIdAsync(userId);
-            if (user == null)
+            var googleSettings = _configuration.GetSection("GoogleAuth");
+            var clientId = googleSettings["ClientId"];
+
+            if (string.IsNullOrEmpty(clientId) || clientId.Contains("REPLACE_WITH"))
             {
-                throw new Exception("User not found.");
+                clientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
             }
 
-            var existingRequests = await _roleRequestRepository.ExistsAsync(rr => 
-                rr.User.UserId == userId && 
-                (rr.Status == "PENDING" || rr.Status == "APPROVED"));
-            
-            if (existingRequests)
+            if (string.IsNullOrEmpty(clientId))
+                throw new Exception("Google ClientId is not configured.");
+
+            GoogleJsonWebSignature.Payload? payload;
+            try
             {
-                throw new Exception("A role request already exists or has already been approved.");
+                var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+                {
+                    Audience = new[] { clientId }
+                };
+                payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Invalid Google credential: {ex.Message}");
             }
 
             var requestableRoles = new[]
@@ -658,10 +668,59 @@ namespace ARSPlatform.SERVICES
 
             var now = DateTime.UtcNow;
 
-            user.ProofDocumentUrl = request.PdfUrl.Trim();
-            user.VerificationStatus = "Pending";
-            user.IsActive = false;
-            user.UpdatedAt = now;
+            var user = await _userRepository.GetByUsernameAsync(payload.Email);
+
+            if (user == null)
+            {
+                user = new User
+                {
+                    Email = payload.Email,
+                    FullName = payload.Name ?? payload.Email.Split('@')[0],
+                    PasswordHash = string.Empty,
+                    IsActive = false,
+                    IsEmailVerified = true,
+                    VerificationStatus = "Pending",
+                    ProofDocumentUrl = request.PdfUrl.Trim(),
+                    GoogleId = payload.Subject,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    UserRoles = new List<UserRole>()
+                };
+
+                await _userRepository.AddAsync(user);
+
+                var professionalProfile = new ProfessionalProfile
+                {
+                    User = user,
+                    SyncStatus = "pending",
+                    UpdatedAt = now
+                };
+                await _professionalProfileRepository.AddAsync(professionalProfile);
+
+                var wallet = new Wallet
+                {
+                    User = user,
+                    Balance = 0,
+                    UpdatedAt = now
+                };
+                await _walletRepository.AddAsync(wallet);
+            }
+            else
+            {
+                var existingRequests = await _roleRequestRepository.ExistsAsync(rr => 
+                    rr.User.UserId == user.UserId && 
+                    (rr.Status == "PENDING" || rr.Status == "APPROVED"));
+                
+                if (existingRequests)
+                {
+                    throw new Exception("A role request already exists or has already been approved.");
+                }
+
+                user.ProofDocumentUrl = request.PdfUrl.Trim();
+                user.VerificationStatus = "Pending";
+                user.IsActive = false;
+                user.UpdatedAt = now;
+            }
 
             var roleRequest = new RoleRequest
             {

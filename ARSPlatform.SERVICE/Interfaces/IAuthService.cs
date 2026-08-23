@@ -14,7 +14,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         string GetGoogleAuthorizationUrl(string redirectUri, string scopes);
         Task<string?> ExchangeCodeForRefreshTokenAsync(string code, string redirectUri);
         Task<AuthResponse?> AuthenticateGoogleLoginAsync(string code, string redirectUri);
-        Task<AuthResponse?> CompleteGoogleRegistrationAsync(int userId, CompleteGoogleRegistrationRequest request);
+        Task<AuthResponse?> CompleteGoogleRegistrationAsync(CompleteGoogleRegistrationRequest request);
         Task<AuthResponse?> SelectRoleAsync(int userId, string roleName);
     }
 }

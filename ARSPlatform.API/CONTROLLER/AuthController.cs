@@ -72,18 +72,12 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpPost("complete-google-registration")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> CompleteGoogleRegistration([FromBody] CompleteGoogleRegistrationRequest request)
         {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdValue, out var userId))
-            {
-                return Unauthorized(new { Message = "User is not authenticated." });
-            }
-
             try
             {
-                var result = await _authService.CompleteGoogleRegistrationAsync(userId, request);
+                var result = await _authService.CompleteGoogleRegistrationAsync(request);
                 if (result == null)
                     return BadRequest(new { Message = "Failed to complete Google registration." });
 
