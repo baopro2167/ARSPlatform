@@ -296,12 +296,12 @@ namespace ARSPlatform.SERVICES
 
                 await _userRepository.SaveChangesAsync();
 
-                var guestToken = GenerateJwtToken(user, "Guest");
+                var onboardingToken = GenerateJwtToken(user, null);
 
                 return new AuthResponse
                 {
                     UserId = user.UserId,
-                    Token = guestToken,
+                    Token = onboardingToken,
                     Username = user.FullName,
                     FullName = user.FullName,
                     Email = user.Email,
@@ -311,7 +311,7 @@ namespace ARSPlatform.SERVICES
                     VerificationStatus = user.VerificationStatus,
                     IsNewUser = true,
                     RequiresOnboarding = true,
-                    EffectiveRole = "Guest",
+                    EffectiveRole = null,
                     Roles = new List<string>()
                 };
             }
@@ -331,11 +331,11 @@ namespace ARSPlatform.SERVICES
                 // If user has not submitted onboarding yet, force them to the onboarding page
                 if (!hasRoles && !hasOnboarded)
                 {
-                    var guestToken = GenerateJwtToken(user, "Guest");
+                    var onboardingToken = GenerateJwtToken(user, null);
                     return new AuthResponse
                     {
                         UserId = user.UserId,
-                        Token = guestToken,
+                        Token = onboardingToken,
                         Username = user.FullName,
                         FullName = user.FullName,
                         Email = user.Email,
@@ -345,7 +345,7 @@ namespace ARSPlatform.SERVICES
                         VerificationStatus = user.VerificationStatus ?? "Pending",
                         IsNewUser = true,
                         RequiresOnboarding = true,
-                        EffectiveRole = "Guest",
+                        EffectiveRole = null,
                         Roles = new List<string>()
                     };
                 }
