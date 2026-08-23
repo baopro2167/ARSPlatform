@@ -246,7 +246,7 @@ namespace ARSPlatform.SERVICES
             {
                 var validationSettings = new GoogleJsonWebSignature.ValidationSettings
                 {
-                    Audience = GetAcceptedGoogleAudiences()
+                    Audience = GetAcceptedGoogleAudiences(request.Credential)
                 };
                 payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
             }
@@ -668,7 +668,7 @@ namespace ARSPlatform.SERVICES
             {
                 var validationSettings = new GoogleJsonWebSignature.ValidationSettings
                 {
-                    Audience = GetAcceptedGoogleAudiences()
+                    Audience = GetAcceptedGoogleAudiences(request.Credential)
                 };
                 payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, validationSettings);
             }
@@ -834,14 +834,34 @@ namespace ARSPlatform.SERVICES
             };
         }
 
-        private IEnumerable<string> GetAcceptedGoogleAudiences()
+        private IEnumerable<string> GetAcceptedGoogleAudiences(string? token = null)
         {
             var audiences = new List<string>
             {
                 "900095631091-0u6kiosgvmgf9j7ujrpodkms46k8sfbb.apps.googleusercontent.com",
-                "782594816534-gi0o1s413e117t6l1b5h7k3j2bglh1g1.apps.googleusercontent.com",
+                "782594816534-gi0o9s6qdbdbmvg7hv52uafe6m7svlol.apps.googleusercontent.com",
                 "782594816534-i1sfjl4ostsab3cnkegivtun896fb8b3.apps.googleusercontent.com"
             };
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                try
+                {
+                    var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                    if (handler.CanReadToken(token))
+                    {
+                        var jwtToken = handler.ReadJwtToken(token);
+                        foreach (var aud in jwtToken.Audiences)
+                        {
+                            if (aud.StartsWith("782594816534-") || aud.StartsWith("900095631091-"))
+                            {
+                                audiences.Add(aud);
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
 
             var googleSettings = _configuration.GetSection("GoogleAuth");
             var clientId = googleSettings["ClientId"];
