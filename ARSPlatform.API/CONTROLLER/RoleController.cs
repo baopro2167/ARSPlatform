@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL.Entities;
@@ -18,6 +19,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAll()
         {
             var items = await _repository.GetAllAsync();
