@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -23,5 +24,6 @@ public partial class Report
 
     public DateTime? UpdatedAt { get; set; }
 
+    [JsonIgnore]
     public virtual User? Reporter { get; set; }
 }

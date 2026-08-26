@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -23,6 +24,7 @@ public partial class SeminarParticipant
 
     public DateTime? FeedbackReminderSentAt { get; set; }
 
+    [JsonIgnore]
     public virtual Seminar? Seminar { get; set; }
 
     public virtual User? User { get; set; }

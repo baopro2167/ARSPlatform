@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -13,5 +14,6 @@ public partial class MajorField
 
     public DateTime? CreatedAt { get; set; }
 
+    [JsonIgnore]
     public virtual ICollection<SubField> SubFields { get; set; } = new List<SubField>();
 }

@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -23,6 +24,7 @@ public partial class ForumComment
 
     public DateTime? UpdatedAt { get; set; }
 
+    [JsonIgnore]
     public virtual ICollection<CommentVote> CommentVotes { get; set; }
         = new List<CommentVote>();
 
@@ -31,8 +33,10 @@ public partial class ForumComment
 
     public virtual Paper? Paper { get; set; }
 
+    [JsonIgnore]
     public virtual ForumPost? ForumPost { get; set; }
 
+    [JsonIgnore]
     public virtual ForumComment? Reply { get; set; }
 
     public virtual User? User { get; set; }

@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -21,10 +22,12 @@ public partial class ResearchGroup
 
     public DateTime? CreatedAt { get; set; }
 
+    [JsonIgnore]
     public virtual ICollection<GroupMember> GroupMembers { get; set; } = new List<GroupMember>();
 
     public virtual User? Lecturer { get; set; }
 
+    [JsonIgnore]
     public virtual ICollection<PhasedReport> PhasedReports { get; set; } = new List<PhasedReport>();
 
     public virtual ResearchTopic? Topic { get; set; }

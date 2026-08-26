@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -23,6 +24,7 @@ public partial class ProfessionalProfile
 
     public decimal? ReviewFee { get; set; }
 
+    [JsonIgnore]
     public virtual User User { get; set; } = null!;
 
     public virtual SubField? SubField { get; set; }

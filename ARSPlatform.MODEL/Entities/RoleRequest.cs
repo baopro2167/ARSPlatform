@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -32,9 +33,12 @@ public partial class RoleRequest
 
     public DateTime? UpdatedAt { get; set; }
 
+    [JsonIgnore]
     public virtual User User { get; set; } = null!;
 
+    [JsonIgnore]
     public virtual Role RequestedRole { get; set; } = null!;
 
+    [JsonIgnore]
     public virtual User? ReviewedByAdmin { get; set; }
 }

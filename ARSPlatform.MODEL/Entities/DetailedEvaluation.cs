@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -39,7 +40,9 @@ public partial class DetailedEvaluation
 
     public string SpecializedEvaluation { get; set; } = "[]";
 
+    [JsonIgnore]
     public virtual ReviewRequest? ReviewRequest { get; set; }
 
+    [JsonIgnore]
     public virtual User? Reviewer { get; set; }
 }

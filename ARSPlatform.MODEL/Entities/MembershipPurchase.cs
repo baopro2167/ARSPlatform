@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -19,5 +20,6 @@ public partial class MembershipPurchase
 
     public virtual MembershipPackage? Package { get; set; }
 
+    [JsonIgnore]
     public virtual User? User { get; set; }
 }

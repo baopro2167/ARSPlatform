@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -28,7 +29,9 @@ public partial class WithdrawalRequest
 
     public DateTime? UpdatedAt { get; set; }
 
+    [JsonIgnore]
     public virtual User User { get; set; } = null!;
 
+    [JsonIgnore]
     public virtual Wallet Wallet { get; set; } = null!;
 }

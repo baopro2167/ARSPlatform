@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -23,6 +24,7 @@ public partial class ReviewRequest
 
     public string? Type { get; set; }
 
+    [JsonIgnore]
     public virtual DetailedEvaluation? DetailedEvaluation { get; set; }
 
     public virtual Paper? Paper { get; set; }

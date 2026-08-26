@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -25,5 +25,6 @@ public partial class AuditLog
 
     public DateTime Timestamp { get; set; }
 
+    [JsonIgnore]
     public virtual User Admin { get; set; } = null!;
 }

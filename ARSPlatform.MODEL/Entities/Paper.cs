@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -31,10 +32,13 @@ public partial class Paper
 
     public virtual User? Creator { get; set; }
 
+    [JsonIgnore]
     public virtual ICollection<ForumComment> ForumComments { get; set; } = new List<ForumComment>();
 
+    [JsonIgnore]
     public virtual ICollection<ReviewRequest> ReviewRequests { get; set; } = new List<ReviewRequest>();
 
+    [JsonIgnore]
     public virtual ICollection<SharedMaterial> SharedMaterials { get; set; } = new List<SharedMaterial>();
 
     public virtual SubField? SubField { get; set; }

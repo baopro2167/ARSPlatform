@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ARSPlatform.MODEL.Entities;
 
@@ -17,5 +18,6 @@ public partial class UserToken
 
     public DateTime? CreatedAt { get; set; }
 
+    [JsonIgnore]
     public virtual User? User { get; set; }
 }
