@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -35,6 +36,42 @@ namespace ARSPlatform.SERVICES
         {
             var items = await _repository.GetAllForOrganizerWithUserAsync(organizerId);
             return _mapper.Map<IEnumerable<SeminarParticipantResponse>>(items);
+        }
+
+        public async Task<PagedResult<SeminarParticipantResponse>> GetPagedForOrganizerAsync(PaginationParams paginationParams, int organizerId, int? seminarId = null)
+        {
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: x => x.Seminar != null && x.Seminar.OrganizerId == organizerId && (!seminarId.HasValue || x.SeminarId == seminarId.Value),
+                includes: new System.Linq.Expressions.Expression<Func<SeminarParticipant, object>>[]
+                {
+                    x => x.Seminar!,
+                    x => x.User!
+                });
+
+            var dtos = _mapper.Map<List<SeminarParticipantResponse>>(paged.Items);
+            return new PagedResult<SeminarParticipantResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<SeminarParticipantResponse>> GetBySeminarIdAsync(int seminarId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetBySeminarIdPagedAsync(seminarId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<SeminarParticipantResponse>>(paged.Items);
+            return new PagedResult<SeminarParticipantResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<SeminarParticipantResponse>> GetByUserIdAsync(int userId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByUserIdPagedAsync(userId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<SeminarParticipantResponse>>(paged.Items);
+            return new PagedResult<SeminarParticipantResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<SeminarParticipantResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+            var dtos = _mapper.Map<List<SeminarParticipantResponse>>(paged.Items);
+            return new PagedResult<SeminarParticipantResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
         }
 
         public async Task<SeminarParticipantResponse?> GetByIdAsync(int id, int organizerId)

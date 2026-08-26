@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -30,6 +31,18 @@ namespace ARSPlatform.API.CONTROLLER
         {
             var items = await _service.GetAllAsync();
             return Ok(items);
+        }
+
+        /// <summary>
+        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// </summary>
+        /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <returns>Danh sách hồ sơ người dùng có phân trang</returns>
+        [HttpGet("paged")]
+        public async Task<ActionResult<PagedResult<ProfileResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
+        {
+            var result = await _service.GetPagedAsync(paginationParams);
+            return Ok(result);
         }
 
         /// <summary>

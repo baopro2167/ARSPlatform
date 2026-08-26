@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -37,6 +38,21 @@ namespace ARSPlatform.SERVICES
                 .OrderBy(x => x.PackageId)
                 .Select(x => ToResponse(x, subscriberCounts.GetValueOrDefault(x.PackageId)))
                 .ToList();
+        }
+
+        public async Task<PagedResult<PremiumPackageResponse>> GetPagedAsync(PaginationParams paginationParams)
+        {
+            var paged = await _repository.GetPagedAsync(paginationParams, orderBy: q => q.OrderBy(x => x.PackageId));
+            var subscriberCounts = await _repository.GetSubscriberCountsAsync();
+            var dtos = paged.Items
+                .Select(x => ToResponse(x, subscriberCounts.GetValueOrDefault(x.PackageId)))
+                .ToList();
+            return new PagedResult<PremiumPackageResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<PremiumPackageResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<PremiumPackageResponse> CreateAsync(PremiumPackageCreateRequest request)

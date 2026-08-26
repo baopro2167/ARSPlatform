@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -20,10 +24,34 @@ namespace ARSPlatform.SERVICES
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<TransactionResponse>> GetAllAsync()
+        public async Task<IEnumerable<TransactionResponse>> GetAllAsync(int? walletId = null)
         {
-            var items = await _repository.GetAllAsync();
+            Expression<Func<Transaction, bool>>? predicate = walletId.HasValue ? x => x.WalletId == walletId.Value : null;
+            var items = await _repository.GetAllAsync(predicate);
             return _mapper.Map<IEnumerable<TransactionResponse>>(items);
+        }
+
+        public async Task<PagedResult<TransactionResponse>> GetPagedAsync(PaginationParams paginationParams, int? walletId = null)
+        {
+            Expression<Func<Transaction, bool>>? predicate = walletId.HasValue ? x => x.WalletId == walletId.Value : null;
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: predicate,
+                orderBy: q => q.OrderByDescending(x => x.CreatedAt));
+            var dtos = _mapper.Map<List<TransactionResponse>>(paged.Items);
+            return new PagedResult<TransactionResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<TransactionResponse>> GetByWalletIdAsync(int walletId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByWalletIdPagedAsync(walletId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<TransactionResponse>>(paged.Items);
+            return new PagedResult<TransactionResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<TransactionResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<TransactionResponse?> GetByIdAsync(int id)

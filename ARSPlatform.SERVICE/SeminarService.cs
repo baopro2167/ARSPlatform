@@ -1,5 +1,6 @@
-﻿using ARSPlatform.MODEL.Entities;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -51,6 +52,23 @@ namespace ARSPlatform.SERVICES
                 .GetAllForOrganizerWithParticipantsAsync(organizerId);
 
             return _mapper.Map<IEnumerable<SeminarResponse>>(seminars);
+        }
+
+        public async Task<PagedResult<SeminarResponse>> GetPagedAsync(PaginationParams paginationParams, int organizerId)
+        {
+            var paged = await _seminarRepository.GetPagedAsync(
+                paginationParams,
+                predicate: x => x.OrganizerId == organizerId,
+                orderBy: q => q.OrderByDescending(x => x.StartTime),
+                includes: x => x.SeminarParticipants);
+
+            var dtos = _mapper.Map<List<SeminarResponse>>(paged.Items);
+            return new PagedResult<SeminarResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<SeminarResponse>> GetByOrganizerIdAsync(int organizerId, int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize }, organizerId);
         }
 
         public async Task<SeminarResponse?> GetByIdAsync(int seminarId, int organizerId)

@@ -46,6 +46,11 @@ namespace ARSPlatform.SERVICES
             return new PagedResult<UserResponse>(dtos, totalCount, paginationParams.PageNumber, paginationParams.PageSize);
         }
 
+        public async Task<PagedResult<UserResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetUsersAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+
         public async Task<UserResponse?> GetUserByIdAsync(int id)
         {
             var user = await _userRepository.GetWithRoleByIdAsync(id);

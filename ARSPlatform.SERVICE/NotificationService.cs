@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -20,10 +24,34 @@ namespace ARSPlatform.SERVICES
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<NotificationResponse>> GetAllAsync()
+        public async Task<IEnumerable<NotificationResponse>> GetAllAsync(int? userId = null)
         {
-            var items = await _repository.GetAllAsync();
+            Expression<Func<Notification, bool>>? predicate = userId.HasValue ? x => x.UserId == userId.Value : null;
+            var items = await _repository.GetAllAsync(predicate);
             return _mapper.Map<IEnumerable<NotificationResponse>>(items);
+        }
+
+        public async Task<PagedResult<NotificationResponse>> GetPagedAsync(PaginationParams paginationParams, int? userId = null)
+        {
+            Expression<Func<Notification, bool>>? predicate = userId.HasValue ? x => x.UserId == userId.Value : null;
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: predicate,
+                orderBy: q => q.OrderByDescending(x => x.CreatedAt));
+            var dtos = _mapper.Map<List<NotificationResponse>>(paged.Items);
+            return new PagedResult<NotificationResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<NotificationResponse>> GetByUserIdAsync(int userId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByUserIdPagedAsync(userId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<NotificationResponse>>(paged.Items);
+            return new PagedResult<NotificationResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<NotificationResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<NotificationResponse?> GetByIdAsync(int id)

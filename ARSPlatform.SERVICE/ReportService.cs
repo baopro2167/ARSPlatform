@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -24,6 +26,25 @@ namespace ARSPlatform.SERVICES
         {
             var items = await _repository.GetAllAsync();
             return _mapper.Map<IEnumerable<ReportResponse>>(items);
+        }
+
+        public async Task<PagedResult<ReportResponse>> GetPagedAsync(PaginationParams paginationParams)
+        {
+            var paged = await _repository.GetPagedAsync(paginationParams);
+            var dtos = _mapper.Map<List<ReportResponse>>(paged.Items);
+            return new PagedResult<ReportResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ReportResponse>> GetByReporterIdAsync(int reporterId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByReporterIdPagedAsync(reporterId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<ReportResponse>>(paged.Items);
+            return new PagedResult<ReportResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ReportResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<ReportResponse?> GetByIdAsync(int id)

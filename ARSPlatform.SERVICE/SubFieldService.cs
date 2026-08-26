@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -40,6 +42,37 @@ namespace ARSPlatform.SERVICES
 
             var items = await _repository.GetAllWithMajorFieldAsync(majorFieldId);
             return _mapper.Map<IEnumerable<SubFieldResponse>>(items);
+        }
+
+        public async Task<PagedResult<SubFieldResponse>> GetPagedAsync(PaginationParams paginationParams, int? majorFieldId = null)
+        {
+            if (majorFieldId.HasValue && majorFieldId.Value <= 0)
+            {
+                throw new ArgumentException("majorFieldId must be greater than zero.");
+            }
+
+            if (majorFieldId.HasValue && !await _majorFieldRepository.ExistsAsync(x => x.MajorFieldId == majorFieldId.Value))
+            {
+                throw new KeyNotFoundException("Major field not found.");
+            }
+
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: majorFieldId.HasValue ? x => x.MajorFieldId == majorFieldId.Value : null,
+                includes: x => x.MajorField!);
+
+            var dtos = _mapper.Map<List<SubFieldResponse>>(paged.Items);
+            return new PagedResult<SubFieldResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<SubFieldResponse>> GetByMajorFieldIdAsync(int majorFieldId, int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize }, majorFieldId);
+        }
+
+        public async Task<PagedResult<SubFieldResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<SubFieldResponse?> GetByIdAsync(int id)

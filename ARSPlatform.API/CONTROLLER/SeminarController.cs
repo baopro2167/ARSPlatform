@@ -1,3 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.ExternalServices;
@@ -5,12 +12,6 @@ using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -30,8 +31,12 @@ namespace ARSPlatform.API.CONTROLLER
             _audioSummaryService = audioSummaryService;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ buổi Seminar do Lecturer tổ chức
+        /// </summary>
+        /// <returns>Danh sách Seminar</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<SeminarResponse>>> GetAll()
         {
             if (!TryGetCurrentUserId(out var organizerId))
             {
@@ -42,8 +47,31 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(response);
         }
 
+        /// <summary>
+        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// </summary>
+        /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <returns>Danh sách Seminar có phân trang</returns>
+        [HttpGet("paged")]
+        public async Task<ActionResult<PagedResult<SeminarResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
+        {
+            if (!TryGetCurrentUserId(out var organizerId))
+            {
+                return Unauthorized();
+            }
+
+            var result = await _seminarService.GetPagedAsync(paginationParams, organizerId);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Tạo mới buổi Seminar trực tuyến (tự động tích hợp Google Meet và Google Calendar)
+        /// </summary>
+        /// <param name="request">Thông tin buổi Seminar</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Buổi Seminar vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create(
+        public async Task<ActionResult<SeminarResponse>> Create(
             [FromBody] SeminarCreateRequest request,
             CancellationToken cancellationToken)
         {
@@ -79,8 +107,13 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Lấy chi tiết buổi Seminar theo ID
+        /// </summary>
+        /// <param name="id">ID buổi Seminar</param>
+        /// <returns>Chi tiết Seminar</returns>
         [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<SeminarResponse>> GetById(int id)
         {
             if (!TryGetCurrentUserId(out var organizerId))
             {
@@ -88,7 +121,6 @@ namespace ARSPlatform.API.CONTROLLER
             }
 
             var response = await _seminarService.GetByIdAsync(id, organizerId);
-
             if (response == null)
             {
                 return NotFound();
@@ -97,8 +129,15 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(response);
         }
 
+        /// <summary>
+        /// Cập nhật thông tin buổi Seminar
+        /// </summary>
+        /// <param name="id">ID Seminar cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Seminar sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(
+        public async Task<ActionResult<SeminarResponse>> Update(
             int id,
             [FromBody] SeminarUpdateRequest request,
             CancellationToken cancellationToken)
@@ -133,6 +172,11 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Hủy / Xóa buổi Seminar
+        /// </summary>
+        /// <param name="id">ID Seminar</param>
+        /// <returns>Thông báo kết quả xóa</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -142,7 +186,6 @@ namespace ARSPlatform.API.CONTROLLER
             }
 
             var deleted = await _seminarService.DeleteAsync(id, organizerId);
-
             if (!deleted)
             {
                 return NotFound();
@@ -151,6 +194,13 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(new { Message = "Deleted successfully." });
         }
 
+        /// <summary>
+        /// Gửi lời mời tham gia Seminar cho người tham dự
+        /// </summary>
+        /// <param name="id">ID Seminar</param>
+        /// <param name="request">Danh sách email hoặc user ID cần mời</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Kết quả gửi lời mời</returns>
         [HttpPost("{id:int}/invite")]
         [ProducesResponseType(typeof(SeminarInviteResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Invite(
@@ -187,6 +237,11 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Lấy thống kê về số lượng tham gia và phản hồi của Seminar
+        /// </summary>
+        /// <param name="id">ID Seminar</param>
+        /// <returns>Thống kê số liệu</returns>
         [HttpGet("{id:int}/stats")]
         [ProducesResponseType(typeof(SeminarStatsResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetStats(int id)
@@ -197,7 +252,6 @@ namespace ARSPlatform.API.CONTROLLER
             }
 
             var response = await _seminarService.GetStatsAsync(id, organizerId);
-
             if (response == null)
             {
                 return NotFound();
@@ -206,6 +260,12 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(response);
         }
 
+        /// <summary>
+        /// Gửi email nhắc nhở người tham gia điền đánh giá / phản hồi Seminar
+        /// </summary>
+        /// <param name="id">ID Seminar</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Kết quả gửi nhắc nhở</returns>
         [HttpPost("{id:int}/reminders/send")]
         [ProducesResponseType(typeof(SeminarReminderResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> SendFeedbackReminders(
@@ -232,6 +292,13 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Tải lên file ghi âm buổi Seminar và tự động tóm tắt bằng Gemini AI
+        /// </summary>
+        /// <param name="id">ID Seminar</param>
+        /// <param name="request">File âm thanh ghi âm</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Bản tóm tắt nội dung buổi Seminar từ AI</returns>
         [HttpPost("{id:int}/summarize-audio")]
         [RequestSizeLimit(524_288_000)]
         [RequestFormLimits(MultipartBodyLengthLimit = 524_288_000)]

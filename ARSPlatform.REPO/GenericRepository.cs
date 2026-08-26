@@ -1,5 +1,6 @@
 using ARSPlatform.MODEL;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -20,9 +21,66 @@ namespace ARSPlatform.REPOSITORIES
             _dbSet = _context.Set<T>();
         }
 
-        public virtual async Task<IEnumerable<T>> GetAllAsync()
+        public virtual async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? predicate = null)
         {
+            if (predicate != null)
+            {
+                return await _dbSet.Where(predicate).ToListAsync();
+            }
             return await _dbSet.ToListAsync();
+        }
+
+        public virtual async Task<PagedResult<T>> GetPagedAsync(
+            PaginationParams paginationParams,
+            Expression<Func<T, bool>>? predicate = null,
+            Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
+            params Expression<Func<T, object>>[] includes)
+        {
+            IQueryable<T> query = _dbSet.AsNoTracking();
+
+            if (includes != null)
+            {
+                foreach (var include in includes)
+                {
+                    query = query.Include(include);
+                }
+            }
+
+            if (predicate != null)
+            {
+                query = query.Where(predicate);
+            }
+
+            var totalCount = await query.CountAsync();
+
+            if (orderBy != null)
+            {
+                query = orderBy(query);
+            }
+
+            var pageNumber = paginationParams.PageNumber < 1 ? 1 : paginationParams.PageNumber;
+            var pageSize = paginationParams.PageSize < 1 ? 10 : paginationParams.PageSize;
+
+            var items = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return new PagedResult<T>(items, totalCount, pageNumber, pageSize);
+        }
+
+        public virtual async Task<PagedResult<T>> GetPagedAsync(
+            int pageNumber,
+            int pageSize,
+            Expression<Func<T, bool>>? predicate = null,
+            Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
+            params Expression<Func<T, object>>[] includes)
+        {
+            return await GetPagedAsync(
+                new PaginationParams { PageNumber = pageNumber, PageSize = pageSize },
+                predicate,
+                orderBy,
+                includes);
         }
 
         public virtual async Task<T?> GetByIdAsync(object id)

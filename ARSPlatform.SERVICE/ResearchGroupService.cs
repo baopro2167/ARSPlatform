@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -24,6 +26,32 @@ namespace ARSPlatform.SERVICES
         {
             var items = await _repository.GetAllAsync();
             return _mapper.Map<IEnumerable<ResearchGroupResponse>>(items);
+        }
+
+        public async Task<PagedResult<ResearchGroupResponse>> GetPagedAsync(PaginationParams paginationParams)
+        {
+            var paged = await _repository.GetPagedAsync(paginationParams);
+            var dtos = _mapper.Map<List<ResearchGroupResponse>>(paged.Items);
+            return new PagedResult<ResearchGroupResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ResearchGroupResponse>> GetByLecturerIdAsync(int lecturerId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByLecturerIdPagedAsync(lecturerId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<ResearchGroupResponse>>(paged.Items);
+            return new PagedResult<ResearchGroupResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ResearchGroupResponse>> GetByTopicIdAsync(int topicId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByTopicIdPagedAsync(topicId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<ResearchGroupResponse>>(paged.Items);
+            return new PagedResult<ResearchGroupResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ResearchGroupResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<ResearchGroupResponse?> GetByIdAsync(int id)

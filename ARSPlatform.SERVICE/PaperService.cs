@@ -45,6 +45,25 @@ namespace ARSPlatform.SERVICES
             return new PagedResult<PaperResponse>(dtos, totalCount, paginationParams.PageNumber, paginationParams.PageSize);
         }
 
+        public async Task<PagedResult<PaperResponse>> GetByAuthorIdAsync(int authorId, int pageNumber, int pageSize)
+        {
+            var paged = await _paperRepository.GetByAuthorIdPagedAsync(authorId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<PaperResponse>>(paged.Items);
+            return new PagedResult<PaperResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<PaperResponse>> GetBySubFieldIdAsync(int subFieldId, int pageNumber, int pageSize)
+        {
+            var paged = await _paperRepository.GetBySubFieldIdPagedAsync(subFieldId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<PaperResponse>>(paged.Items);
+            return new PagedResult<PaperResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<PaperResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPapersAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+
         public async Task<PaperResponse?> GetPaperByIdAsync(int id)
         {
             var paper = await _paperRepository.GetWithAuthorByIdAsync(id);

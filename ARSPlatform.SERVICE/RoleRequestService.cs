@@ -1,5 +1,6 @@
-﻿using ARSPlatform.MODEL.Entities;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.ExternalServices;
@@ -37,6 +38,60 @@ namespace ARSPlatform.SERVICES
                 .ToListAsync();
 
             return roleRequests.Select(MapResponse).ToList();
+        }
+
+        public async Task<PagedResult<RoleRequestResponse>> GetPagedAsync(PaginationParams paginationParams)
+        {
+            var query = _roleRequestRepository
+                .GetQueryable()
+                .AsNoTracking()
+                .Include(x => x.User)
+                    .ThenInclude(x => x.UserRoles)
+                        .ThenInclude(x => x.Role)
+                .Include(x => x.RequestedRole)
+                .OrderByDescending(x => x.CreatedAt);
+
+            var totalCount = await query.CountAsync();
+            var pageNumber = paginationParams.PageNumber < 1 ? 1 : paginationParams.PageNumber;
+            var pageSize = paginationParams.PageSize < 1 ? 10 : paginationParams.PageSize;
+
+            var roleRequests = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var dtos = roleRequests.Select(MapResponse).ToList();
+            return new PagedResult<RoleRequestResponse>(dtos, totalCount, pageNumber, pageSize);
+        }
+
+        public async Task<PagedResult<RoleRequestResponse>> GetByUserIdAsync(int userId, int pageNumber, int pageSize)
+        {
+            var query = _roleRequestRepository
+                .GetQueryable()
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .Include(x => x.User)
+                    .ThenInclude(x => x.UserRoles)
+                        .ThenInclude(x => x.Role)
+                .Include(x => x.RequestedRole)
+                .OrderByDescending(x => x.CreatedAt);
+
+            var totalCount = await query.CountAsync();
+            var page = pageNumber < 1 ? 1 : pageNumber;
+            var size = pageSize < 1 ? 10 : pageSize;
+
+            var roleRequests = await query
+                .Skip((page - 1) * size)
+                .Take(size)
+                .ToListAsync();
+
+            var dtos = roleRequests.Select(MapResponse).ToList();
+            return new PagedResult<RoleRequestResponse>(dtos, totalCount, page, size);
+        }
+
+        public async Task<PagedResult<RoleRequestResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<RoleRequestResponse?> GetByIdAsync(int id)

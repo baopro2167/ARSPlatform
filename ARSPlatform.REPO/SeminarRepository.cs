@@ -1,6 +1,7 @@
-﻿using ARSPlatform.MODEL;
+using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using Microsoft.EntityFrameworkCore;
 
 namespace ARSPlatform.REPOSITORIES
@@ -30,6 +31,23 @@ namespace ARSPlatform.REPOSITORIES
                 .Where(s => s.OrganizerId == organizerId)
                 .OrderByDescending(s => s.StartTime)
                 .ToListAsync();
+        }
+
+        public async Task<PagedResult<Seminar>> GetByOrganizerIdPagedAsync(int organizerId, PaginationParams paginationParams)
+        {
+            return await GetPagedAsync(
+                paginationParams,
+                predicate: s => s.OrganizerId == organizerId,
+                orderBy: q => q.OrderByDescending(s => s.StartTime),
+                includes: new System.Linq.Expressions.Expression<System.Func<Seminar, object>>[]
+                {
+                    s => s.SeminarParticipants
+                });
+        }
+
+        public async Task<PagedResult<Seminar>> GetByOrganizerIdPagedAsync(int organizerId, int pageNumber, int pageSize)
+        {
+            return await GetByOrganizerIdPagedAsync(organizerId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<Seminar?> GetByIdWithParticipantsAsync(int id)

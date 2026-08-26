@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using AutoMapper;
@@ -34,11 +35,15 @@ namespace ARSPlatform.SERVICE.Mapping
                     src.Creator != null ? src.Creator.FullName : string.Empty));
 
             CreateMap<PaperCreateRequest, Paper>();
-            CreateMap<PaperUpdateRequest, Paper>();
+            CreateMap<PaperUpdateRequest, Paper>()
+                .ForMember(dest => dest.PaperId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // AuditLog
             CreateMap<AuditLog, AuditLogResponse>();
-            CreateMap<AuditLogCreateRequest, AuditLog>();
+            CreateMap<AuditLogCreateRequest, AuditLog>()
+                .ForMember(dest => dest.LogId, opt => opt.Ignore())
+                .ForMember(dest => dest.Timestamp, opt => opt.MapFrom(src => DateTime.UtcNow));
 
             // CommentVote
             CreateMap<CommentVote, CommentVoteResponse>();
@@ -61,6 +66,7 @@ namespace ARSPlatform.SERVICE.Mapping
                         (JsonSerializerOptions?)null)));
 
             CreateMap<DetailedEvaluationUpdateRequest, DetailedEvaluation>()
+                .ForMember(dest => dest.DetailedEvaluationId, opt => opt.Ignore())
                 .ForMember(dest => dest.SpecializedEvaluation, opt =>
                 {
                     opt.PreCondition(src => src.SpecializedEvaluation != null);
@@ -78,7 +84,9 @@ namespace ARSPlatform.SERVICE.Mapping
             // ForumComment
             CreateMap<ForumComment, ForumCommentResponse>();
             CreateMap<ForumCommentCreateRequest, ForumComment>();
-            CreateMap<ForumCommentUpdateRequest, ForumComment>();
+            CreateMap<ForumCommentUpdateRequest, ForumComment>()
+                .ForMember(dest => dest.ForumCommentId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // ForumPost
             CreateMap<ForumPost, ForumPostResponse>()
@@ -116,44 +124,60 @@ namespace ARSPlatform.SERVICE.Mapping
             // GroupMember
             CreateMap<GroupMember, GroupMemberResponse>();
             CreateMap<GroupMemberCreateRequest, GroupMember>();
-            CreateMap<GroupMemberUpdateRequest, GroupMember>();
+            CreateMap<GroupMemberUpdateRequest, GroupMember>()
+                .ForMember(dest => dest.GroupMemberId, opt => opt.Ignore())
+                .ForMember(dest => dest.JoinedAt, opt => opt.Ignore());
 
             // GuidanceProject
             CreateMap<GuidanceProject, GuidanceProjectResponse>();
             CreateMap<GuidanceProjectCreateRequest, GuidanceProject>();
-            CreateMap<GuidanceProjectUpdateRequest, GuidanceProject>();
+            CreateMap<GuidanceProjectUpdateRequest, GuidanceProject>()
+                .ForMember(dest => dest.GuidanceProjectId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // LearningMaterial
             CreateMap<LearningMaterial, LearningMaterialResponse>();
             CreateMap<LearningMaterialCreateRequest, LearningMaterial>();
-            CreateMap<LearningMaterialUpdateRequest, LearningMaterial>();
+            CreateMap<LearningMaterialUpdateRequest, LearningMaterial>()
+                .ForMember(dest => dest.LearningMaterialId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // MajorField
             CreateMap<MajorField, MajorFieldResponse>();
             CreateMap<MajorFieldCreateRequest, MajorField>();
-            CreateMap<MajorFieldUpdateRequest, MajorField>();
+            CreateMap<MajorFieldUpdateRequest, MajorField>()
+                .ForMember(dest => dest.MajorFieldId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // MembershipPackage
             CreateMap<MembershipPackage, MembershipPackageResponse>();
             CreateMap<MembershipPackageCreateRequest, MembershipPackage>();
-            CreateMap<MembershipPackageUpdateRequest, MembershipPackage>();
+            CreateMap<MembershipPackageUpdateRequest, MembershipPackage>()
+                .ForMember(dest => dest.PackageId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // MembershipPurchase
             CreateMap<MembershipPurchase, MembershipPurchaseResponse>();
             CreateMap<MembershipPurchaseCreateRequest, MembershipPurchase>();
-            CreateMap<MembershipPurchaseUpdateRequest, MembershipPurchase>();
+            CreateMap<MembershipPurchaseUpdateRequest, MembershipPurchase>()
+                .ForMember(dest => dest.PurchasesId, opt => opt.Ignore())
+                .ForMember(dest => dest.PurchasedAt, opt => opt.Ignore());
 
             // Notification
             CreateMap<Notification, NotificationResponse>();
             CreateMap<NotificationCreateRequest, Notification>();
-            CreateMap<NotificationUpdateRequest, Notification>();
+            CreateMap<NotificationUpdateRequest, Notification>()
+                .ForMember(dest => dest.NotificationId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // PhasedReport
             CreateMap<PhasedReport, PhasedReportResponse>();
             CreateMap<PhasedReportCreateRequest, PhasedReport>();
-            CreateMap<PhasedReportUpdateRequest, PhasedReport>();
+            CreateMap<PhasedReportUpdateRequest, PhasedReport>()
+                .ForMember(dest => dest.PhasedReportId, opt => opt.Ignore())
+                .ForMember(dest => dest.SubmittedAt, opt => opt.Ignore());
 
-            // ProfessionalProfile - Mục 3A
+            // ProfessionalProfile
             CreateMap<ProfessionalProfile, ProfessionalProfileResponse>()
                 .ForMember(dest => dest.FullName, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.FullName : null))
@@ -173,9 +197,10 @@ namespace ARSPlatform.SERVICE.Mapping
                         : null));
 
             CreateMap<ProfessionalProfileCreateRequest, ProfessionalProfile>();
-            CreateMap<ProfessionalProfileUpdateRequest, ProfessionalProfile>();
+            CreateMap<ProfessionalProfileUpdateRequest, ProfessionalProfile>()
+                .ForMember(dest => dest.UserId, opt => opt.Ignore());
 
-            // Profile - F.2
+            // Profile
             CreateMap<ARSPlatform.MODEL.Entities.Profile, ProfileResponse>()
                 .ForMember(dest => dest.Email, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.Email : null))
@@ -193,6 +218,7 @@ namespace ARSPlatform.SERVICE.Mapping
                         (JsonSerializerOptions?)null)));
 
             CreateMap<ProfileUpdateRequest, ARSPlatform.MODEL.Entities.Profile>()
+                .ForMember(dest => dest.UserId, opt => opt.Ignore())
                 .ForMember(dest => dest.Keywords, opt => opt.MapFrom(src =>
                     JsonSerializer.Serialize(
                         src.Keywords ?? Array.Empty<string>(),
@@ -201,19 +227,25 @@ namespace ARSPlatform.SERVICE.Mapping
             // Report
             CreateMap<Report, ReportResponse>();
             CreateMap<ReportCreateRequest, Report>();
-            CreateMap<ReportUpdateRequest, Report>();
+            CreateMap<ReportUpdateRequest, Report>()
+                .ForMember(dest => dest.ReportId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // ResearchGroup
             CreateMap<ResearchGroup, ResearchGroupResponse>();
             CreateMap<ResearchGroupCreateRequest, ResearchGroup>();
-            CreateMap<ResearchGroupUpdateRequest, ResearchGroup>();
+            CreateMap<ResearchGroupUpdateRequest, ResearchGroup>()
+                .ForMember(dest => dest.ResearchGroupId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // ResearchTopic
             CreateMap<ResearchTopic, ResearchTopicResponse>();
             CreateMap<ResearchTopicCreateRequest, ResearchTopic>();
-            CreateMap<ResearchTopicUpdateRequest, ResearchTopic>();
+            CreateMap<ResearchTopicUpdateRequest, ResearchTopic>()
+                .ForMember(dest => dest.TopicId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
-            // ReviewRequest - Mục 3A
+            // ReviewRequest
             CreateMap<ReviewRequest, ReviewRequestResponse>()
                 .ForMember(dest => dest.ReviewerName, opt => opt.MapFrom(src =>
                     src.Reviewer != null ? src.Reviewer.FullName : null))
@@ -223,26 +255,32 @@ namespace ARSPlatform.SERVICE.Mapping
                     src.Reviewer != null ? src.Reviewer.AvatarUrl : null));
 
             CreateMap<ReviewRequestCreateRequest, ReviewRequest>();
-            CreateMap<ReviewRequestUpdateRequest, ReviewRequest>();
+            CreateMap<ReviewRequestUpdateRequest, ReviewRequest>()
+                .ForMember(dest => dest.ReviewRequestId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // Seminar
             CreateMap<Seminar, SeminarResponse>()
                 .ForMember(dest => dest.Participants, opt => opt.MapFrom(src => src.SeminarParticipants));
 
             CreateMap<SeminarCreateRequest, Seminar>();
-            CreateMap<SeminarUpdateRequest, Seminar>();
+            CreateMap<SeminarUpdateRequest, Seminar>()
+                .ForMember(dest => dest.SeminarId, opt => opt.Ignore());
 
             // SeminarParticipant
             CreateMap<SeminarParticipant, SeminarParticipantResponse>();
             CreateMap<SeminarParticipantCreateRequest, SeminarParticipant>();
-            CreateMap<SeminarParticipantUpdateRequest, SeminarParticipant>();
+            CreateMap<SeminarParticipantUpdateRequest, SeminarParticipant>()
+                .ForMember(dest => dest.SeminarParticipantId, opt => opt.Ignore());
 
             // SharedMaterial
             CreateMap<SharedMaterial, SharedMaterialResponse>();
             CreateMap<SharedMaterialCreateRequest, SharedMaterial>();
-            CreateMap<SharedMaterialUpdateRequest, SharedMaterial>();
+            CreateMap<SharedMaterialUpdateRequest, SharedMaterial>()
+                .ForMember(dest => dest.SharedMaterialId, opt => opt.Ignore())
+                .ForMember(dest => dest.SharedAt, opt => opt.Ignore());
 
-            // SubField - Mục 2
+            // SubField
             CreateMap<SubField, SubFieldResponse>()
                 .ForMember(dest => dest.MajorFieldName, opt => opt.MapFrom(src =>
                     src.MajorField != null ? src.MajorField.Name : null))
@@ -260,6 +298,8 @@ namespace ARSPlatform.SERVICE.Mapping
                         (JsonSerializerOptions?)null)));
 
             CreateMap<SubFieldUpdateRequest, SubField>()
+                .ForMember(dest => dest.SubFieldId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.GradingRubric, opt =>
                 {
                     opt.PreCondition(src => src.GradingRubric != null);
@@ -272,26 +312,46 @@ namespace ARSPlatform.SERVICE.Mapping
             // Transaction
             CreateMap<Transaction, TransactionResponse>();
             CreateMap<TransactionCreateRequest, Transaction>();
-            CreateMap<TransactionUpdateRequest, Transaction>();
+            CreateMap<TransactionUpdateRequest, Transaction>()
+                .ForMember(dest => dest.TransactionId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // UserRole
             CreateMap<UserRole, UserRoleResponse>();
             CreateMap<UserRoleCreateRequest, UserRole>();
-            CreateMap<UserRoleUpdateRequest, UserRole>();
+            CreateMap<UserRoleUpdateRequest, UserRole>()
+                .ForMember(dest => dest.UserRoleId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // UserToken
             CreateMap<UserToken, UserTokenResponse>();
             CreateMap<UserTokenCreateRequest, UserToken>();
-            CreateMap<UserTokenUpdateRequest, UserToken>();
+            CreateMap<UserTokenUpdateRequest, UserToken>()
+                .ForMember(dest => dest.TokenId, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // Wallet
             CreateMap<Wallet, WalletResponse>();
             CreateMap<WalletCreateRequest, Wallet>();
-            CreateMap<WalletUpdateRequest, Wallet>();
+            CreateMap<WalletUpdateRequest, Wallet>()
+                .ForMember(dest => dest.WalletId, opt => opt.Ignore())
+                .ForMember(dest => dest.UserId, opt =>
+                {
+                    opt.PreCondition(src => src.UserId.HasValue);
+                    opt.MapFrom(src => src.UserId);
+                })
+                .ForMember(dest => dest.Balance, opt =>
+                {
+                    opt.PreCondition(src => src.Balance.HasValue);
+                    opt.MapFrom(src => src.Balance);
+                });
 
             // WithdrawalRequest
             CreateMap<WithdrawalRequest, WithdrawalRequestResponse>();
-            CreateMap<WithdrawalRequestCreateRequest, WithdrawalRequest>();
+            CreateMap<WithdrawalRequestCreateRequest, WithdrawalRequest>()
+                .ForMember(dest => dest.WithdrawalRequestId, opt => opt.Ignore())
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => "PENDING"))
+                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow));
         }
     }
 }

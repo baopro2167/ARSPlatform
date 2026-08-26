@@ -1,9 +1,11 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -25,6 +27,18 @@ namespace ARSPlatform.SERVICES
         {
             var items = await _repository.SearchAsync(search, category, sort);
             return _mapper.Map<IEnumerable<ForumPostResponse>>(items);
+        }
+
+        public async Task<PagedResult<ForumPostResponse>> GetPagedAsync(PaginationParams paginationParams, string? category = null, string? sort = null, string? search = null)
+        {
+            var paged = await _repository.SearchPagedAsync(paginationParams, search, category, sort);
+            var dtos = _mapper.Map<List<ForumPostResponse>>(paged.Items);
+            return new PagedResult<ForumPostResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ForumPostResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<ForumPostResponse?> GetByIdAsync(int id)

@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -24,6 +26,38 @@ namespace ARSPlatform.SERVICES
         {
             var items = await _repository.GetAllWithReviewerAsync();
             return _mapper.Map<IEnumerable<ReviewRequestResponse>>(items);
+        }
+
+        public async Task<PagedResult<ReviewRequestResponse>> GetPagedAsync(PaginationParams paginationParams)
+        {
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                includes: new System.Linq.Expressions.Expression<System.Func<ReviewRequest, object>>[]
+                {
+                    x => x.Reviewer!,
+                    x => x.Paper!
+                });
+            var dtos = _mapper.Map<List<ReviewRequestResponse>>(paged.Items);
+            return new PagedResult<ReviewRequestResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ReviewRequestResponse>> GetByReviewerIdAsync(int reviewerId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByReviewerIdPagedAsync(reviewerId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<ReviewRequestResponse>>(paged.Items);
+            return new PagedResult<ReviewRequestResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ReviewRequestResponse>> GetByPaperIdAsync(int paperId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByPaperIdPagedAsync(paperId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<ReviewRequestResponse>>(paged.Items);
+            return new PagedResult<ReviewRequestResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ReviewRequestResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<ReviewRequestResponse?> GetByIdAsync(int id)

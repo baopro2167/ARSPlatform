@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -20,10 +24,40 @@ namespace ARSPlatform.SERVICES
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<GroupMemberResponse>> GetAllAsync()
+        public async Task<IEnumerable<GroupMemberResponse>> GetAllAsync(int? groupId = null)
         {
-            var items = await _repository.GetAllAsync();
+            Expression<Func<GroupMember, bool>>? predicate = groupId.HasValue ? x => x.ResearchGroupId == groupId.Value : null;
+            var items = await _repository.GetAllAsync(predicate);
             return _mapper.Map<IEnumerable<GroupMemberResponse>>(items);
+        }
+
+        public async Task<PagedResult<GroupMemberResponse>> GetPagedAsync(PaginationParams paginationParams, int? groupId = null)
+        {
+            Expression<Func<GroupMember, bool>>? predicate = groupId.HasValue ? x => x.ResearchGroupId == groupId.Value : null;
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: predicate);
+            var dtos = _mapper.Map<List<GroupMemberResponse>>(paged.Items);
+            return new PagedResult<GroupMemberResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<GroupMemberResponse>> GetByGroupIdAsync(int groupId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByGroupIdPagedAsync(groupId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<GroupMemberResponse>>(paged.Items);
+            return new PagedResult<GroupMemberResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<GroupMemberResponse>> GetByStudentIdAsync(int studentId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByStudentIdPagedAsync(studentId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<GroupMemberResponse>>(paged.Items);
+            return new PagedResult<GroupMemberResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<GroupMemberResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<GroupMemberResponse?> GetByIdAsync(int id)

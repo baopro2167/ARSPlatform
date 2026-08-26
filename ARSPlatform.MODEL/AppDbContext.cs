@@ -76,6 +76,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Wallet> Wallets { get; set; }
 
+    public virtual DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AuditLog>(entity =>
@@ -651,6 +653,29 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey<Wallet>(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__Wallets__UserId__5CD6CB2B");
+        });
+
+        modelBuilder.Entity<WithdrawalRequest>(entity =>
+        {
+            entity.ToTable("WithdrawalRequests");
+            entity.HasKey(e => e.WithdrawalRequestId);
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Amount).HasColumnType("decimal(15, 2)");
+            entity.Property(e => e.BankName).HasMaxLength(255);
+            entity.Property(e => e.AccountNumber).HasMaxLength(100);
+            entity.Property(e => e.AccountName).HasMaxLength(255);
+            entity.Property(e => e.Status).HasMaxLength(50).IsUnicode(false).HasDefaultValue("PENDING");
+
+            entity.HasOne(d => d.User).WithMany(p => p.WithdrawalRequests)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_WithdrawalRequests_User");
+
+            entity.HasOne(d => d.Wallet).WithMany(p => p.WithdrawalRequests)
+                .HasForeignKey(d => d.WalletId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_WithdrawalRequests_Wallet");
         });
 
         OnModelCreatingPartial(modelBuilder);

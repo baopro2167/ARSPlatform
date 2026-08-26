@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -35,6 +36,32 @@ namespace ARSPlatform.SERVICES
         {
             var items = await _repository.GetAllAsync();
             return _mapper.Map<IEnumerable<DetailedEvaluationResponse>>(items);
+        }
+
+        public async Task<PagedResult<DetailedEvaluationResponse>> GetPagedAsync(PaginationParams paginationParams)
+        {
+            var paged = await _repository.GetPagedAsync(paginationParams);
+            var dtos = _mapper.Map<List<DetailedEvaluationResponse>>(paged.Items);
+            return new PagedResult<DetailedEvaluationResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<DetailedEvaluationResponse>> GetByReviewRequestIdAsync(int reviewRequestId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByReviewRequestIdPagedAsync(reviewRequestId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<DetailedEvaluationResponse>>(paged.Items);
+            return new PagedResult<DetailedEvaluationResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<DetailedEvaluationResponse>> GetByReviewerIdAsync(int reviewerId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByReviewerIdPagedAsync(reviewerId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<DetailedEvaluationResponse>>(paged.Items);
+            return new PagedResult<DetailedEvaluationResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<DetailedEvaluationResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<DetailedEvaluationResponse?> GetByIdAsync(int id)

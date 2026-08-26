@@ -1,6 +1,7 @@
-﻿using ARSPlatform.MODEL;
+using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using Microsoft.EntityFrameworkCore;
 
 namespace ARSPlatform.REPOSITORIES
@@ -40,6 +41,41 @@ namespace ARSPlatform.REPOSITORIES
                 .Include(p => p.User)
                 .Where(p => p.SeminarId == seminarId)
                 .ToListAsync();
+        }
+
+        public async Task<PagedResult<SeminarParticipant>> GetBySeminarIdPagedAsync(int seminarId, PaginationParams paginationParams)
+        {
+            return await GetPagedAsync(
+                paginationParams,
+                predicate: p => p.SeminarId == seminarId,
+                orderBy: q => q.OrderBy(p => p.SeminarParticipantId),
+                includes: new System.Linq.Expressions.Expression<System.Func<SeminarParticipant, object>>[]
+                {
+                    p => p.User!,
+                    p => p.Seminar!
+                });
+        }
+
+        public async Task<PagedResult<SeminarParticipant>> GetBySeminarIdPagedAsync(int seminarId, int pageNumber, int pageSize)
+        {
+            return await GetBySeminarIdPagedAsync(seminarId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+
+        public async Task<PagedResult<SeminarParticipant>> GetByUserIdPagedAsync(int userId, PaginationParams paginationParams)
+        {
+            return await GetPagedAsync(
+                paginationParams,
+                predicate: p => p.UserId == userId,
+                orderBy: q => q.OrderByDescending(p => p.SeminarParticipantId),
+                includes: new System.Linq.Expressions.Expression<System.Func<SeminarParticipant, object>>[]
+                {
+                    p => p.Seminar!
+                });
+        }
+
+        public async Task<PagedResult<SeminarParticipant>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize)
+        {
+            return await GetByUserIdPagedAsync(userId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<SeminarParticipant?>

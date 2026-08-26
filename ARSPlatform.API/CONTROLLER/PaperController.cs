@@ -1,11 +1,12 @@
-using ARSPlatform.REPO.PAGINATION;
-using ARSPlatform.SERVICE.DTOs.Request;
-using ARSPlatform.SERVICE.Interfaces;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ARSPlatform.REPO.PAGINATION;
+using ARSPlatform.SERVICE.DTOs.Request;
+using ARSPlatform.SERVICE.DTOs.Response;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -20,15 +21,37 @@ namespace ARSPlatform.API.CONTROLLER
             _paperService = paperService;
         }
 
+        /// <summary>
+        /// Lấy danh sách bài báo nghiên cứu phân trang
+        /// </summary>
+        /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <returns>Danh sách bài báo</returns>
         [HttpGet]
-        public async Task<IActionResult> GetPapers([FromQuery] PaginationParams paginationParams)
+        public async Task<ActionResult<PagedResult<PaperResponse>>> GetPapers([FromQuery] PaginationParams paginationParams)
         {
             var result = await _paperService.GetPapersAsync(paginationParams);
             return Ok(result);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetPaperById(int id)
+        /// <summary>
+        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// </summary>
+        /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <returns>Danh sách bài báo có phân trang</returns>
+        [HttpGet("paged")]
+        public async Task<ActionResult<PagedResult<PaperResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
+        {
+            var result = await _paperService.GetPapersAsync(paginationParams);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Lấy chi tiết bài báo nghiên cứu theo ID
+        /// </summary>
+        /// <param name="id">ID bài báo</param>
+        /// <returns>Chi tiết bài báo</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<PaperResponse>> GetPaperById(int id)
         {
             var paper = await _paperService.GetPaperByIdAsync(id);
             if (paper == null)
@@ -37,9 +60,14 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(paper);
         }
 
+        /// <summary>
+        /// Tải lên / Tạo mới một bài báo nghiên cứu khoa học
+        /// </summary>
+        /// <param name="request">Thông tin bài báo</param>
+        /// <returns>Bài báo vừa tạo</returns>
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreatePaper([FromBody] PaperCreateRequest request)
+        public async Task<ActionResult<PaperResponse>> CreatePaper([FromBody] PaperCreateRequest request)
         {
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(currentUserIdStr))
@@ -51,15 +79,21 @@ namespace ARSPlatform.API.CONTROLLER
                 var createdPaper = await _paperService.CreatePaperAsync(request, authorId);
                 return CreatedAtAction(nameof(GetPaperById), new { id = createdPaper.Id }, createdPaper);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 return BadRequest(new { Message = ex.Message });
             }
         }
 
-        [HttpPut("{id}")]
+        /// <summary>
+        /// Cập nhật thông tin bài báo nghiên cứu
+        /// </summary>
+        /// <param name="id">ID bài báo cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Bài báo sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
         [Authorize]
-        public async Task<IActionResult> UpdatePaper(int id, [FromBody] PaperUpdateRequest request)
+        public async Task<ActionResult<PaperResponse>> UpdatePaper(int id, [FromBody] PaperUpdateRequest request)
         {
             var paper = await _paperService.GetPaperByIdAsync(id);
             if (paper == null)
@@ -78,13 +112,18 @@ namespace ARSPlatform.API.CONTROLLER
                 var updatedPaper = await _paperService.UpdatePaperAsync(id, request);
                 return Ok(updatedPaper);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 return BadRequest(new { Message = ex.Message });
             }
         }
 
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa bài báo nghiên cứu
+        /// </summary>
+        /// <param name="id">ID bài báo cần xóa</param>
+        /// <returns>Thông báo kết quả</returns>
+        [HttpDelete("{id:int}")]
         [Authorize]
         public async Task<IActionResult> DeletePaper(int id)
         {

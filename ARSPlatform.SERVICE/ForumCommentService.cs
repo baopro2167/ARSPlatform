@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -20,10 +24,40 @@ namespace ARSPlatform.SERVICES
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<ForumCommentResponse>> GetAllAsync()
+        public async Task<IEnumerable<ForumCommentResponse>> GetAllAsync(int? postId = null)
         {
-            var items = await _repository.GetAllAsync();
+            Expression<Func<ForumComment, bool>>? predicate = postId.HasValue ? x => x.ForumPostId == postId.Value : null;
+            var items = await _repository.GetAllAsync(predicate);
             return _mapper.Map<IEnumerable<ForumCommentResponse>>(items);
+        }
+
+        public async Task<PagedResult<ForumCommentResponse>> GetPagedAsync(PaginationParams paginationParams, int? postId = null)
+        {
+            Expression<Func<ForumComment, bool>>? predicate = postId.HasValue ? x => x.ForumPostId == postId.Value : null;
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: predicate);
+            var dtos = _mapper.Map<List<ForumCommentResponse>>(paged.Items);
+            return new PagedResult<ForumCommentResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ForumCommentResponse>> GetByPostIdAsync(int postId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByPostIdPagedAsync(postId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<ForumCommentResponse>>(paged.Items);
+            return new PagedResult<ForumCommentResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ForumCommentResponse>> GetByUserIdAsync(int userId, int pageNumber, int pageSize)
+        {
+            var paged = await _repository.GetByUserIdPagedAsync(userId, pageNumber, pageSize);
+            var dtos = _mapper.Map<List<ForumCommentResponse>>(paged.Items);
+            return new PagedResult<ForumCommentResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ForumCommentResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<ForumCommentResponse?> GetByIdAsync(int id)

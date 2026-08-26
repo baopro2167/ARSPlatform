@@ -1,6 +1,9 @@
-﻿using ARSPlatform.MODEL;
+using System.Linq;
+using System.Threading.Tasks;
+using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 
 namespace ARSPlatform.REPOSITORIES
 {
@@ -8,6 +11,20 @@ namespace ARSPlatform.REPOSITORIES
     {
         public UserRoleRepository(AppDbContext context) : base(context)
         {
+        }
+
+        public async Task<PagedResult<UserRole>> GetByUserIdPagedAsync(int userId, PaginationParams paginationParams)
+        {
+            return await GetPagedAsync(
+                paginationParams,
+                predicate: x => x.UserId == userId,
+                orderBy: q => q.OrderBy(x => x.UserRoleId),
+                includes: x => x.Role!);
+        }
+
+        public async Task<PagedResult<UserRole>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize)
+        {
+            return await GetByUserIdPagedAsync(userId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
     }
 }

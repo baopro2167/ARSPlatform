@@ -1,4 +1,5 @@
-﻿using ARSPlatform.SERVICE.DTOs.Request;
+using ARSPlatform.REPO.PAGINATION;
+using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using System.Collections.Generic;
 using System.Threading;
@@ -9,6 +10,8 @@ namespace ARSPlatform.SERVICE.Interfaces
     public interface ISeminarService
     {
         Task<IEnumerable<SeminarResponse>> GetAllAsync(int organizerId);
+        Task<PagedResult<SeminarResponse>> GetPagedAsync(PaginationParams paginationParams, int organizerId);
+        Task<PagedResult<SeminarResponse>> GetByOrganizerIdAsync(int organizerId, int pageNumber, int pageSize);
 
         Task<SeminarResponse?> GetByIdAsync(
             int seminarId,

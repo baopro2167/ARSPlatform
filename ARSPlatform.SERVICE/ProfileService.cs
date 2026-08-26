@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -25,6 +27,18 @@ namespace ARSPlatform.SERVICES
         {
             var items = await _repository.GetAllWithUserAsync();
             return _mapper.Map<IEnumerable<ProfileResponse>>(items);
+        }
+
+        public async Task<PagedResult<ProfileResponse>> GetPagedAsync(PaginationParams paginationParams)
+        {
+            var paged = await _repository.GetPagedAsync(paginationParams, includes: x => x.User!);
+            var dtos = _mapper.Map<List<ProfileResponse>>(paged.Items);
+            return new PagedResult<ProfileResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<PagedResult<ProfileResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
         public async Task<ProfileResponse?> GetByIdAsync(int id)

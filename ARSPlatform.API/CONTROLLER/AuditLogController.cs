@@ -49,6 +49,32 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// </summary>
+        /// <param name="search">Từ khóa tìm kiếm</param>
+        /// <param name="adminId">Lọc theo Admin ID</param>
+        /// <param name="range">Khoảng thời gian: all_time, today, 7_days, 30_days</param>
+        /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <returns>Danh sách Audit Log có phân trang</returns>
+        [HttpGet("paged")]
+        public async Task<ActionResult<PagedResult<AuditLogResponse>>> GetPaged(
+            [FromQuery] string? search = null,
+            [FromQuery] int? adminId = null,
+            [FromQuery] string? range = "all_time",
+            [FromQuery] PaginationParams? paginationParams = null)
+        {
+            try
+            {
+                var result = await _service.GetPagedAsync(search, adminId, range, paginationParams);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Xuất toàn bộ nhật ký kiểm toán ra file CSV
         /// </summary>
         /// <param name="search">Từ khóa tìm kiếm</param>

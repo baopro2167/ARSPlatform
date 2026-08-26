@@ -9,6 +9,9 @@ namespace ARSPlatform.SERVICE.Interfaces
     public interface IPaperService
     {
         Task<PagedResult<PaperResponse>> GetPapersAsync(PaginationParams paginationParams);
+        Task<PagedResult<PaperResponse>> GetByAuthorIdAsync(int authorId, int pageNumber, int pageSize);
+        Task<PagedResult<PaperResponse>> GetBySubFieldIdAsync(int subFieldId, int pageNumber, int pageSize);
+        Task<PagedResult<PaperResponse>> GetAllAsync(int pageNumber, int pageSize);
         Task<PaperResponse?> GetPaperByIdAsync(int id);
         Task<PaperResponse> CreatePaperAsync(PaperCreateRequest request, int authorId);
         Task<PaperResponse?> UpdatePaperAsync(int id, PaperUpdateRequest request);
