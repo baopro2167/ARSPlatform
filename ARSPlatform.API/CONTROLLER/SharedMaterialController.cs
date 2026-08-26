@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,61 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class SharedMaterialController : ControllerBase
     {
-        private readonly ISharedMaterialRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly ISharedMaterialService _service;
 
-        public SharedMaterialController(ISharedMaterialRepository repository, IMapper mapper)
+        public SharedMaterialController(ISharedMaterialService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách tài liệu chia sẻ
+        /// </summary>
+        /// <returns>Danh sách tài liệu chia sẻ</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<SharedMaterialResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<SharedMaterialResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Chia sẻ tài liệu mới
+        /// </summary>
+        /// <param name="request">Thông tin tài liệu chia sẻ</param>
+        /// <returns>Bản ghi chia sẻ vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] SharedMaterialCreateRequest request)
+        public async Task<ActionResult<SharedMaterialResponse>> Create([FromBody] SharedMaterialCreateRequest request)
         {
-            var item = _mapper.Map<SharedMaterial>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<SharedMaterialResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết tài liệu chia sẻ theo ID
+        /// </summary>
+        /// <param name="id">ID bản ghi chia sẻ</param>
+        /// <returns>Chi tiết tài liệu chia sẻ</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<SharedMaterialResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<SharedMaterialResponse>(item);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Shared material not found." });
+            return Ok(item);
+        }
+
+        /// <summary>
+        /// Cập nhật thông tin chia sẻ tài liệu
+        /// </summary>
+        /// <param name="id">ID bản ghi chia sẻ</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Bản ghi chia sẻ sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<SharedMaterialResponse>> Update(int id, [FromBody] SharedMaterialUpdateRequest request)
+        {
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Shared material not found." });
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] SharedMaterialUpdateRequest request)
-        {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<SharedMaterialResponse>(item);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa một tài liệu chia sẻ
+        /// </summary>
+        /// <param name="id">ID bản ghi chia sẻ</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Shared material not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

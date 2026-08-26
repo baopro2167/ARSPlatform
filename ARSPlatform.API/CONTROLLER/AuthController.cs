@@ -1,4 +1,5 @@
 using ARSPlatform.SERVICE.DTOs.Request;
+using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +24,11 @@ namespace ARSPlatform.API.CONTROLLER
             _configuration = configuration;
         }
 
+        /// <summary>
+        /// Đăng ký tài khoản người dùng mới (Local account)
+        /// </summary>
+        /// <param name="request">Thông tin đăng ký</param>
+        /// <returns>Kết quả đăng ký</returns>
         [HttpPost("register")]
         [AllowAnonymous]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
@@ -42,6 +48,11 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Đăng nhập hệ thống bằng tài khoản email &amp; mật khẩu
+        /// </summary>
+        /// <param name="request">Thông tin đăng nhập</param>
+        /// <returns>Token JWT và thông tin tài khoản</returns>
         [HttpPost("login")]
         [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
@@ -53,6 +64,11 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(result);
         }
 
+        /// <summary>
+        /// Đăng nhập hoặc đăng ký nhanh bằng Google ID Token (Google One-Tap / Popup)
+        /// </summary>
+        /// <param name="request">Google Credential Token</param>
+        /// <returns>Token xác thực và thông tin Onboarding</returns>
         [HttpPost("google-login")]
         [AllowAnonymous]
         public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
@@ -71,6 +87,11 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Hoàn tất Onboarding cho tài khoản Google lần đầu (chọn Role và tải file PDF xác minh)
+        /// </summary>
+        /// <param name="request">Thông tin Onboarding</param>
+        /// <returns>Token Guest và trạng thái chờ duyệt</returns>
         [HttpPost("complete-google-registration")]
         [AllowAnonymous]
         public async Task<IActionResult> CompleteGoogleRegistration([FromBody] CompleteGoogleRegistrationRequest request)
@@ -89,6 +110,11 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Lựa chọn vai trò hoạt động (cho tài khoản có nhiều vai trò)
+        /// </summary>
+        /// <param name="request">Tên vai trò lựa chọn</param>
+        /// <returns>Token mới với quyền tương ứng</returns>
         [HttpPost("select-role")]
         [Authorize]
         public async Task<IActionResult> SelectRole([FromBody] SelectRoleRequest request)
@@ -113,6 +139,11 @@ namespace ARSPlatform.API.CONTROLLER
             }
         }
 
+        /// <summary>
+        /// Xác thực địa chỉ email qua Token kích hoạt
+        /// </summary>
+        /// <param name="token">Token xác thực email</param>
+        /// <returns>Thông báo kết quả</returns>
         [HttpPost("verify-email")]
         [AllowAnonymous]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
@@ -124,6 +155,11 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(new { Message = "Email verified successfully!" });
         }
 
+        /// <summary>
+        /// Gửi email thông báo tài khoản đã được phê duyệt
+        /// </summary>
+        /// <param name="email">Địa chỉ email người nhận</param>
+        /// <returns>Thông báo kết quả</returns>
         [HttpPost("send-approval-email")]
         public async Task<IActionResult> SendApprovalEmail([FromQuery] string email)
         {
@@ -134,6 +170,10 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(new { Message = "Approval email sent successfully!" });
         }
 
+        /// <summary>
+        /// Khởi tạo luồng đăng nhập OAuth Google Redirect
+        /// </summary>
+        /// <returns>Chuyển hướng đến Google OAuth</returns>
         [HttpGet("google-oauth-login")]
         [AllowAnonymous]
         public IActionResult GoogleOAuthLogin()
@@ -144,6 +184,12 @@ namespace ARSPlatform.API.CONTROLLER
             return Redirect(url);
         }
 
+        /// <summary>
+        /// Callback tiếp nhận mã OAuth từ Google và chuyển hướng về Frontend
+        /// </summary>
+        /// <param name="code">Mã Authorization code</param>
+        /// <param name="error">Lỗi nếu có</param>
+        /// <returns>Chuyển hướng về Frontend kèm query parameters</returns>
         [HttpGet("google-callback")]
         [AllowAnonymous]
         public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string? error)

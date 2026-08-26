@@ -1,13 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,69 +14,72 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class ProfessionalProfileController : ControllerBase
     {
-        private readonly IProfessionalProfileRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IProfessionalProfileService _service;
 
-        public ProfessionalProfileController(IProfessionalProfileRepository repository, IMapper mapper)
+        public ProfessionalProfileController(IProfessionalProfileService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ hồ sơ chuyên môn (kèm thông tin chuyên ngành và tài khoản)
+        /// </summary>
+        /// <returns>Danh sách hồ sơ chuyên môn</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<ProfessionalProfileResponse>>> GetAll()
         {
-            var items = await _repository.GetAllWithUserAndFieldAsync();
-            var response = _mapper.Map<IEnumerable<ProfessionalProfileResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo hồ sơ chuyên môn cho người dùng
+        /// </summary>
+        /// <param name="request">Thông tin hồ sơ chuyên môn</param>
+        /// <returns>Hồ sơ chuyên môn vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] ProfessionalProfileCreateRequest request)
+        public async Task<ActionResult<ProfessionalProfileResponse>> Create([FromBody] ProfessionalProfileCreateRequest request)
         {
-            var item = _mapper.Map<ProfessionalProfile>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-
-            var created = await _repository.GetByIdWithUserAndFieldAsync(item.UserId);
-            var response = _mapper.Map<ProfessionalProfileResponse>(created);
-            return CreatedAtAction(nameof(GetById), new { id = item.UserId }, response);
+            var response = await _service.CreateAsync(request);
+            return CreatedAtAction(nameof(GetById), new { id = response.UserId }, response);
         }
 
+        /// <summary>
+        /// Lấy chi tiết hồ sơ chuyên môn theo ID người dùng
+        /// </summary>
+        /// <param name="id">User ID</param>
+        /// <returns>Chi tiết hồ sơ chuyên môn</returns>
         [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<ProfessionalProfileResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdWithUserAndFieldAsync(id);
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            var response = _mapper.Map<ProfessionalProfileResponse>(item);
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Professional profile not found." });
+            return Ok(item);
         }
 
+        /// <summary>
+        /// Cập nhật thông tin hồ sơ chuyên môn
+        /// </summary>
+        /// <param name="id">User ID cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Hồ sơ chuyên môn sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(int id, [FromBody] ProfessionalProfileUpdateRequest request)
+        public async Task<ActionResult<ProfessionalProfileResponse>> Update(int id, [FromBody] ProfessionalProfileUpdateRequest request)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-
-            var updated = await _repository.GetByIdWithUserAndFieldAsync(id);
-            var response = _mapper.Map<ProfessionalProfileResponse>(updated);
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Professional profile not found." });
             return Ok(response);
         }
 
+        /// <summary>
+        /// Cập nhật trạng thái sẵn sàng phản biện của Reviewer
+        /// </summary>
+        /// <param name="id">User ID của Reviewer</param>
+        /// <param name="request">Trạng thái sẵn sàng</param>
+        /// <returns>Hồ sơ chuyên môn cập nhật</returns>
         [HttpPatch("{id:int}/availability")]
         [Authorize(Roles = "Reviewer")]
-        public async Task<IActionResult> UpdateAvailability(
+        public async Task<ActionResult<ProfessionalProfileResponse>> UpdateAvailability(
             int id,
             [FromBody] ProfessionalProfileAvailabilityUpdateRequest request)
         {
@@ -93,29 +94,21 @@ namespace ARSPlatform.API.CONTROLLER
                 return Forbid();
             }
 
-            var item = await _repository.UpdateAvailabilityAsync(id, request.IsAvailable);
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            await _repository.SaveChangesAsync();
-
-            var response = _mapper.Map<ProfessionalProfileResponse>(item);
+            var response = await _service.UpdateAvailabilityAsync(id, request.IsAvailable);
+            if (response == null) return NotFound(new { Message = "Professional profile not found." });
             return Ok(response);
         }
 
+        /// <summary>
+        /// Xóa hồ sơ chuyên môn của người dùng
+        /// </summary>
+        /// <param name="id">User ID</param>
+        /// <returns>Không có nội dung</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Professional profile not found." });
             return NoContent();
         }
     }

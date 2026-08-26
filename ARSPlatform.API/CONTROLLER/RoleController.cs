@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -11,18 +11,22 @@ namespace ARSPlatform.API.CONTROLLER
     [Route("api/[controller]")]
     public class RoleController : ControllerBase
     {
-        private readonly IRoleRepository _repository;
+        private readonly IRoleService _service;
 
-        public RoleController(IRoleRepository repository)
+        public RoleController(IRoleService service)
         {
-            _repository = repository;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách các vai trò (Role) công khai trên hệ thống
+        /// </summary>
+        /// <returns>Danh sách vai trò</returns>
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<Role>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
+            var items = await _service.GetAllAsync();
             return Ok(items);
         }
     }

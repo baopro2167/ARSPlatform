@@ -139,12 +139,16 @@ builder.Services.Configure<GoogleMeetSettings>(
     builder.Configuration.GetSection("GoogleMeetSettings"));
 builder.Services.AddHttpClient<IGoogleMeetService, GoogleMeetService>();
 
-// Register Services
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IRoleRequestService, RoleRequestService>();
-builder.Services.AddScoped<IPaperService, PaperService>();
-builder.Services.AddScoped<ISeminarService, SeminarService>();
+// Register Services automatically via reflection
+var serviceAssembly = typeof(AuthService).Assembly;
+foreach (var type in serviceAssembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("Service") && !t.Name.EndsWith("HostedService")))
+{
+    var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.Name == $"I{type.Name}");
+    if (interfaceType != null)
+    {
+        builder.Services.AddScoped(interfaceType, type);
+    }
+}
 builder.Services.AddHostedService<SeminarAutomationHostedService>();
 
 // Register PayOS Settings
@@ -158,18 +162,17 @@ builder.Services.Configure<PayOSSettings>(options =>
     options.ReturnUrl = section["ReturnUrl"] ?? "";
     options.CancelUrl = section["CancelUrl"] ?? "";
 });
-builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddHttpClient();
 
 // Register Email Settings and Service
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-builder.Services.AddScoped<IEmailService, EmailService>();
 
-// Register Google Calendar Settings from Environment Variables
-var googleClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? "";
-var googleClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") ?? "";
-var serviceAccountEmail = Environment.GetEnvironmentVariable("GOOGLE_SERVICE_ACCOUNT_EMAIL") ?? "";
-var privateKey = Environment.GetEnvironmentVariable("GOOGLE_PRIVATE_KEY") ?? "";
+// Register Google Calendar Settings from Configuration / Environment Variables
+var googleCalendarSection = builder.Configuration.GetSection("GoogleCalendar");
+var googleClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? googleCalendarSection["ClientId"] ?? "";
+var googleClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") ?? googleCalendarSection["ClientSecret"] ?? "";
+var serviceAccountEmail = Environment.GetEnvironmentVariable("GOOGLE_SERVICE_ACCOUNT_EMAIL") ?? googleCalendarSection["ServiceAccountEmail"] ?? "";
+var privateKey = Environment.GetEnvironmentVariable("GOOGLE_PRIVATE_KEY") ?? googleCalendarSection["PrivateKey"] ?? "";
 
 builder.Services.Configure<GoogleCalendarSettings>(options =>
 {
@@ -178,10 +181,7 @@ builder.Services.Configure<GoogleCalendarSettings>(options =>
     options.ServiceAccountEmail = serviceAccountEmail;
     options.PrivateKey = privateKey;
 });
-builder.Services.AddHttpClient<IGoogleCalendarService, GoogleCalendarService>(client =>
-{
-    // HttpClient configuration if needed
-});
+builder.Services.AddHttpClient<IGoogleCalendarService, GoogleCalendarService>();
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -308,22 +308,24 @@ builder.Services.AddSwaggerGen(c =>
                 Array.Empty<string>()
             }
         });
+
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath);
+    }
 });
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint(
-            "/swagger/v1/swagger.json",
-            "ARSPlatform API v1");
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ARSPlatform API v1");
+    c.RoutePrefix = "swagger";
+});
 
 // app.UseHttpsRedirection();
 

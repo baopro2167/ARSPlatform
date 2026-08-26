@@ -1,12 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -15,77 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class ReviewRequestController : ControllerBase
     {
-        private readonly IReviewRequestRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IReviewRequestService _service;
 
-        public ReviewRequestController(IReviewRequestRepository repository, IMapper mapper)
+        public ReviewRequestController(IReviewRequestService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách yêu cầu phản biện bài báo khoa học (kèm thông tin Reviewer)
+        /// </summary>
+        /// <returns>Danh sách yêu cầu phản biện</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<ReviewRequestResponse>>> GetAll()
         {
-            var items = await _repository.GetAllWithReviewerAsync();
-            var response = _mapper.Map<IEnumerable<ReviewRequestResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo mới một yêu cầu phản biện bài báo
+        /// </summary>
+        /// <param name="request">Thông tin yêu cầu phản biện</param>
+        /// <returns>Yêu cầu phản biện vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] ReviewRequestCreateRequest request)
+        public async Task<ActionResult<ReviewRequestResponse>> Create([FromBody] ReviewRequestCreateRequest request)
         {
-            var item = _mapper.Map<ReviewRequest>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-
-            var created = await _repository.GetByIdWithReviewerAsync(item.ReviewRequestId);
-            var response = _mapper.Map<ReviewRequestResponse>(created);
-            return CreatedAtAction(nameof(GetById), new { id = item.ReviewRequestId }, response);
+            var response = await _service.CreateAsync(request);
+            return CreatedAtAction(nameof(GetById), new { id = response.ReviewRequestId }, response);
         }
 
+        /// <summary>
+        /// Lấy chi tiết yêu cầu phản biện theo ID
+        /// </summary>
+        /// <param name="id">ID yêu cầu phản biện</param>
+        /// <returns>Chi tiết yêu cầu phản biện</returns>
         [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<ReviewRequestResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdWithReviewerAsync(id);
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            var response = _mapper.Map<ReviewRequestResponse>(item);
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Review request not found." });
+            return Ok(item);
         }
 
+        /// <summary>
+        /// Cập nhật thông tin yêu cầu phản biện
+        /// </summary>
+        /// <param name="id">ID yêu cầu phản biện</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Yêu cầu phản biện sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(int id, [FromBody] ReviewRequestUpdateRequest request)
+        public async Task<ActionResult<ReviewRequestResponse>> Update(int id, [FromBody] ReviewRequestUpdateRequest request)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-
-            var updated = await _repository.GetByIdWithReviewerAsync(id);
-            var response = _mapper.Map<ReviewRequestResponse>(updated);
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Review request not found." });
             return Ok(response);
         }
 
+        /// <summary>
+        /// Xóa một yêu cầu phản biện
+        /// </summary>
+        /// <param name="id">ID yêu cầu phản biện</param>
+        /// <returns>Không có nội dung</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Review request not found." });
             return NoContent();
         }
     }

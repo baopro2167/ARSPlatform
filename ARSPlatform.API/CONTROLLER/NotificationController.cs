@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,61 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class NotificationController : ControllerBase
     {
-        private readonly INotificationRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly INotificationService _service;
 
-        public NotificationController(INotificationRepository repository, IMapper mapper)
+        public NotificationController(INotificationService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ thông báo hệ thống
+        /// </summary>
+        /// <returns>Danh sách thông báo</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<NotificationResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<NotificationResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo mới một thông báo
+        /// </summary>
+        /// <param name="request">Dữ liệu thông báo</param>
+        /// <returns>Thông báo vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] NotificationCreateRequest request)
+        public async Task<ActionResult<NotificationResponse>> Create([FromBody] NotificationCreateRequest request)
         {
-            var item = _mapper.Map<Notification>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<NotificationResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết thông báo theo ID
+        /// </summary>
+        /// <param name="id">ID thông báo</param>
+        /// <returns>Chi tiết thông báo</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<NotificationResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<NotificationResponse>(item);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Notification not found." });
+            return Ok(item);
+        }
+
+        /// <summary>
+        /// Cập nhật thông báo (đánh dấu đã đọc...)
+        /// </summary>
+        /// <param name="id">ID thông báo</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Thông báo sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<NotificationResponse>> Update(int id, [FromBody] NotificationUpdateRequest request)
+        {
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Notification not found." });
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] NotificationUpdateRequest request)
-        {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<NotificationResponse>(item);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa một thông báo
+        /// </summary>
+        /// <param name="id">ID thông báo cần xóa</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Notification not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

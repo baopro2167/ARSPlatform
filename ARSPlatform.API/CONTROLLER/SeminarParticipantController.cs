@@ -1,16 +1,12 @@
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
-using ARSPlatform.SERVICE.DTOs.Request;
-using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ARSPlatform.SERVICE.DTOs.Request;
+using ARSPlatform.SERVICE.DTOs.Response;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -19,225 +15,111 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize(Roles = "Lecturer")]
     public class SeminarParticipantController : ControllerBase
     {
-        private readonly ISeminarParticipantRepository _repository;
-        private readonly ISeminarRepository _seminarRepository;
-        private readonly IUserRepository _userRepository;
-        private readonly IMapper _mapper;
+        private readonly ISeminarParticipantService _service;
 
-        public SeminarParticipantController(
-            ISeminarParticipantRepository repository,
-            ISeminarRepository seminarRepository,
-            IUserRepository userRepository,
-            IMapper mapper)
+        public SeminarParticipantController(ISeminarParticipantService service)
         {
-            _repository = repository;
-            _seminarRepository = seminarRepository;
-            _userRepository = userRepository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách người tham dự các buổi Seminar do Lecturer tổ chức
+        /// </summary>
+        /// <returns>Danh sách người tham dự</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<SeminarParticipantResponse>>> GetAll()
         {
             if (!TryGetCurrentUserId(out var organizerId))
             {
                 return Unauthorized();
             }
 
-            var items = await _repository.GetAllForOrganizerWithUserAsync(organizerId);
-            var response = _mapper.Map<IEnumerable<SeminarParticipantResponse>>(items);
-
-            return Ok(response);
+            var items = await _service.GetAllForOrganizerAsync(organizerId);
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Mời hoặc thêm người tham dự mới vào Seminar
+        /// </summary>
+        /// <param name="request">Thông tin người tham dự</param>
+        /// <returns>Bản ghi người tham dự vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create(
-            [FromBody] SeminarParticipantCreateRequest request)
+        public async Task<ActionResult<SeminarParticipantResponse>> Create([FromBody] SeminarParticipantCreateRequest request)
         {
             if (!TryGetCurrentUserId(out var organizerId))
             {
                 return Unauthorized();
             }
-
-            if (!request.SeminarId.HasValue)
-            {
-                return BadRequest(new { message = "SeminarId is required." });
-            }
-
-            var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(
-                request.SeminarId.Value);
-
-            if (seminar == null || seminar.OrganizerId != organizerId)
-            {
-                return NotFound();
-            }
-
-            User? user = null;
-            var invitedEmail = request.InvitedEmail?.Trim();
-
-            if (request.UserId.HasValue)
-            {
-                user = await _userRepository.GetByIdAsync(request.UserId.Value);
-
-                if (user == null)
-                {
-                    return BadRequest(new { message = "UserId does not exist." });
-                }
-
-                invitedEmail = user.Email;
-            }
-            else if (!string.IsNullOrWhiteSpace(invitedEmail))
-            {
-                var validator = new EmailAddressAttribute();
-
-                if (!validator.IsValid(invitedEmail))
-                {
-                    return BadRequest(new { message = "InvitedEmail is invalid." });
-                }
-
-                user = await _userRepository.GetByEmailAsync(invitedEmail);
-
-                if (user != null)
-                {
-                    invitedEmail = user.Email;
-                }
-            }
-            else
-            {
-                return BadRequest(new
-                {
-                    message = "UserId or InvitedEmail is required."
-                });
-            }
-
-            if (seminar.MaxParticipants.HasValue
-                && seminar.MaxParticipants.Value > 0
-                && seminar.SeminarParticipants.Count >= seminar.MaxParticipants.Value)
-            {
-                return Conflict(new
-                {
-                    message = "Seminar has reached MaxParticipants."
-                });
-            }
-
-            var duplicate = seminar.SeminarParticipants.Any(p =>
-                (user != null && p.UserId == user.UserId)
-                || (!string.IsNullOrWhiteSpace(invitedEmail)
-                    && string.Equals(
-                        p.InvitedEmail,
-                        invitedEmail,
-                        StringComparison.OrdinalIgnoreCase)));
-
-            if (duplicate)
-            {
-                return Conflict(new
-                {
-                    message = "Participant is already registered for this seminar."
-                });
-            }
-
-            string invitationStatus;
 
             try
             {
-                invitationStatus = NormalizeParticipantStatus(
-                    request.InvitationStatus ?? "INVITED");
+                var response = await _service.CreateAsync(request, organizerId);
+                return Ok(response);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new { Message = ex.Message });
             }
-
-            if (!string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
+            catch (InvalidOperationException ex)
             {
-                invitationStatus = "SUBMITTED";
+                return Conflict(new { Message = ex.Message });
             }
-
-            var item = new SeminarParticipant
-            {
-                SeminarId = seminar.SeminarId,
-                UserId = user?.UserId,
-                InvitedEmail = invitedEmail,
-                InvitationStatus = invitationStatus,
-                ParticipantEvaluation = request.ParticipantEvaluation
-            };
-
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-
-            var created = await _repository.GetByIdWithSeminarAndUserAsync(
-                item.SeminarParticipantId);
-
-            var response = _mapper.Map<SeminarParticipantResponse>(created ?? item);
-            return Ok(response);
         }
 
+        /// <summary>
+        /// Lấy chi tiết người tham dự Seminar theo ID
+        /// </summary>
+        /// <param name="id">ID bản ghi người tham dự</param>
+        /// <returns>Chi tiết người tham dự</returns>
         [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<SeminarParticipantResponse>> GetById(int id)
         {
             if (!TryGetCurrentUserId(out var organizerId))
             {
                 return Unauthorized();
             }
 
-            var item = await _repository.GetByIdWithSeminarAndUserAsync(id);
+            var item = await _service.GetByIdAsync(id, organizerId);
+            if (item == null) return NotFound();
 
-            if (item == null || item.Seminar?.OrganizerId != organizerId)
-            {
-                return NotFound();
-            }
-
-            var response = _mapper.Map<SeminarParticipantResponse>(item);
-            return Ok(response);
+            return Ok(item);
         }
 
+        /// <summary>
+        /// Cập nhật trạng thái mời / đánh giá người tham dự Seminar
+        /// </summary>
+        /// <param name="id">ID bản ghi người tham dự</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Người tham dự sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(
-            int id,
-            [FromBody] SeminarParticipantUpdateRequest request)
+        public async Task<ActionResult<SeminarParticipantResponse>> Update(int id, [FromBody] SeminarParticipantUpdateRequest request)
         {
             if (!TryGetCurrentUserId(out var organizerId))
             {
                 return Unauthorized();
             }
 
-            var item = await _repository.GetByIdWithSeminarAndUserAsync(id);
-
-            if (item == null || item.Seminar?.OrganizerId != organizerId)
+            try
             {
-                return NotFound();
+                var response = await _service.UpdateAsync(id, request, organizerId);
+                if (response == null) return NotFound();
+                return Ok(response);
             }
-
-            if (request.InvitationStatus != null)
+            catch (ArgumentException ex)
             {
-                try
-                {
-                    item.InvitationStatus = NormalizeParticipantStatus(
-                        request.InvitationStatus);
-                }
-                catch (ArgumentException ex)
-                {
-                    return BadRequest(new { message = ex.Message });
-                }
+                return BadRequest(new { Message = ex.Message });
             }
-
-            if (request.ParticipantEvaluation != null)
-            {
-                item.ParticipantEvaluation = request.ParticipantEvaluation;
-
-                if (!string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
-                {
-                    item.InvitationStatus = "SUBMITTED";
-                }
-            }
-
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-
-            var response = _mapper.Map<SeminarParticipantResponse>(item);
-            return Ok(response);
         }
 
+        /// <summary>
+        /// Xóa người tham dự khỏi Seminar
+        /// </summary>
+        /// <param name="id">ID bản ghi người tham dự</param>
+        /// <returns>Thông báo kết quả xóa</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -246,15 +128,8 @@ namespace ARSPlatform.API.CONTROLLER
                 return Unauthorized();
             }
 
-            var item = await _repository.GetByIdWithSeminarAndUserAsync(id);
-
-            if (item == null || item.Seminar?.OrganizerId != organizerId)
-            {
-                return NotFound();
-            }
-
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id, organizerId);
+            if (!success) return NotFound();
 
             return Ok(new { Message = "Deleted successfully." });
         }
@@ -263,34 +138,6 @@ namespace ARSPlatform.API.CONTROLLER
         {
             var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
             return int.TryParse(userIdValue, out userId);
-        }
-
-        private static string NormalizeParticipantStatus(string status)
-        {
-            var value = status.Trim().ToLowerInvariant();
-
-            if (value == "pending")
-            {
-                return "PENDING";
-            }
-
-            if (value is "invited" or "accepted" or "confirmed")
-            {
-                return "INVITED";
-            }
-
-            if (value is "submitted" or "complete" or "completed")
-            {
-                return "SUBMITTED";
-            }
-
-            if (value is "declined" or "rejected")
-            {
-                return "DECLINED";
-            }
-
-            throw new ArgumentException(
-                "InvitationStatus must be PENDING, INVITED, SUBMITTED, or DECLINED.");
         }
     }
 }

@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,61 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class MembershipPurchaseController : ControllerBase
     {
-        private readonly IMembershipPurchaseRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IMembershipPurchaseService _service;
 
-        public MembershipPurchaseController(IMembershipPurchaseRepository repository, IMapper mapper)
+        public MembershipPurchaseController(IMembershipPurchaseService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ lịch sử mua gói thành viên
+        /// </summary>
+        /// <returns>Danh sách lịch sử mua gói</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<MembershipPurchaseResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<MembershipPurchaseResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo bản ghi mua gói thành viên mới
+        /// </summary>
+        /// <param name="request">Thông tin mua gói</param>
+        /// <returns>Bản ghi mua gói vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] MembershipPurchaseCreateRequest request)
+        public async Task<ActionResult<MembershipPurchaseResponse>> Create([FromBody] MembershipPurchaseCreateRequest request)
         {
-            var item = _mapper.Map<MembershipPurchase>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<MembershipPurchaseResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết lịch sử mua gói theo ID
+        /// </summary>
+        /// <param name="id">ID bản ghi</param>
+        /// <returns>Chi tiết bản ghi mua gói</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<MembershipPurchaseResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<MembershipPurchaseResponse>(item);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Membership purchase not found." });
+            return Ok(item);
+        }
+
+        /// <summary>
+        /// Cập nhật thông tin mua gói
+        /// </summary>
+        /// <param name="id">ID bản ghi cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Bản ghi sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<MembershipPurchaseResponse>> Update(int id, [FromBody] MembershipPurchaseUpdateRequest request)
+        {
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Membership purchase not found." });
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] MembershipPurchaseUpdateRequest request)
-        {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<MembershipPurchaseResponse>(item);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa một bản ghi mua gói thành viên
+        /// </summary>
+        /// <param name="id">ID bản ghi</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Membership purchase not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

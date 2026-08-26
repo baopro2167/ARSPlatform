@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,61 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class GroupMemberController : ControllerBase
     {
-        private readonly IGroupMemberRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IGroupMemberService _service;
 
-        public GroupMemberController(IGroupMemberRepository repository, IMapper mapper)
+        public GroupMemberController(IGroupMemberService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ thành viên thuộc các nhóm nghiên cứu
+        /// </summary>
+        /// <returns>Danh sách thành viên nhóm</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<GroupMemberResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<GroupMemberResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Thêm thành viên vào nhóm nghiên cứu
+        /// </summary>
+        /// <param name="request">Thông tin thành viên</param>
+        /// <returns>Bản ghi thành viên vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] GroupMemberCreateRequest request)
+        public async Task<ActionResult<GroupMemberResponse>> Create([FromBody] GroupMemberCreateRequest request)
         {
-            var item = _mapper.Map<GroupMember>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<GroupMemberResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết thành viên nhóm theo ID
+        /// </summary>
+        /// <param name="id">ID thành viên nhóm</param>
+        /// <returns>Chi tiết thành viên nhóm</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<GroupMemberResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<GroupMemberResponse>(item);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Group member not found." });
+            return Ok(item);
+        }
+
+        /// <summary>
+        /// Cập nhật vai trò / thông tin thành viên trong nhóm
+        /// </summary>
+        /// <param name="id">ID bản ghi thành viên</param>
+        /// <param name="request">Thông tin cập nhật</param>
+        /// <returns>Thành viên sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<GroupMemberResponse>> Update(int id, [FromBody] GroupMemberUpdateRequest request)
+        {
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Group member not found." });
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] GroupMemberUpdateRequest request)
-        {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<GroupMemberResponse>(item);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa thành viên khỏi nhóm nghiên cứu
+        /// </summary>
+        /// <param name="id">ID bản ghi thành viên</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Group member not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

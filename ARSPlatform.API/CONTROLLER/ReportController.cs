@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,61 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class ReportController : ControllerBase
     {
-        private readonly IReportRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IReportService _service;
 
-        public ReportController(IReportRepository repository, IMapper mapper)
+        public ReportController(IReportService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách báo cáo vi phạm / tố cáo nội dung
+        /// </summary>
+        /// <returns>Danh sách báo cáo vi phạm</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<ReportResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<ReportResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Gửi báo cáo vi phạm / tố cáo nội dung mới
+        /// </summary>
+        /// <param name="request">Thông tin báo cáo vi phạm</param>
+        /// <returns>Báo cáo vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] ReportCreateRequest request)
+        public async Task<ActionResult<ReportResponse>> Create([FromBody] ReportCreateRequest request)
         {
-            var item = _mapper.Map<Report>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<ReportResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết báo cáo vi phạm theo ID
+        /// </summary>
+        /// <param name="id">ID báo cáo vi phạm</param>
+        /// <returns>Chi tiết báo cáo</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<ReportResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<ReportResponse>(item);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Report not found." });
+            return Ok(item);
+        }
+
+        /// <summary>
+        /// Cập nhật trạng thái / thông tin xử lý báo cáo vi phạm
+        /// </summary>
+        /// <param name="id">ID báo cáo cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Báo cáo sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<ReportResponse>> Update(int id, [FromBody] ReportUpdateRequest request)
+        {
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Report not found." });
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] ReportUpdateRequest request)
-        {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<ReportResponse>(item);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa một báo cáo vi phạm
+        /// </summary>
+        /// <param name="id">ID báo cáo cần xóa</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Report not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

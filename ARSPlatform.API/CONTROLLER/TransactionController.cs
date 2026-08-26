@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,61 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class TransactionController : ControllerBase
     {
-        private readonly ITransactionRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly ITransactionService _service;
 
-        public TransactionController(ITransactionRepository repository, IMapper mapper)
+        public TransactionController(ITransactionService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách giao dịch
+        /// </summary>
+        /// <returns>Danh sách giao dịch</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<TransactionResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<TransactionResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo mới một giao dịch
+        /// </summary>
+        /// <param name="request">Thông tin giao dịch</param>
+        /// <returns>Giao dịch vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] TransactionCreateRequest request)
+        public async Task<ActionResult<TransactionResponse>> Create([FromBody] TransactionCreateRequest request)
         {
-            var item = _mapper.Map<Transaction>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<TransactionResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết giao dịch theo ID
+        /// </summary>
+        /// <param name="id">ID giao dịch</param>
+        /// <returns>Chi tiết giao dịch</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<TransactionResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<TransactionResponse>(item);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Transaction not found." });
+            return Ok(item);
+        }
+
+        /// <summary>
+        /// Cập nhật thông tin giao dịch
+        /// </summary>
+        /// <param name="id">ID giao dịch cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Giao dịch sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<TransactionResponse>> Update(int id, [FromBody] TransactionUpdateRequest request)
+        {
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Transaction not found." });
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] TransactionUpdateRequest request)
-        {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<TransactionResponse>(item);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa một giao dịch
+        /// </summary>
+        /// <param name="id">ID giao dịch cần xóa</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Transaction not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

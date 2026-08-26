@@ -1,14 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using System.Security.Claims;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
+using System.Threading.Tasks;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,75 +13,84 @@ namespace ARSPlatform.API.CONTROLLER
     [Route("api/[controller]")]
     public class ForumCommentController : ControllerBase
     {
-        private readonly IForumCommentRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IForumCommentService _service;
 
-        public ForumCommentController(IForumCommentRepository repository, IMapper mapper)
+        public ForumCommentController(IForumCommentService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ bình luận trên diễn đàn
+        /// </summary>
+        /// <returns>Danh sách bình luận</returns>
         [HttpGet]
         [Authorize(Policy = "ForumRead")]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<ForumCommentResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<ForumCommentResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Thêm bình luận mới vào bài viết diễn đàn
+        /// </summary>
+        /// <param name="request">Thông tin bình luận</param>
+        /// <returns>Bình luận vừa tạo</returns>
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> Create([FromBody] ForumCommentCreateRequest request)
+        public async Task<ActionResult<ForumCommentResponse>> Create([FromBody] ForumCommentCreateRequest request)
         {
             var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
             if (!int.TryParse(userIdValue, out var userId))
             {
                 return Unauthorized();
             }
 
-            var item = _mapper.Map<ForumComment>(request);
-            item.UserId = userId;
-
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<ForumCommentResponse>(item);
+            var response = await _service.CreateAsync(request, userId);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
+        /// <summary>
+        /// Lấy chi tiết bình luận theo ID
+        /// </summary>
+        /// <param name="id">ID bình luận</param>
+        /// <returns>Thông tin bình luận</returns>
+        [HttpGet("{id:int}")]
         [Authorize(Policy = "ForumRead")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<ForumCommentResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<ForumCommentResponse>(item);
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Comment not found." });
+            return Ok(item);
         }
 
-        [HttpPut("{id}")]
+        /// <summary>
+        /// Cập nhật nội dung bình luận
+        /// </summary>
+        /// <param name="id">ID bình luận cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Bình luận sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
         [Authorize]
-        public async Task<IActionResult> Update(int id, [FromBody] ForumCommentUpdateRequest request)
+        public async Task<ActionResult<ForumCommentResponse>> Update(int id, [FromBody] ForumCommentUpdateRequest request)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<ForumCommentResponse>(item);
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Comment not found." });
             return Ok(response);
         }
 
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa một bình luận
+        /// </summary>
+        /// <param name="id">ID bình luận cần xóa</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Comment not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

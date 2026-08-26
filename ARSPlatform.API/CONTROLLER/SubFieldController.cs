@@ -1,13 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,265 +14,115 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class SubFieldController : ControllerBase
     {
-        private readonly ISubFieldRepository _repository;
-        private readonly IMajorFieldRepository _majorFieldRepository;
-        private readonly IMapper _mapper;
+        private readonly ISubFieldService _service;
 
-        public SubFieldController(
-            ISubFieldRepository repository,
-            IMajorFieldRepository majorFieldRepository,
-            IMapper mapper)
+        public SubFieldController(ISubFieldService service)
         {
-            _repository = repository;
-            _majorFieldRepository = majorFieldRepository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ các chuyên ngành hẹp (có thể lọc theo lĩnh vực lớn)
+        /// </summary>
+        /// <param name="majorFieldId">ID lĩnh vực lớn để lọc</param>
+        /// <returns>Danh sách chuyên ngành hẹp</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll(
-            [FromQuery] int? majorFieldId = null)
+        public async Task<ActionResult<IEnumerable<SubFieldResponse>>> GetAll([FromQuery] int? majorFieldId = null)
         {
-            if (majorFieldId.HasValue &&
-                majorFieldId.Value <= 0)
+            try
             {
-                return BadRequest(new
-                {
-                    Message =
-                        "majorFieldId must be greater than zero."
-                });
+                var items = await _service.GetAllAsync(majorFieldId);
+                return Ok(items);
             }
-
-            if (majorFieldId.HasValue &&
-                !await _majorFieldRepository.ExistsAsync(
-                    x => x.MajorFieldId == majorFieldId.Value))
+            catch (ArgumentException ex)
             {
-                return NotFound(new
-                {
-                    Message = "Major field not found."
-                });
+                return BadRequest(new { Message = ex.Message });
             }
-
-            var items =
-                await _repository.GetAllWithMajorFieldAsync(
-                    majorFieldId);
-
-            var response =
-                _mapper.Map<IEnumerable<SubFieldResponse>>(items);
-
-            return Ok(response);
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
         }
 
+        /// <summary>
+        /// Tạo mới một chuyên ngành hẹp
+        /// </summary>
+        /// <param name="request">Thông tin chuyên ngành hẹp</param>
+        /// <returns>Chuyên ngành vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create(
-            [FromBody] SubFieldCreateRequest request)
+        public async Task<ActionResult<SubFieldResponse>> Create([FromBody] SubFieldCreateRequest request)
         {
-            if (request == null ||
-                string.IsNullOrWhiteSpace(request.Name))
+            try
             {
-                return BadRequest(new
-                {
-                    Message = "Sub-field name is required."
-                });
+                var response = await _service.CreateAsync(request);
+                return CreatedAtAction(nameof(GetById), new { id = response.SubFieldId }, response);
             }
-
-            if (!request.MajorFieldId.HasValue ||
-                request.MajorFieldId.Value <= 0)
+            catch (ArgumentException ex)
             {
-                return BadRequest(new
-                {
-                    Message = "MajorFieldId is required."
-                });
+                return BadRequest(new { Message = ex.Message });
             }
-
-            var majorFieldExists =
-                await _majorFieldRepository.ExistsAsync(
-                    x =>
-                        x.MajorFieldId ==
-                        request.MajorFieldId.Value);
-
-            if (!majorFieldExists)
+            catch (InvalidOperationException ex)
             {
-                return BadRequest(new
-                {
-                    Message =
-                        "The specified major field does not exist."
-                });
+                return Conflict(new { Message = ex.Message });
             }
-
-            var normalizedName =
-                request.Name.Trim();
-
-            var duplicate =
-                await _repository.ExistsAsync(
-                    x =>
-                        x.MajorFieldId ==
-                            request.MajorFieldId.Value &&
-                        x.Name == normalizedName);
-
-            if (duplicate)
-            {
-                return Conflict(new
-                {
-                    Message =
-                        "A sub-field with the same name already exists under this major field."
-                });
-            }
-
-            var item =
-                _mapper.Map<SubField>(request);
-
-            item.Name = normalizedName;
-            item.CreatedAt ??= DateTime.UtcNow;
-
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-
-            var created =
-                await _repository.GetByIdWithMajorFieldAsync(
-                    item.SubFieldId);
-
-            var response =
-                _mapper.Map<SubFieldResponse>(created);
-
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = item.SubFieldId },
-                response);
         }
 
+        /// <summary>
+        /// Lấy chi tiết chuyên ngành hẹp theo ID
+        /// </summary>
+        /// <param name="id">ID chuyên ngành hẹp</param>
+        /// <returns>Chi tiết chuyên ngành</returns>
         [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<SubFieldResponse>> GetById(int id)
         {
-            var item =
-                await _repository.GetByIdWithMajorFieldAsync(id);
-
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            var response =
-                _mapper.Map<SubFieldResponse>(item);
-
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Sub-field not found." });
+            return Ok(item);
         }
 
+        /// <summary>
+        /// Cập nhật thông tin chuyên ngành hẹp
+        /// </summary>
+        /// <param name="id">ID chuyên ngành hẹp cần cập nhật</param>
+        /// <param name="request">Thông tin cập nhật</param>
+        /// <returns>Chuyên ngành sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(
-            int id,
-            [FromBody] SubFieldUpdateRequest request)
+        public async Task<ActionResult<SubFieldResponse>> Update(int id, [FromBody] SubFieldUpdateRequest request)
         {
-            if (request == null ||
-                string.IsNullOrWhiteSpace(request.Name))
+            try
             {
-                return BadRequest(new
-                {
-                    Message = "Sub-field name is required."
-                });
+                var response = await _service.UpdateAsync(id, request);
+                if (response == null) return NotFound(new { Message = "Sub-field not found." });
+                return Ok(response);
             }
-
-            if (!request.MajorFieldId.HasValue ||
-                request.MajorFieldId.Value <= 0)
+            catch (ArgumentException ex)
             {
-                return BadRequest(new
-                {
-                    Message = "MajorFieldId is required."
-                });
+                return BadRequest(new { Message = ex.Message });
             }
-
-            var item =
-                await _repository.GetByIdAsync(id);
-
-            if (item == null)
+            catch (InvalidOperationException ex)
             {
-                return NotFound();
+                return Conflict(new { Message = ex.Message });
             }
-
-            var majorFieldExists =
-                await _majorFieldRepository.ExistsAsync(
-                    x =>
-                        x.MajorFieldId ==
-                        request.MajorFieldId.Value);
-
-            if (!majorFieldExists)
-            {
-                return BadRequest(new
-                {
-                    Message =
-                        "The specified major field does not exist."
-                });
-            }
-
-            if (item.MajorFieldId !=
-                    request.MajorFieldId.Value &&
-                await _repository.HasUsageAsync(id))
-            {
-                return Conflict(new
-                {
-                    Message =
-                        "The sub-field cannot be moved to another major field while it is referenced by professional profiles, papers, or learning materials."
-                });
-            }
-
-            var normalizedName =
-                request.Name.Trim();
-
-            var duplicate =
-                await _repository.ExistsAsync(
-                    x =>
-                        x.SubFieldId != id &&
-                        x.MajorFieldId ==
-                            request.MajorFieldId.Value &&
-                        x.Name == normalizedName);
-
-            if (duplicate)
-            {
-                return Conflict(new
-                {
-                    Message =
-                        "A sub-field with the same name already exists under this major field."
-                });
-            }
-
-            _mapper.Map(request, item);
-            item.Name = normalizedName;
-
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-
-            var updated =
-                await _repository.GetByIdWithMajorFieldAsync(id);
-
-            var response =
-                _mapper.Map<SubFieldResponse>(updated);
-
-            return Ok(response);
         }
 
+        /// <summary>
+        /// Xóa một chuyên ngành hẹp
+        /// </summary>
+        /// <param name="id">ID chuyên ngành</param>
+        /// <returns>Không có nội dung</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item =
-                await _repository.GetByIdAsync(id);
-
-            if (item == null)
+            try
             {
-                return NotFound();
+                var success = await _service.DeleteAsync(id);
+                if (!success) return NotFound(new { Message = "Sub-field not found." });
+                return NoContent();
             }
-
-            if (await _repository.HasUsageAsync(id))
+            catch (InvalidOperationException ex)
             {
-                return Conflict(new
-                {
-                    Message =
-                        "The sub-field cannot be deleted because it is referenced by professional profiles, papers, or learning materials."
-                });
+                return Conflict(new { Message = ex.Message });
             }
-
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
-
-            return NoContent();
         }
     }
 }

@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,30 +13,33 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class CommentVoteController : ControllerBase
     {
-        private readonly ICommentVoteRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly ICommentVoteService _service;
 
-        public CommentVoteController(ICommentVoteRepository repository, IMapper mapper)
+        public CommentVoteController(ICommentVoteService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách lượt bình chọn / đánh giá cho các bình luận
+        /// </summary>
+        /// <returns>Danh sách bình chọn</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<CommentVoteResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<CommentVoteResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Bình chọn hoặc thay đổi đánh giá (upvote/downvote) cho bình luận
+        /// </summary>
+        /// <param name="request">Thông tin bình chọn</param>
+        /// <returns>Bản ghi bình chọn</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] CommentVoteCreateRequest request)
+        public async Task<ActionResult<CommentVoteResponse>> Create([FromBody] CommentVoteCreateRequest request)
         {
-            var item = _mapper.Map<CommentVote>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<CommentVoteResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
     }

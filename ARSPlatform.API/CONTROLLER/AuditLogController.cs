@@ -1,12 +1,10 @@
-﻿using System.Globalization;
+using System;
 using System.Security.Claims;
-using System.Text;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
+using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,19 +15,23 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize(Roles = "Admin")]
     public class AuditLogController : ControllerBase
     {
-        private readonly IAuditLogRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IAuditLogService _service;
 
-        public AuditLogController(
-            IAuditLogRepository repository,
-            IMapper mapper)
+        public AuditLogController(IAuditLogService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách nhật ký kiểm toán (Audit Logs) phân trang và lọc theo thời gian/admin
+        /// </summary>
+        /// <param name="search">Từ khóa tìm kiếm</param>
+        /// <param name="adminId">Lọc theo Admin ID</param>
+        /// <param name="range">Khoảng thời gian: all_time, today, 7_days, 30_days</param>
+        /// <param name="paginationParams">Tham số phân trang</param>
+        /// <returns>Danh sách Audit Log phân trang</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll(
+        public async Task<ActionResult<PagedResult<AuditLogResponse>>> GetAll(
             [FromQuery] string? search = null,
             [FromQuery] int? adminId = null,
             [FromQuery] string? range = "all_time",
@@ -37,33 +39,22 @@ namespace ARSPlatform.API.CONTROLLER
         {
             try
             {
-                paginationParams ??= new PaginationParams();
-
-                var result = await _repository.GetPagedAsync(
-                    search,
-                    adminId,
-                    range,
-                    paginationParams);
-
-                var response = new PagedResult<AuditLogResponse>
-                {
-                    Items = _mapper.Map<List<AuditLogResponse>>(result.Items),
-                    TotalCount = result.TotalCount,
-                    PageNumber = result.PageNumber,
-                    PageSize = result.PageSize
-                };
-
-                return Ok(response);
+                var result = await _service.GetPagedAsync(search, adminId, range, paginationParams);
+                return Ok(result);
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(new
-                {
-                    Message = ex.Message
-                });
+                return BadRequest(new { Message = ex.Message });
             }
         }
 
+        /// <summary>
+        /// Xuất toàn bộ nhật ký kiểm toán ra file CSV
+        /// </summary>
+        /// <param name="search">Từ khóa tìm kiếm</param>
+        /// <param name="adminId">Lọc theo Admin ID</param>
+        /// <param name="range">Khoảng thời gian</param>
+        /// <returns>File CSV nhật ký kiểm toán</returns>
         [HttpGet("export")]
         public async Task<IActionResult> Export(
             [FromQuery] string? search = null,
@@ -72,122 +63,43 @@ namespace ARSPlatform.API.CONTROLLER
         {
             try
             {
-                var logs = await _repository.GetForExportAsync(
-                    search,
-                    adminId,
-                    range);
-
-                var csv = new StringBuilder();
-
-                csv.AppendLine(
-                    "LOG_ID,TIMESTAMP,ADMIN_ID,ADMIN_NAME,ACTION,TARGET_ID,TARGET,DETAILS");
-
-                foreach (var log in logs)
-                {
-                    csv.AppendLine(string.Join(",",
-                        EscapeCsv(log.LogId.ToString(CultureInfo.InvariantCulture)),
-                        EscapeCsv(log.Timestamp.ToString("O", CultureInfo.InvariantCulture)),
-                        EscapeCsv(log.AdminId.ToString(CultureInfo.InvariantCulture)),
-                        EscapeCsv(log.AdminName),
-                        EscapeCsv(log.Action),
-                        EscapeCsv(log.TargetId),
-                        EscapeCsv(log.Target),
-                        EscapeCsv(log.Details)));
-                }
-
-                var utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-                var bytes = utf8Bom.GetBytes(csv.ToString());
-
-                return File(
-                    bytes,
-                    "text/csv; charset=utf-8",
-                    $"audit-log-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
+                var bytes = await _service.ExportCsvAsync(search, adminId, range);
+                return File(bytes, "text/csv; charset=utf-8", $"audit-log-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(new
-                {
-                    Message = ex.Message
-                });
+                return BadRequest(new { Message = ex.Message });
             }
         }
 
+        /// <summary>
+        /// Ghi mới một bản ghi nhật ký kiểm toán
+        /// </summary>
+        /// <param name="request">Thông tin bản ghi kiểm toán</param>
+        /// <returns>Bản ghi kiểm toán vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create(
-            [FromBody] AuditLogCreateRequest request)
+        public async Task<ActionResult<AuditLogResponse>> Create([FromBody] AuditLogCreateRequest request)
         {
             if (request == null)
             {
-                return BadRequest(new
-                {
-                    Message = "Request body is required."
-                });
+                return BadRequest(new { Message = "Request body is required." });
             }
 
-            if (string.IsNullOrWhiteSpace(request.AdminName))
-            {
-                return BadRequest(new
-                {
-                    Message = "AdminName is required."
-                });
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Action))
-            {
-                return BadRequest(new
-                {
-                    Message = "Action is required."
-                });
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Target))
-            {
-                return BadRequest(new
-                {
-                    Message = "Target is required."
-                });
-            }
-
-            var currentAdminIdClaim =
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (int.TryParse(currentAdminIdClaim, out var currentAdminId) &&
-                currentAdminId != request.AdminId)
+            var currentAdminIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(currentAdminIdClaim, out var currentAdminId) && currentAdminId != request.AdminId)
             {
                 return Forbid();
             }
 
-            var entity = _mapper.Map<AuditLog>(request);
-
-            await _repository.AddAsync(entity);
-            await _repository.SaveChangesAsync();
-
-            var response = _mapper.Map<AuditLogResponse>(entity);
-
-            return CreatedAtAction(
-                nameof(GetAll),
-                new { },
-                response);
-        }
-
-        private static string EscapeCsv(string? value)
-        {
-            if (string.IsNullOrEmpty(value))
+            try
             {
-                return string.Empty;
+                var response = await _service.CreateAsync(request);
+                return CreatedAtAction(nameof(GetAll), new { }, response);
             }
-
-            var escaped = value.Replace("\"", "\"\"");
-
-            if (escaped.Contains(',') ||
-                escaped.Contains('"') ||
-                escaped.Contains('\r') ||
-                escaped.Contains('\n'))
+            catch (ArgumentException ex)
             {
-                return $"\"{escaped}\"";
+                return BadRequest(new { Message = ex.Message });
             }
-
-            return escaped;
         }
     }
 }

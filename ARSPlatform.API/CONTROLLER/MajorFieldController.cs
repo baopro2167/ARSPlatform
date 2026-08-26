@@ -1,13 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,162 +14,103 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class MajorFieldController : ControllerBase
     {
-        private readonly IMajorFieldRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IMajorFieldService _service;
 
-        public MajorFieldController(IMajorFieldRepository repository, IMapper mapper)
+        public MajorFieldController(IMajorFieldService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ các lĩnh vực nghiên cứu lớn (kèm các chuyên ngành hẹp)
+        /// </summary>
+        /// <returns>Danh sách lĩnh vực nghiên cứu</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<MajorFieldResponse>>> GetAll()
         {
-            var items = await _repository.GetAllWithSubFieldsAsync();
-            var response = _mapper.Map<IEnumerable<MajorFieldResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo mới một lĩnh vực nghiên cứu lớn
+        /// </summary>
+        /// <param name="request">Thông tin lĩnh vực nghiên cứu</param>
+        /// <returns>Lĩnh vực nghiên cứu vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] MajorFieldCreateRequest request)
+        public async Task<ActionResult<MajorFieldResponse>> Create([FromBody] MajorFieldCreateRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.Name))
+            try
             {
-                return BadRequest(new
-                {
-                    Message = "Major field name is required."
-                });
+                var response = await _service.CreateAsync(request);
+                return CreatedAtAction(nameof(GetById), new { id = response.MajorFieldId }, response);
             }
-
-            var normalizedName = request.Name.Trim();
-
-            var exists = await _repository.ExistsAsync(
-                x => x.Name == normalizedName);
-
-            if (exists)
+            catch (ArgumentException ex)
             {
-                return Conflict(new
-                {
-                    Message =
-                        "A major field with the same name already exists."
-                });
+                return BadRequest(new { Message = ex.Message });
             }
-
-            var item = _mapper.Map<MajorField>(request);
-            item.Name = normalizedName;
-            item.CreatedAt ??= DateTime.UtcNow;
-
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-
-            var created =
-                await _repository.GetByIdWithSubFieldsAsync(
-                    item.MajorFieldId);
-
-            var response =
-                _mapper.Map<MajorFieldResponse>(created);
-
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = item.MajorFieldId },
-                response);
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
         }
 
+        /// <summary>
+        /// Lấy chi tiết lĩnh vực nghiên cứu theo ID
+        /// </summary>
+        /// <param name="id">ID lĩnh vực</param>
+        /// <returns>Chi tiết lĩnh vực</returns>
         [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<MajorFieldResponse>> GetById(int id)
         {
-            var item =
-                await _repository.GetByIdWithSubFieldsAsync(id);
-
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            var response =
-                _mapper.Map<MajorFieldResponse>(item);
-
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Major field not found." });
+            return Ok(item);
         }
 
+        /// <summary>
+        /// Cập nhật tên lĩnh vực nghiên cứu
+        /// </summary>
+        /// <param name="id">ID lĩnh vực cần cập nhật</param>
+        /// <param name="request">Thông tin cập nhật</param>
+        /// <returns>Lĩnh vực sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(
-            int id,
-            [FromBody] MajorFieldUpdateRequest request)
+        public async Task<ActionResult<MajorFieldResponse>> Update(int id, [FromBody] MajorFieldUpdateRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.Name))
+            try
             {
-                return BadRequest(new
-                {
-                    Message = "Major field name is required."
-                });
+                var response = await _service.UpdateAsync(id, request);
+                if (response == null) return NotFound(new { Message = "Major field not found." });
+                return Ok(response);
             }
-
-            var item =
-                await _repository.GetByIdAsync(id);
-
-            if (item == null)
+            catch (ArgumentException ex)
             {
-                return NotFound();
+                return BadRequest(new { Message = ex.Message });
             }
-
-            var normalizedName = request.Name.Trim();
-
-            var duplicate =
-                await _repository.ExistsAsync(
-                    x =>
-                        x.MajorFieldId != id &&
-                        x.Name == normalizedName);
-
-            if (duplicate)
+            catch (InvalidOperationException ex)
             {
-                return Conflict(new
-                {
-                    Message =
-                        "A major field with the same name already exists."
-                });
+                return Conflict(new { Message = ex.Message });
             }
-
-            _mapper.Map(request, item);
-            item.Name = normalizedName;
-
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-
-            var updated =
-                await _repository.GetByIdWithSubFieldsAsync(id);
-
-            var response =
-                _mapper.Map<MajorFieldResponse>(updated);
-
-            return Ok(response);
         }
 
+        /// <summary>
+        /// Xóa một lĩnh vực nghiên cứu lớn
+        /// </summary>
+        /// <param name="id">ID lĩnh vực</param>
+        /// <returns>Không có nội dung</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item =
-                await _repository.GetByIdAsync(id);
-
-            if (item == null)
+            try
             {
-                return NotFound();
+                var success = await _service.DeleteAsync(id);
+                if (!success) return NotFound(new { Message = "Major field not found." });
+                return NoContent();
             }
-
-            if (await _repository.HasSubFieldsAsync(id))
+            catch (InvalidOperationException ex)
             {
-                return Conflict(new
-                {
-                    Message =
-                        "The major field cannot be deleted while it still contains sub-fields."
-                });
+                return Conflict(new { Message = ex.Message });
             }
-
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
-
-            return NoContent();
         }
     }
 }

@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,61 +13,73 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class GuidanceProjectController : ControllerBase
     {
-        private readonly IGuidanceProjectRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IGuidanceProjectService _service;
 
-        public GuidanceProjectController(IGuidanceProjectRepository repository, IMapper mapper)
+        public GuidanceProjectController(IGuidanceProjectService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách dự án hướng dẫn nghiên cứu
+        /// </summary>
+        /// <returns>Danh sách dự án hướng dẫn</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<GuidanceProjectResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<GuidanceProjectResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo mới dự án hướng dẫn nghiên cứu
+        /// </summary>
+        /// <param name="request">Thông tin dự án hướng dẫn</param>
+        /// <returns>Dự án vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] GuidanceProjectCreateRequest request)
+        public async Task<ActionResult<GuidanceProjectResponse>> Create([FromBody] GuidanceProjectCreateRequest request)
         {
-            var item = _mapper.Map<GuidanceProject>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<GuidanceProjectResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết dự án hướng dẫn theo ID
+        /// </summary>
+        /// <param name="id">ID dự án</param>
+        /// <returns>Chi tiết dự án hướng dẫn</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<GuidanceProjectResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<GuidanceProjectResponse>(item);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Guidance project not found." });
+            return Ok(item);
+        }
+
+        /// <summary>
+        /// Cập nhật thông tin dự án hướng dẫn
+        /// </summary>
+        /// <param name="id">ID dự án cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Dự án sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<GuidanceProjectResponse>> Update(int id, [FromBody] GuidanceProjectUpdateRequest request)
+        {
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Guidance project not found." });
             return Ok(response);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] GuidanceProjectUpdateRequest request)
-        {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<GuidanceProjectResponse>(item);
-            return Ok(response);
-        }
-
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa một dự án hướng dẫn
+        /// </summary>
+        /// <param name="id">ID dự án cần xóa</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Guidance project not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

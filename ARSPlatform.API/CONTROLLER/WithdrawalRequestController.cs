@@ -1,12 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -15,57 +13,47 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class WithdrawalRequestController : ControllerBase
     {
-        private readonly IWithdrawalRequestRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IWithdrawalRequestService _service;
 
-        public WithdrawalRequestController(
-            IWithdrawalRequestRepository repository,
-            IMapper mapper)
+        public WithdrawalRequestController(IWithdrawalRequestService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ yêu cầu rút tiền
+        /// </summary>
+        /// <returns>Danh sách yêu cầu rút tiền</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<WithdrawalRequestResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-
-            var response =
-                _mapper.Map<IEnumerable<WithdrawalRequestResponse>>(items);
-
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo mới yêu cầu rút tiền
+        /// </summary>
+        /// <param name="request">Thông tin yêu cầu rút tiền</param>
+        /// <returns>Yêu cầu rút tiền vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create(
-            [FromBody] WithdrawalRequestCreateRequest request)
+        public async Task<ActionResult<WithdrawalRequestResponse>> Create([FromBody] WithdrawalRequestCreateRequest request)
         {
-            var item = _mapper.Map<WithdrawalRequest>(request);
-
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-
-            var response =
-                _mapper.Map<WithdrawalRequestResponse>(item);
-
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết yêu cầu rút tiền theo ID
+        /// </summary>
+        /// <param name="id">ID yêu cầu rút tiền</param>
+        /// <returns>Chi tiết yêu cầu rút tiền</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<WithdrawalRequestResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            var response =
-                _mapper.Map<WithdrawalRequestResponse>(item);
-
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Withdrawal request not found." });
+            return Ok(item);
         }
     }
 }

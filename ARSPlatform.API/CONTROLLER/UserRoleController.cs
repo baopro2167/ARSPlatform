@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,64 +13,76 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class UserRoleController : ControllerBase
     {
-        private readonly IUserRoleRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IUserRoleService _service;
 
-        public UserRoleController(IUserRoleRepository repository, IMapper mapper)
+        public UserRoleController(IUserRoleService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách phân quyền người dùng (User - Role)
+        /// </summary>
+        /// <returns>Danh sách phân quyền</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<UserRoleResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<UserRoleResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Gán vai trò mới cho người dùng (Chỉ dành cho Admin)
+        /// </summary>
+        /// <param name="request">Thông tin gán vai trò</param>
+        /// <returns>Bản ghi phân quyền vừa tạo</returns>
         [HttpPost]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create([FromBody] UserRoleCreateRequest request)
+        public async Task<ActionResult<UserRoleResponse>> Create([FromBody] UserRoleCreateRequest request)
         {
-            var item = _mapper.Map<UserRole>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<UserRoleResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        /// <summary>
+        /// Lấy chi tiết phân quyền theo ID
+        /// </summary>
+        /// <param name="id">ID bản ghi phân quyền</param>
+        /// <returns>Chi tiết phân quyền</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<UserRoleResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            var response = _mapper.Map<UserRoleResponse>(item);
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "User role not found." });
+            return Ok(item);
         }
 
-        [HttpPut("{id}")]
+        /// <summary>
+        /// Cập nhật phân quyền người dùng (Chỉ dành cho Admin)
+        /// </summary>
+        /// <param name="id">ID bản ghi phân quyền</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Bản ghi sau khi cập nhật</returns>
+        [HttpPut("{id:int}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Update(int id, [FromBody] UserRoleUpdateRequest request)
+        public async Task<ActionResult<UserRoleResponse>> Update(int id, [FromBody] UserRoleUpdateRequest request)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _mapper.Map(request, item);
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<UserRoleResponse>(item);
+            var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "User role not found." });
             return Ok(response);
         }
 
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Thu hồi / xóa phân quyền của người dùng (Chỉ dành cho Admin)
+        /// </summary>
+        /// <param name="id">ID bản ghi phân quyền</param>
+        /// <returns>Thông báo kết quả xóa</returns>
+        [HttpDelete("{id:int}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-            if (item == null) return NotFound();
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "User role not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
     }

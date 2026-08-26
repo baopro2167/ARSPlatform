@@ -1,12 +1,11 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
-using ProfileEntity = ARSPlatform.MODEL.Entities.Profile;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -15,109 +14,88 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class ProfileController : ControllerBase
     {
-        private readonly IProfileRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IProfileService _service;
 
-        public ProfileController(IProfileRepository repository, IMapper mapper)
+        public ProfileController(IProfileService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy danh sách toàn bộ hồ sơ người dùng kèm thông tin tài khoản
+        /// </summary>
+        /// <returns>Danh sách hồ sơ</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<ProfileResponse>>> GetAll()
         {
-            var items = await _repository.GetAllWithUserAsync();
-            var response = _mapper.Map<IEnumerable<ProfileResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Tạo hồ sơ cá nhân cho người dùng
+        /// </summary>
+        /// <param name="request">Thông tin hồ sơ cần tạo</param>
+        /// <returns>Hồ sơ cá nhân vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] ProfileCreateRequest request)
+        public async Task<ActionResult<ProfileResponse>> Create([FromBody] ProfileCreateRequest request)
         {
-            var existing = await _repository.GetByIdAsync(request.UserId);
-
-            if (existing != null)
+            try
             {
-                return Conflict(new
-                {
-                    Message = "A profile already exists for this user."
-                });
+                var response = await _service.CreateAsync(request);
+                return CreatedAtAction(nameof(GetById), new { id = request.UserId }, response);
             }
-
-            var item = _mapper.Map<ProfileEntity>(request);
-
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-
-            var created = await _repository.GetByIdWithUserAsync(item.UserId);
-            var response = _mapper.Map<ProfileResponse>(created);
-
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = item.UserId },
-                response);
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
         }
 
+        /// <summary>
+        /// Lấy thông tin hồ sơ theo ID người dùng
+        /// </summary>
+        /// <param name="id">User ID</param>
+        /// <returns>Chi tiết hồ sơ</returns>
         [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<ProfileResponse>> GetById(int id)
         {
-            var item = await _repository.GetByIdWithUserAsync(id);
-
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            var response = _mapper.Map<ProfileResponse>(item);
-            return Ok(response);
+            var item = await _service.GetByIdAsync(id);
+            if (item == null) return NotFound(new { Message = "Profile not found." });
+            return Ok(item);
         }
 
+        /// <summary>
+        /// Cập nhật thông tin hồ sơ cá nhân
+        /// </summary>
+        /// <param name="id">User ID cần cập nhật</param>
+        /// <param name="request">Thông tin cập nhật</param>
+        /// <returns>Hồ sơ sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
         [HttpPatch("{id:int}")]
-        public async Task<IActionResult> Update(
-            int id,
-            [FromBody] ProfileUpdateRequest request)
+        public async Task<ActionResult<ProfileResponse>> Update(int id, [FromBody] ProfileUpdateRequest request)
         {
-            if (request.UserId != id)
+            try
             {
-                return BadRequest(new
-                {
-                    Message = "The request UserId must match the route id."
-                });
+                var response = await _service.UpdateAsync(id, request);
+                if (response == null) return NotFound(new { Message = "Profile not found." });
+                return Ok(response);
             }
-
-            var item = await _repository.GetByIdAsync(id);
-
-            if (item == null)
+            catch (ArgumentException ex)
             {
-                return NotFound();
+                return BadRequest(new { Message = ex.Message });
             }
-
-            _mapper.Map(request, item);
-
-            _repository.Update(item);
-            await _repository.SaveChangesAsync();
-
-            var updated = await _repository.GetByIdWithUserAsync(id);
-            var response = _mapper.Map<ProfileResponse>(updated);
-
-            return Ok(response);
         }
 
+        /// <summary>
+        /// Xóa hồ sơ cá nhân của người dùng
+        /// </summary>
+        /// <param name="id">User ID</param>
+        /// <returns>Không có nội dung</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
-
-            if (item == null)
-            {
-                return NotFound();
-            }
-
-            _repository.Delete(item);
-            await _repository.SaveChangesAsync();
-
+            var success = await _service.DeleteAsync(id);
+            if (!success) return NotFound(new { Message = "Profile not found." });
             return NoContent();
         }
     }

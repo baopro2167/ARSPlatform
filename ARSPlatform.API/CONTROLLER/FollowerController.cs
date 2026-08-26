@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using ARSPlatform.MODEL.Entities;
-using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using AutoMapper;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -16,30 +13,33 @@ namespace ARSPlatform.API.CONTROLLER
     [Authorize]
     public class FollowerController : ControllerBase
     {
-        private readonly IFollowerRepository _repository;
-        private readonly IMapper _mapper;
+        private readonly IFollowerService _service;
 
-        public FollowerController(IFollowerRepository repository, IMapper mapper)
+        public FollowerController(IFollowerService service)
         {
-            _repository = repository;
-            _mapper = mapper;
+            _service = service;
         }
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách theo dõi giữa các nhà nghiên cứu / người dùng
+        /// </summary>
+        /// <returns>Danh sách quan hệ theo dõi</returns>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<FollowerResponse>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
-            var response = _mapper.Map<IEnumerable<FollowerResponse>>(items);
-            return Ok(response);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
+        /// <summary>
+        /// Theo dõi một người dùng / tác giả khác
+        /// </summary>
+        /// <param name="request">Thông tin theo dõi</param>
+        /// <returns>Bản ghi theo dõi vừa tạo</returns>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] FollowerCreateRequest request)
+        public async Task<ActionResult<FollowerResponse>> Create([FromBody] FollowerCreateRequest request)
         {
-            var item = _mapper.Map<Follower>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            var response = _mapper.Map<FollowerResponse>(item);
+            var response = await _service.CreateAsync(request);
             return Ok(response);
         }
     }
