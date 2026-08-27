@@ -1,4 +1,4 @@
-﻿using ARSPlatform.MODEL.Entities;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
@@ -91,7 +91,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     nameof(file));
             }
 
-            var apiKey = _configuration["GeminiSettings:ApiKey"];
+            var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? _configuration["GeminiSettings:ApiKey"];
 
             var model =
                 _configuration["GeminiSettings:Model"]

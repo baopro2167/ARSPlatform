@@ -60,6 +60,13 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
     serverOptions.Limits.MaxRequestBodySize = 524_288_000;
 });
 
+// Configure PORT for Render/Container deployment
+var renderPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(renderPort))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
+}
+
 // Register External API Service
 builder.Services.AddScoped<IExternalApiService, ExternalApiService>();
 
@@ -169,12 +176,27 @@ builder.Services.AddHttpClient();
 builder.Services.Configure<EmailSettings>(options =>
 {
     var section = builder.Configuration.GetSection("EmailSettings");
+    
+    var senderEmail = Environment.GetEnvironmentVariable("EmailSender")
+                      ?? Environment.GetEnvironmentVariable("EMAIL_SENDER")
+                      ?? Environment.GetEnvironmentVariable("EMAIL_SENDER_EMAIL")
+                      ?? Environment.GetEnvironmentVariable("EMAIL_USERNAME")
+                      ?? section["SenderEmail"]
+                      ?? section["Username"]
+                      ?? "academicresearchplatform@gmail.com";
+
+    var rawPassword = Environment.GetEnvironmentVariable("EMAIL_PASSWORD")
+                      ?? section["Password"]
+                      ?? "";
+
+    var cleanPassword = rawPassword.Trim().Trim('"').Replace(" ", "");
+
     options.Server = Environment.GetEnvironmentVariable("EMAIL_SERVER") ?? section["Server"] ?? "smtp.gmail.com";
     options.Port = int.TryParse(Environment.GetEnvironmentVariable("EMAIL_PORT"), out var p) ? p : (int.TryParse(section["Port"], out var sp) ? sp : 587);
     options.SenderName = Environment.GetEnvironmentVariable("EMAIL_SENDER_NAME") ?? section["SenderName"] ?? "Academic Research Platform";
-    options.SenderEmail = Environment.GetEnvironmentVariable("EMAIL_SENDER_EMAIL") ?? section["SenderEmail"] ?? "academicresearchplatform@gmail.com";
-    options.Username = Environment.GetEnvironmentVariable("EMAIL_USERNAME") ?? section["Username"] ?? "academicresearchplatform@gmail.com";
-    options.Password = Environment.GetEnvironmentVariable("EMAIL_PASSWORD") ?? section["Password"] ?? "";
+    options.SenderEmail = senderEmail;
+    options.Username = senderEmail;
+    options.Password = cleanPassword;
     options.VerificationUrl = Environment.GetEnvironmentVariable("EMAIL_VERIFICATION_URL") ?? section["VerificationUrl"] ?? "https://fe-ars.vercel.app/verify-email";
 });
 
@@ -216,9 +238,9 @@ builder.Services.AddControllers()
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 
-var keyString =
-    jwtSettings["Key"]
-    ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
+var keyString = Environment.GetEnvironmentVariable("JWT_SECRET")
+                ?? jwtSettings["Key"]
+                ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
 
 var key = Encoding.UTF8.GetBytes(keyString);
 

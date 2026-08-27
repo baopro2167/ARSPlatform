@@ -435,7 +435,7 @@ namespace ARSPlatform.SERVICES
         private string GenerateJwtToken(User user, string? effectiveRole = null)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
-            var keyString = jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
+            var keyString = Environment.GetEnvironmentVariable("JWT_SECRET") ?? jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -466,7 +466,7 @@ namespace ARSPlatform.SERVICES
         private string GenerateEmailVerificationToken(string email)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
-            var keyString = jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
+            var keyString = Environment.GetEnvironmentVariable("JWT_SECRET") ?? jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -584,7 +584,7 @@ namespace ARSPlatform.SERVICES
             try
             {
                 var jwtSettings = _configuration.GetSection("JwtSettings");
-                var keyString = jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
+                var keyString = Environment.GetEnvironmentVariable("JWT_SECRET") ?? jwtSettings["Key"] ?? "ARSPlatformSuperSecretKeyThatIsAtLeast32BytesLong!";
                 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
 
                 var tokenHandler = new JwtSecurityTokenHandler();
