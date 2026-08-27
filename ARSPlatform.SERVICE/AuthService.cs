@@ -531,20 +531,12 @@ namespace ARSPlatform.SERVICES
             _userRepository.Update(user);
             await _userRepository.SaveChangesAsync();
 
-            try
-            {
-                var emailBody = BuildOtpEmailBody(user.FullName, newOtp);
-                await _emailService.SendEmailAsync(
-                    email,
-                    "[ARS] Your New OTP Code",
-                    emailBody);
-                return newOtp;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to resend OTP email: {ex.Message}");
-                return null;
-            }
+            var emailBody = BuildOtpEmailBody(user.FullName, newOtp);
+            await _emailService.SendEmailAsync(
+                email,
+                "[ARS] Your New OTP Code",
+                emailBody);
+            return newOtp;
         }
 
         private string BuildOtpEmailBody(string fullName, string otp)

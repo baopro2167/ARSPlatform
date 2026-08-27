@@ -166,7 +166,17 @@ builder.Services.Configure<PayOSSettings>(options =>
 builder.Services.AddHttpClient();
 
 // Register Email Settings and Service
-builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<EmailSettings>(options =>
+{
+    var section = builder.Configuration.GetSection("EmailSettings");
+    options.Server = Environment.GetEnvironmentVariable("EMAIL_SERVER") ?? section["Server"] ?? "smtp.gmail.com";
+    options.Port = int.TryParse(Environment.GetEnvironmentVariable("EMAIL_PORT"), out var p) ? p : (int.TryParse(section["Port"], out var sp) ? sp : 587);
+    options.SenderName = Environment.GetEnvironmentVariable("EMAIL_SENDER_NAME") ?? section["SenderName"] ?? "Academic Research Platform";
+    options.SenderEmail = Environment.GetEnvironmentVariable("EMAIL_SENDER_EMAIL") ?? section["SenderEmail"] ?? "academicresearchplatform@gmail.com";
+    options.Username = Environment.GetEnvironmentVariable("EMAIL_USERNAME") ?? section["Username"] ?? "academicresearchplatform@gmail.com";
+    options.Password = Environment.GetEnvironmentVariable("EMAIL_PASSWORD") ?? section["Password"] ?? "";
+    options.VerificationUrl = Environment.GetEnvironmentVariable("EMAIL_VERIFICATION_URL") ?? section["VerificationUrl"] ?? "https://fe-ars.vercel.app/verify-email";
+});
 
 // Register Google Calendar Settings from Configuration / Environment Variables
 var googleCalendarSection = builder.Configuration.GetSection("GoogleCalendar");

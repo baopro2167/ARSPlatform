@@ -19,6 +19,11 @@ namespace ARSPlatform.SERVICE
 
         public async Task SendEmailAsync(string toEmail, string subject, string body)
         {
+            if (string.IsNullOrWhiteSpace(_emailSettings.Password) || _emailSettings.Password == "REPLACE_WITH_EMAIL_PASSWORD")
+            {
+                throw new InvalidOperationException("EmailSettings:Password is not configured. Please set EMAIL_PASSWORD in environment variables.");
+            }
+
             var emailMessage = new MimeMessage();
             emailMessage.From.Add(new MailboxAddress(_emailSettings.SenderName, _emailSettings.SenderEmail));
             emailMessage.To.Add(new MailboxAddress("", toEmail));
@@ -29,8 +34,15 @@ namespace ARSPlatform.SERVICE
 
             using var client = new SmtpClient();
             
+            // Bypass SSL certificate validation for containerized/cloud environments
+            client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+            var secureOption = _emailSettings.Port == 465
+                ? SecureSocketOptions.SslOnConnect
+                : SecureSocketOptions.StartTls;
+            
             // Connect to SMTP Server
-            await client.ConnectAsync(_emailSettings.Server, _emailSettings.Port, SecureSocketOptions.StartTls);
+            await client.ConnectAsync(_emailSettings.Server, _emailSettings.Port, secureOption);
             
             // Authenticate with Credentials
             await client.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
