@@ -29,7 +29,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="search">Từ khóa tìm kiếm trong tiêu đề hoặc nội dung</param>
         /// <returns>Danh sách bài viết diễn đàn</returns>
         [HttpGet]
-        
+        [Authorize(Policy = "ForumRead")]
         public async Task<ActionResult<IEnumerable<ForumPostResponse>>> GetAll(
             [FromQuery] string? category,
             [FromQuery] string? sort,
