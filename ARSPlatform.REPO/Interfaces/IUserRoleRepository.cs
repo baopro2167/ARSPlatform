@@ -8,5 +8,6 @@ namespace ARSPlatform.REPO.Interfaces
     {
         Task<PagedResult<UserRole>> GetByUserIdPagedAsync(int userId, PaginationParams paginationParams);
         Task<PagedResult<UserRole>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize);
+        Task<bool> UserHasRoleAsync(int userId, string roleName);
     }
 }

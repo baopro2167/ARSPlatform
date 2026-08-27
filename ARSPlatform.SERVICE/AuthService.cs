@@ -27,6 +27,7 @@ namespace ARSPlatform.SERVICES
         private readonly IRoleRequestRepository _roleRequestRepository;
         private readonly IWalletRepository _walletRepository;
         private readonly IProfessionalProfileRepository _professionalProfileRepository;
+        private readonly IUserRoleRepository _userRoleRepository;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
@@ -37,6 +38,7 @@ namespace ARSPlatform.SERVICES
             IRoleRequestRepository roleRequestRepository,
             IWalletRepository walletRepository,
             IProfessionalProfileRepository professionalProfileRepository,
+            IUserRoleRepository userRoleRepository,
             IMapper mapper,
             IConfiguration configuration,
             IEmailService emailService)
@@ -46,6 +48,7 @@ namespace ARSPlatform.SERVICES
             _roleRequestRepository = roleRequestRepository;
             _walletRepository = walletRepository;
             _professionalProfileRepository = professionalProfileRepository;
+            _userRoleRepository = userRoleRepository;
             _mapper = mapper;
             _configuration = configuration;
             _emailService = emailService;
@@ -223,6 +226,12 @@ namespace ARSPlatform.SERVICES
             if (string.Equals(user.VerificationStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
                 return null;
 
+            // Chuẩn hoá role từ FE (coi "null", "" hoặc whitespace là không truyền)
+            var incomingRole = string.IsNullOrWhiteSpace(request.Role) || request.Role.Trim().Equals("null", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : request.Role.Trim();
+
+            // Pending → trả Guest token
             if (string.Equals(user.VerificationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
             {
                 var guestToken = GenerateJwtToken(user, "Guest");
@@ -243,15 +252,47 @@ namespace ARSPlatform.SERVICES
             if (user.IsActive == false)
                 return null;
 
-            var token = GenerateJwtToken(user);
+            string? effectiveRole;
+
+            if (string.Equals(incomingRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                // FE yêu cầu role Admin → vào thẳng, không cần check UserRole
+                effectiveRole = "Admin";
+            }
+            else if (!string.IsNullOrEmpty(incomingRole))
+            {
+                // FE yêu cầu 1 role cụ thể (Reviewer, Researcher...) → check trong UserRole
+                var hasRole = await _userRoleRepository.UserHasRoleAsync(user.UserId, incomingRole);
+                if (!hasRole)
+                    return null; // User không có role này
+
+                effectiveRole = incomingRole;
+            }
+            else
+            {
+                // FE không truyền role (hoặc truyền "null") → tự check Admin trong UserRole
+                var isAdmin = await _userRoleRepository.UserHasRoleAsync(user.UserId, "Admin");
+                if (isAdmin)
+                {
+                    effectiveRole = "Admin";
+                }
+                else
+                {
+                    // Không có Admin → lấy role đầu tiên; nếu rỗng thì trả về Guest
+                    var firstRole = user.UserRoles.FirstOrDefault()?.Role?.Name;
+                    effectiveRole = string.IsNullOrEmpty(firstRole) ? "Guest" : firstRole;
+                }
+            }
+
+            var finalToken = GenerateJwtToken(user, effectiveRole);
 
             return new AuthResponse
             {
                 UserId = user.UserId,
-                Token = token,
+                Token = finalToken,
                 Username = user.FullName,
                 Email = user.Email,
-                Role = user.UserRoles.FirstOrDefault()?.Role?.Name,
+                Role = effectiveRole,
                 IsEmailVerified = user.IsEmailVerified,
                 IsActive = user.IsActive,
                 VerificationStatus = user.VerificationStatus

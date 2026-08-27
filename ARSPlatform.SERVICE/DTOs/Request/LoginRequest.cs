@@ -10,5 +10,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         [Required]
         public string Password { get; set; } = string.Empty;
+
+        public string? Role { get; set; }
     }
 }

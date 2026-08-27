@@ -4,6 +4,7 @@ using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPO.PAGINATION;
+using Microsoft.EntityFrameworkCore;
 
 namespace ARSPlatform.REPOSITORIES
 {
@@ -25,6 +26,11 @@ namespace ARSPlatform.REPOSITORIES
         public async Task<PagedResult<UserRole>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize)
         {
             return await GetByUserIdPagedAsync(userId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+        public async Task<bool> UserHasRoleAsync(int userId, string roleName)
+        {
+            return await _context.UserRoles
+                .AnyAsync(ur => ur.UserId == userId && ur.Role != null && ur.Role.Name == roleName);
         }
     }
 }
