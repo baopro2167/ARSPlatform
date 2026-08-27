@@ -16,5 +16,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<AuthResponse?> AuthenticateGoogleLoginAsync(string code, string redirectUri);
         Task<AuthResponse?> CompleteGoogleRegistrationAsync(CompleteGoogleRegistrationRequest request);
         Task<AuthResponse?> SelectRoleAsync(int userId, string roleName);
+        Task<bool> VerifyOtpAsync(string email, string otpCode);
+        Task<string?> ResendOtpAsync(string email);
     }
 }

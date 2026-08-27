@@ -150,6 +150,7 @@ foreach (var type in serviceAssembly.GetTypes().Where(t => t.IsClass && !t.IsAbs
     }
 }
 builder.Services.AddHostedService<SeminarAutomationHostedService>();
+builder.Services.AddHostedService<OtpCleanupHostedService>();
 
 // Register PayOS Settings
 builder.Services.Configure<PayOSSettings>(options =>

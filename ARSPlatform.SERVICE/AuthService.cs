@@ -121,6 +121,12 @@ namespace ARSPlatform.SERVICES
             user.ProofDocumentUrl = request.PdfUrl.Trim();
             user.CreatedAt = now;
             user.UpdatedAt = now;
+            user.IsOtpUsed = false;
+
+            // Generate OTP
+            var otp = GenerateOtp();
+            user.OtpCode = otp;
+            user.ExpiresOtpAt = now.AddMinutes(5); // OTP valid for 5 minutes
 
             // Pending accounts have no approved business role in UserRole.
             // "Guest" is only an effective JWT role for read-only Forum access.
@@ -160,22 +166,18 @@ namespace ARSPlatform.SERVICES
             // One SaveChanges call persists registration atomically.
             await _userRepository.SaveChangesAsync();
 
-            // Send registration email confirmation using MailKit.
-            var verificationToken = GenerateEmailVerificationToken(user.Email);
+            // Send OTP email
             try
             {
-                var baseVerifyUrl = _configuration["EmailSettings:VerificationUrl"] ?? "https://fe-ars.vercel.app/verify-email";
-                var verifyUrl = $"{baseVerifyUrl}?token={Uri.EscapeDataString(verificationToken)}";
-
-                var emailBody = BuildRegisterEmailBody(user.FullName, verifyUrl);
+                var emailBody = BuildOtpEmailBody(user.FullName, otp);
                 await _emailService.SendEmailAsync(
                     user.Email,
-                    "[ARS] Confirm Your Email Address & Account Registration",
+                    "[ARS] Your OTP Code for Account Registration",
                     emailBody);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to send verification email: {ex.Message}");
+                Console.WriteLine($"Failed to send OTP email: {ex.Message}");
             }
 
             var createdUser = await _userRepository.GetWithRoleByIdAsync(user.UserId);
@@ -483,6 +485,106 @@ namespace ARSPlatform.SERVICES
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private string GenerateOtp()
+        {
+            var random = new Random();
+            return random.Next(100000, 999999).ToString();
+        }
+
+        public async Task<bool> VerifyOtpAsync(string email, string otpCode)
+        {
+            var user = await _userRepository.GetByEmailAsync(email);
+            if (user == null)
+                return false;
+
+            if (user.IsOtpUsed == true)
+                throw new Exception("This OTP has already been used.");
+
+            if (user.ExpiresOtpAt == null || user.ExpiresOtpAt < DateTime.UtcNow)
+                throw new Exception("This OTP has expired.");
+
+            if (user.OtpCode != otpCode)
+                return false;
+
+            user.IsOtpUsed = true;
+            user.IsEmailVerified = true;
+            _userRepository.Update(user);
+            await _userRepository.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<string?> ResendOtpAsync(string email)
+        {
+            var user = await _userRepository.GetByEmailAsync(email);
+            if (user == null)
+                return null;
+
+            var now = DateTime.UtcNow;
+            var newOtp = GenerateOtp();
+
+            user.OtpCode = newOtp;
+            user.ExpiresOtpAt = now.AddMinutes(5);
+            user.IsOtpUsed = false;
+            _userRepository.Update(user);
+            await _userRepository.SaveChangesAsync();
+
+            try
+            {
+                var emailBody = BuildOtpEmailBody(user.FullName, newOtp);
+                await _emailService.SendEmailAsync(
+                    email,
+                    "[ARS] Your New OTP Code",
+                    emailBody);
+                return newOtp;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to resend OTP email: {ex.Message}");
+                return null;
+            }
+        }
+
+        private string BuildOtpEmailBody(string fullName, string otp)
+        {
+            return $@"
+<div style=""background-color: #f4f6f9; padding: 40px 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333333;"">
+  <div style=""max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);"">
+    <div style=""background-color: #243257; padding: 25px; text-align: center;"">
+      <svg width=""40"" height=""35"" viewBox=""0 0 40 35"" fill=""none"" xmlns=""http://www.w3.org/2000/svg"" style=""vertical-align: middle; margin-right: 10px;"">
+        <path d=""M20 2L38 32H2L20 2Z"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
+        <circle cx=""20"" cy=""19"" r=""6"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
+      </svg>
+      <span style=""color: #ffffff; font-size: 20px; font-weight: bold; letter-spacing: 1px; vertical-align: middle; font-family: 'Outfit', sans-serif;"">ARS</span>
+      <div style=""color: #8fa0c0; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px;"">ACADEMIC RESEARCH SHARING</div>
+    </div>
+    <div style=""padding: 30px 40px;"">
+      <h3 style=""margin-top: 0; font-size: 18px; color: #243257;"">Hello {fullName},</h3>
+      <p style=""line-height: 1.6; font-size: 14px; color: #555555;"">Thank you for registering on the <strong>Academic Research Sharing (ARS)</strong> platform. Your OTP code for account verification is:</p>
+      
+      <div style=""text-align: center; margin: 30px 0;"">
+        <div style=""background-color: #f0f4f8; border: 2px dashed #007aff; border-radius: 8px; padding: 20px 40px; display: inline-block;"">
+          <span style=""font-size: 32px; font-weight: bold; color: #007aff; letter-spacing: 8px; font-family: 'Courier New', monospace;"">{otp}</span>
+        </div>
+      </div>
+      
+      <p style=""line-height: 1.6; font-size: 13px; color: #888888; text-align: center;"">This OTP code will expire in <strong>5 minutes</strong>.</p>
+      
+      <div style=""background-color: #fff3e0; border: 1px solid #ffcc80; border-radius: 6px; padding: 15px; margin-top: 25px;"">
+        <h4 style=""margin: 0 0 8px 0; color: #e65100; font-size: 14px;"">Security Note:</h4>
+        <p style=""margin: 0; font-size: 13px; color: #6d4c41; line-height: 1.5;"">If you did not request this OTP, please ignore this email. Do not share this code with anyone.</p>
+      </div>
+    </div>
+    <div style=""background-color: #fbfcfd; border-top: 1px solid #f0f2f5; padding: 20px; text-align: center; font-size: 12px; color: #888888;"">
+      <p style=""margin: 0 0 10px 0;"">If you did not create an account on ARS, please ignore this email.</p>
+      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Privacy Policy</a> | 
+      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Terms of Service</a> | 
+      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Contact Support</a>
+    </div>
+  </div>
+</div>";
         }
 
         public async Task<bool> VerifyEmailAsync(string token)

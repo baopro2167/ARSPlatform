@@ -171,6 +171,52 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Xác thực OTP để hoàn tất đăng ký tài khoản
+        /// </summary>
+        /// <param name="request">Email và mã OTP</param>
+        /// <returns>Thông báo kết quả</returns>
+        [HttpPost("verify-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
+        {
+            try
+            {
+                var result = await _authService.VerifyOtpAsync(request.Email, request.OtpCode);
+                if (!result)
+                    return BadRequest(new { Message = "Invalid OTP code." });
+
+                return Ok(new { Message = "OTP verified successfully! Please proceed to login." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Gửi lại mã OTP mới qua email
+        /// </summary>
+        /// <param name="email">Địa chỉ email người dùng</param>
+        /// <returns>Thông báo kết quả</returns>
+        [HttpPost("resend-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendOtp([FromQuery] string email)
+        {
+            try
+            {
+                var result = await _authService.ResendOtpAsync(email);
+                if (result == null)
+                    return BadRequest(new { Message = "User not found or email not registered." });
+
+                return Ok(new { Message = "New OTP has been sent to your email." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Khởi tạo luồng đăng nhập OAuth Google Redirect
         /// </summary>
         /// <returns>Chuyển hướng đến Google OAuth</returns>

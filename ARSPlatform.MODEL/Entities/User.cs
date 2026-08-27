@@ -39,6 +39,12 @@ public partial class User
 
     public int? MaxSimultaneousPapers { get; set; }
 
+    public string? OtpCode { get; set; }
+
+    public DateTime? ExpiresOtpAt { get; set; }
+
+    public bool? IsOtpUsed { get; set; }
+
     [JsonIgnore]
     public virtual ICollection<CommentVote> CommentVotes { get; set; }
         = new List<CommentVote>();
