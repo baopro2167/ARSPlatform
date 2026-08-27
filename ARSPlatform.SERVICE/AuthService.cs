@@ -53,8 +53,11 @@ namespace ARSPlatform.SERVICES
 
         public async Task<AuthResponse?> RegisterAsync(RegisterRequest request)
         {
-            if (await _userRepository.ExistsAsync(u => u.Email == request.Email))
-                throw new Exception("Email is already registered.");
+            var existingUser = await _userRepository.GetByEmailAsync(request.Email);
+            if (existingUser != null && existingUser.IsEmailVerified == true)
+            {
+                throw new Exception("Email is already registered and verified. Please proceed to login.");
+            }
 
             var requestableRoles = new[]
             {
@@ -94,7 +97,7 @@ namespace ARSPlatform.SERVICES
 
                 var orcidAlreadyExists =
                     await _userRepository.ExistsAsync(
-                        user => user.OrcidId == normalized);
+                        user => user.OrcidId == normalized && (existingUser == null || user.UserId != existingUser.UserId));
 
                 if (orcidAlreadyExists)
                 {
@@ -111,44 +114,53 @@ namespace ARSPlatform.SERVICES
             }
 
             var now = DateTime.UtcNow;
-
-            var user = _mapper.Map<User>(request);
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-            user.OrcidId = normalizedOrcidId;
-            user.IsActive = false;
-            user.IsEmailVerified = false;
-            user.VerificationStatus = "Pending";
-            user.ProofDocumentUrl = request.PdfUrl.Trim();
-            user.CreatedAt = now;
-            user.UpdatedAt = now;
-            user.IsOtpUsed = false;
-
-            // Generate OTP
             var otp = GenerateOtp();
-            user.OtpCode = otp;
-            user.ExpiresOtpAt = now.AddMinutes(5); // OTP valid for 5 minutes
 
-            // Pending accounts have no approved business role in UserRole.
-            // "Guest" is only an effective JWT role for read-only Forum access.
-            user.UserRoles = new List<UserRole>();
-
-            await _userRepository.AddAsync(user);
-
-            // IMPORTANT:
-            // Pending registration must NOT create ProfessionalProfile.
-            // ProfessionalProfile is created only after Admin approves the requested role.
-
-            // Keep existing Wallet creation behavior unchanged in this scope.
-            var wallet = new Wallet
+            User user;
+            if (existingUser != null)
             {
-                User = user,
-                Balance = 0,
-                UpdatedAt = now
-            };
-            await _walletRepository.AddAsync(wallet);
+                user = existingUser;
+                user.FullName = request.FullName;
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+                user.OrcidId = normalizedOrcidId;
+                user.IsActive = false;
+                user.IsEmailVerified = false;
+                user.VerificationStatus = "Pending";
+                user.ProofDocumentUrl = request.PdfUrl.Trim();
+                user.UpdatedAt = now;
+                user.IsOtpUsed = false;
+                user.OtpCode = otp;
+                user.ExpiresOtpAt = now.AddMinutes(5);
+                _userRepository.Update(user);
+            }
+            else
+            {
+                user = _mapper.Map<User>(request);
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+                user.OrcidId = normalizedOrcidId;
+                user.IsActive = false;
+                user.IsEmailVerified = false;
+                user.VerificationStatus = "Pending";
+                user.ProofDocumentUrl = request.PdfUrl.Trim();
+                user.CreatedAt = now;
+                user.UpdatedAt = now;
+                user.IsOtpUsed = false;
+                user.OtpCode = otp;
+                user.ExpiresOtpAt = now.AddMinutes(5); // OTP valid for 5 minutes
+                user.UserRoles = new List<UserRole>();
+
+                await _userRepository.AddAsync(user);
+
+                var wallet = new Wallet
+                {
+                    User = user,
+                    Balance = 0,
+                    UpdatedAt = now
+                };
+                await _walletRepository.AddAsync(wallet);
+            }
 
             // Create pending role request for Admin review.
-            // The requested role is not inserted into UserRole until Admin approval.
             var roleRequest = new RoleRequest
             {
                 User = user,
@@ -162,8 +174,7 @@ namespace ARSPlatform.SERVICES
             };
             await _roleRequestRepository.AddAsync(roleRequest);
 
-            // User + Wallet + RoleRequest share the same scoped AppDbContext.
-            // One SaveChanges call persists registration atomically.
+            // Persist registration atomically.
             await _userRepository.SaveChangesAsync();
 
             // Send OTP email
@@ -177,7 +188,8 @@ namespace ARSPlatform.SERVICES
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to send OTP email: {ex.Message}");
+                Console.WriteLine($"[EMAIL_ERROR] Failed to send OTP email to {user.Email}: {ex.Message}");
+                throw new Exception($"Account created/updated, but failed to send OTP email: {ex.Message}");
             }
 
             var createdUser = await _userRepository.GetWithRoleByIdAsync(user.UserId);
