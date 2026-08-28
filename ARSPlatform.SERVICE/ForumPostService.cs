@@ -58,6 +58,28 @@ namespace ARSPlatform.SERVICES
             var item = _mapper.Map<ForumPost>(request);
             item.UserId = userId;
 
+            // Tự động xử lý Title nếu người dùng không nhập tiêu đề
+            if (string.IsNullOrWhiteSpace(item.Title))
+            {
+                if (!string.IsNullOrWhiteSpace(item.Content))
+                {
+                    var cleanContent = item.Content.Trim();
+                    item.Title = cleanContent.Length > 60
+                        ? cleanContent.Substring(0, 60) + "..."
+                        : cleanContent;
+                }
+                else
+                {
+                    item.Title = "General Post";
+                }
+            }
+
+            var now = System.DateTime.UtcNow;
+            item.CreatedAt = now;
+            item.UpdatedAt = now;
+            item.LikeCount = 0;
+            item.ViewCount = 0;
+
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
 

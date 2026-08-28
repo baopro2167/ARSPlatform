@@ -82,7 +82,12 @@ namespace ARSPlatform.API.CONTROLLER
         [Authorize]
         public async Task<ActionResult<ForumPostResponse>> Create([FromBody] ForumPostCreateRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.Content))
+            if (request == null)
+            {
+                return BadRequest(new { Message = "Request payload is required." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Content))
             {
                 return BadRequest(new { Message = "Content is required." });
             }
@@ -90,11 +95,18 @@ namespace ARSPlatform.API.CONTROLLER
             var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdValue, out var userId))
             {
-                return Unauthorized();
+                return Unauthorized(new { Message = "You must be logged in to create a post." });
             }
 
-            var response = await _service.CreateAsync(request, userId);
-            return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
+            try
+            {
+                var response = await _service.CreateAsync(request, userId);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
         }
     }
 }
