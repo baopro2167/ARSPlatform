@@ -19,6 +19,10 @@ public partial class User
 
     public string? OrcidId { get; set; }
 
+    public bool IsOrcidVerified { get; set; }
+
+    public DateTime? OrcidVerifiedAt { get; set; }
+
     public string? AvatarUrl { get; set; }
 
     public bool? IsEmailVerified { get; set; }

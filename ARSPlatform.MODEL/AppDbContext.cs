@@ -38,6 +38,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Notification> Notifications { get; set; }
 
+    public virtual DbSet<OrcidLinkSession> OrcidLinkSessions { get; set; }
+
     public virtual DbSet<Paper> Papers { get; set; }
 
     public virtual DbSet<PhasedReport> PhasedReports { get; set; }
@@ -289,6 +291,88 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__Notificat__UserI__3E1D39E1");
+        });
+
+        modelBuilder.Entity<OrcidLinkSession>(entity =>
+        {
+            entity.ToTable("OrcidLinkSessions", tb =>
+            {
+                tb.HasCheckConstraint(
+                    "CK_OrcidLinkSessions_Context",
+                    "[Context] IN ('REGISTRATION', 'ACCOUNT_LINK')");
+
+                tb.HasCheckConstraint(
+                    "CK_OrcidLinkSessions_Status",
+                    "[Status] IN ('PENDING', 'AUTHENTICATED', 'COMPLETED', 'FAILED')");
+
+                tb.HasCheckConstraint(
+                    "CK_OrcidLinkSessions_AccountLinkUser",
+                    "[Context] <> 'ACCOUNT_LINK' OR [UserId] IS NOT NULL");
+
+                tb.HasCheckConstraint(
+                    "CK_OrcidLinkSessions_RegistrationUser",
+                    "[Context] <> 'REGISTRATION' OR [UserId] IS NULL");
+            });
+
+            entity.HasKey(e => e.OrcidLinkSessionId);
+
+            entity.HasIndex(
+                e => e.ExpiresAt,
+                "IX_OrcidLinkSessions_ExpiresAt");
+
+            entity.HasIndex(
+                    e => e.StateHash,
+                    "UX_OrcidLinkSessions_StateHash")
+                .IsUnique();
+
+            entity.HasIndex(
+                    e => e.TicketHash,
+                    "UX_OrcidLinkSessions_TicketHash")
+                .HasFilter("[TicketHash] IS NOT NULL")
+                .IsUnique();
+
+            entity.HasIndex(
+                    e => e.UserId,
+                    "IX_OrcidLinkSessions_UserId")
+                .HasFilter("[UserId] IS NOT NULL");
+
+            entity.Property(e => e.AuthenticatedOrcidId)
+                .HasMaxLength(19)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Context)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.DisplayName)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.FailureCode)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+
+            entity.Property(e => e.StateHash)
+                .HasMaxLength(64)
+                .IsUnicode(false)
+                .IsFixedLength();
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("PENDING");
+
+            entity.Property(e => e.TicketHash)
+                .HasMaxLength(64)
+                .IsUnicode(false)
+                .IsFixedLength();
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_OrcidLinkSessions_User");
         });
 
         modelBuilder.Entity<Paper>(entity =>
@@ -584,9 +668,12 @@ public partial class AppDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.IsActive).HasDefaultValue(false);
             entity.Property(e => e.IsEmailVerified).HasDefaultValue(false);
+            entity.Property(e => e.IsOrcidVerified).HasDefaultValue(false);
             entity.Property(e => e.OrcidId)
                 .HasMaxLength(19)
                 .IsUnicode(false);
+            entity.Property(e => e.OrcidVerifiedAt)
+                .HasColumnType("datetime2(7)");
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)
                 .IsUnicode(false);
