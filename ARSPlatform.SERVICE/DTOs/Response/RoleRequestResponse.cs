@@ -1,4 +1,4 @@
-﻿namespace ARSPlatform.SERVICE.DTOs.Response
+namespace ARSPlatform.SERVICE.DTOs.Response
 {
     public class RoleRequestResponse
     {
@@ -14,6 +14,7 @@
         public string? RequestType { get; set; }
         public List<string> RequestedRoles { get; set; } = new();
         public string ProofDocumentUrl { get; set; } = string.Empty;
+        public bool? IsEmailVerified { get; set; }
         public DateTime? SubmissionDate { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? Notes { get; set; }

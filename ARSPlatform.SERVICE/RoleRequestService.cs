@@ -354,6 +354,7 @@ namespace ARSPlatform.SERVICES
                         ? new List<string>()
                         : new List<string> { requestedRoleName },
                 ProofDocumentUrl = roleRequest.ProofDocumentUrl,
+                IsEmailVerified = roleRequest.User.IsEmailVerified,
                 SubmissionDate = roleRequest.CreatedAt,
                 Status = roleRequest.Status.ToUpperInvariant(),
                 Notes = roleRequest.Notes
