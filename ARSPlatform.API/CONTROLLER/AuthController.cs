@@ -217,6 +217,46 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Yêu cầu gửi mã OTP đặt lại mật khẩu về email (Luồng 1)
+        /// </summary>
+        /// <param name="request">Email người dùng</param>
+        /// <returns>Thông báo kết quả</returns>
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            try
+            {
+                var result = await _authService.ForgotPasswordAsync(request);
+                return Ok(new { Message = "Password reset OTP has been sent to your email." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Xác thực OTP và đặt lại mật khẩu mới, đồng thời xóa OTP khỏi database (Luồng 2)
+        /// </summary>
+        /// <param name="request">Email, mã OTP và mật khẩu mới</param>
+        /// <returns>Thông báo kết quả</returns>
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            try
+            {
+                var result = await _authService.ResetPasswordAsync(request);
+                return Ok(new { Message = "Password has been reset successfully. Please login with your new password." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Khởi tạo luồng đăng nhập OAuth Google Redirect
         /// </summary>
         /// <returns>Chuyển hướng đến Google OAuth</returns>

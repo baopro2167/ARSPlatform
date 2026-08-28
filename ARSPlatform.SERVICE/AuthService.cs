@@ -592,6 +592,108 @@ namespace ARSPlatform.SERVICES
             return newOtp;
         }
 
+        public async Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request)
+        {
+            var user = await _userRepository.GetByEmailAsync(request.Email.Trim());
+            if (user == null)
+                throw new Exception("User with this email does not exist.");
+
+            var now = DateTime.UtcNow;
+            var otp = GenerateOtp();
+
+            user.OtpCode = otp;
+            user.ExpiresOtpAt = now.AddMinutes(5);
+            user.IsOtpUsed = false;
+            user.UpdatedAt = now;
+
+            _userRepository.Update(user);
+            await _userRepository.SaveChangesAsync();
+
+            var emailBody = BuildForgotPasswordEmailBody(user.FullName, otp);
+            await _emailService.SendEmailAsync(
+                user.Email,
+                "[ARS] Password Reset OTP Code",
+                emailBody);
+
+            return true;
+        }
+
+        public async Task<bool> ResetPasswordAsync(ResetPasswordRequest request)
+        {
+            if (!string.IsNullOrEmpty(request.ConfirmPassword) && request.NewPassword != request.ConfirmPassword)
+                throw new Exception("New password and confirm password do not match.");
+
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+                throw new Exception("New password must be at least 6 characters.");
+
+            var user = await _userRepository.GetByEmailAsync(request.Email.Trim());
+            if (user == null)
+                throw new Exception("User with this email does not exist.");
+
+            if (user.IsOtpUsed == true)
+                throw new Exception("This OTP has already been used.");
+
+            if (user.ExpiresOtpAt == null || user.ExpiresOtpAt < DateTime.UtcNow)
+                throw new Exception("This OTP has expired.");
+
+            if (user.OtpCode != request.OtpCode.Trim())
+                throw new Exception("Invalid OTP code.");
+
+            // Update password hash
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+            // Delete / Clear OTP code from database after successful password reset
+            user.OtpCode = null;
+            user.ExpiresOtpAt = null;
+            user.IsOtpUsed = true;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            _userRepository.Update(user);
+            await _userRepository.SaveChangesAsync();
+
+            return true;
+        }
+
+        private string BuildForgotPasswordEmailBody(string fullName, string otp)
+        {
+            return $@"
+<div style=""background-color: #f4f6f9; padding: 40px 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333333;"">
+  <div style=""max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);"">
+    <div style=""background-color: #243257; padding: 25px; text-align: center;"">
+      <svg width=""40"" height=""35"" viewBox=""0 0 40 35"" fill=""none"" xmlns=""http://www.w3.org/2000/svg"" style=""vertical-align: middle; margin-right: 10px;"">
+        <path d=""M20 2L38 32H2L20 2Z"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
+        <circle cx=""20"" cy=""19"" r=""6"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
+      </svg>
+      <span style=""color: #ffffff; font-size: 20px; font-weight: bold; letter-spacing: 1px; vertical-align: middle; font-family: 'Outfit', sans-serif;"">ARS</span>
+      <div style=""color: #8fa0c0; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px;"">ACADEMIC RESEARCH SHARING</div>
+    </div>
+    <div style=""padding: 30px 40px;"">
+      <h3 style=""margin-top: 0; font-size: 18px; color: #243257;"">Hello {fullName},</h3>
+      <p style=""line-height: 1.6; font-size: 14px; color: #555555;"">You have requested to reset your password on the <strong>Academic Research Sharing (ARS)</strong> platform. Your OTP code for password reset is:</p>
+      
+      <div style=""text-align: center; margin: 30px 0;"">
+        <div style=""background-color: #f0f4f8; border: 2px dashed #e65100; border-radius: 8px; padding: 20px 40px; display: inline-block;"">
+          <span style=""font-size: 32px; font-weight: bold; color: #e65100; letter-spacing: 8px; font-family: 'Courier New', monospace;"">{otp}</span>
+        </div>
+      </div>
+      
+      <p style=""line-height: 1.6; font-size: 13px; color: #888888; text-align: center;"">This OTP code will expire in <strong>5 minutes</strong>.</p>
+      
+      <div style=""background-color: #fff3e0; border: 1px solid #ffcc80; border-radius: 6px; padding: 15px; margin-top: 25px;"">
+        <h4 style=""margin: 0 0 8px 0; color: #e65100; font-size: 14px;"">Security Note:</h4>
+        <p style=""margin: 0; font-size: 13px; color: #6d4c41; line-height: 1.5;"">If you did not request a password reset, please ignore this email or contact support immediately. Do not share this code with anyone.</p>
+      </div>
+    </div>
+    <div style=""background-color: #fbfcfd; border-top: 1px solid #f0f2f5; padding: 20px; text-align: center; font-size: 12px; color: #888888;"">
+      <p style=""margin: 0 0 10px 0;"">Academic Research Sharing Platform</p>
+      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Privacy Policy</a> | 
+      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Terms of Service</a> | 
+      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Contact Support</a>
+    </div>
+  </div>
+</div>";
+        }
+
         private string BuildOtpEmailBody(string fullName, string otp)
         {
             return $@"
