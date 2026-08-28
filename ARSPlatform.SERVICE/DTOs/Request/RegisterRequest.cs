@@ -26,6 +26,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         [Url]
         public string PdfUrl { get; set; } = string.Empty;
 
-        public string? OrcidId { get; set; }
+        [MaxLength(200)]
+        public string? OrcidTicket { get; set; }
     }
 }

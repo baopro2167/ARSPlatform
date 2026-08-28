@@ -6,8 +6,6 @@ namespace ARSPlatform.SERVICE.DTOs.Request
     {
         public int UserId { get; set; }
 
-        public string? OrcidId { get; set; }
-
         public int? Hindex { get; set; }
 
         public int? TotalCitations { get; set; }
