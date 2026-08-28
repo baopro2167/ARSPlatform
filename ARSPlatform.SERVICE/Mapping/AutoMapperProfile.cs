@@ -77,7 +77,19 @@ namespace ARSPlatform.SERVICE.Mapping
                 });
 
             // Follower
-            CreateMap<Follower, FollowerResponse>();
+            CreateMap<Follower, FollowerResponse>()
+                .ForMember(dest => dest.FollowerName, opt => opt.MapFrom(src =>
+                    src.FollowerNavigation != null ? src.FollowerNavigation.FullName : string.Empty))
+                .ForMember(dest => dest.FollowerEmail, opt => opt.MapFrom(src =>
+                    src.FollowerNavigation != null ? src.FollowerNavigation.Email : string.Empty))
+                .ForMember(dest => dest.FollowerAvatarUrl, opt => opt.MapFrom(src =>
+                    src.FollowerNavigation != null ? src.FollowerNavigation.AvatarUrl : null))
+                .ForMember(dest => dest.FollowedName, opt => opt.MapFrom(src =>
+                    src.Followed != null ? src.Followed.FullName : string.Empty))
+                .ForMember(dest => dest.FollowedEmail, opt => opt.MapFrom(src =>
+                    src.Followed != null ? src.Followed.Email : string.Empty))
+                .ForMember(dest => dest.FollowedAvatarUrl, opt => opt.MapFrom(src =>
+                    src.Followed != null ? src.Followed.AvatarUrl : null));
             CreateMap<FollowerCreateRequest, Follower>();
             CreateMap<FollowerUpdateRequest, Follower>();
 
