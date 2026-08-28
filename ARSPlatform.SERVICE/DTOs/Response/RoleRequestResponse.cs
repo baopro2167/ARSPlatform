@@ -13,6 +13,11 @@
         public List<string> RequestedAdditionalRoles { get; set; } = new();
         public string? RequestType { get; set; }
         public List<string> RequestedRoles { get; set; } = new();
+
+        public string? OrcidId { get; set; }
+        public bool IsOrcidVerified { get; set; }
+        public DateTime? OrcidVerifiedAt { get; set; }
+
         public string ProofDocumentUrl { get; set; } = string.Empty;
         public DateTime? SubmissionDate { get; set; }
         public string Status { get; set; } = string.Empty;

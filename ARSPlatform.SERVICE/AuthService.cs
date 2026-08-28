@@ -4,8 +4,8 @@ using ARSPlatform.SERVICE;
 using System.Net.Http;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using ARSPlatform.SERVICE.ExternalServices;
 using ARSPlatform.SERVICE.Interfaces;
+using ARSPlatform.SERVICE.ExternalServices;
 using AutoMapper;
 using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -28,6 +29,7 @@ namespace ARSPlatform.SERVICES
         private readonly IWalletRepository _walletRepository;
         private readonly IProfessionalProfileRepository _professionalProfileRepository;
         private readonly IUserRoleRepository _userRoleRepository;
+        private readonly IOrcidLinkSessionRepository _orcidLinkSessionRepository;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
@@ -39,6 +41,7 @@ namespace ARSPlatform.SERVICES
             IWalletRepository walletRepository,
             IProfessionalProfileRepository professionalProfileRepository,
             IUserRoleRepository userRoleRepository,
+            IOrcidLinkSessionRepository orcidLinkSessionRepository,
             IMapper mapper,
             IConfiguration configuration,
             IEmailService emailService)
@@ -49,6 +52,7 @@ namespace ARSPlatform.SERVICES
             _walletRepository = walletRepository;
             _professionalProfileRepository = professionalProfileRepository;
             _userRoleRepository = userRoleRepository;
+            _orcidLinkSessionRepository = orcidLinkSessionRepository;
             _mapper = mapper;
             _configuration = configuration;
             _emailService = emailService;
@@ -83,74 +87,226 @@ namespace ARSPlatform.SERVICES
             if (requestedRole == null)
                 throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
 
-            string? normalizedOrcidId = null;
-
-            if (string.Equals(
-                    requestedRoleName,
-                    "Reviewer",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                if (!OrcidIdUtility.TryNormalizeAndValidate(
-                        request.OrcidId,
-                        out var normalized))
-                {
-                    throw new Exception(
-                        "A valid ORCID iD is required for Reviewer registration.");
-                }
-
-                var orcidAlreadyExists =
-                    await _userRepository.ExistsAsync(
-                        user => user.OrcidId == normalized && (existingUser == null || user.UserId != existingUser.UserId));
-
-                if (orcidAlreadyExists)
-                {
-                    throw new Exception(
-                        "This ORCID iD is already registered.");
-                }
-
-                normalizedOrcidId = normalized;
-            }
-            else if (!string.IsNullOrWhiteSpace(request.OrcidId))
-            {
-                throw new Exception(
-                    "ORCID iD is only allowed for Reviewer registration.");
-            }
-
             var now = DateTime.UtcNow;
+
+            /*
+                ORCID is optional.
+
+                If OrcidTicket is not supplied, registration continues
+                exactly like a normal ARS registration.
+
+                If OrcidTicket is supplied, it must come from a successful
+                REGISTRATION ORCID OAuth session.
+            */
+            OrcidLinkSession? orcidRegistrationSession = null;
+            string? verifiedOrcidId = null;
+
+            if (!string.IsNullOrWhiteSpace(request.OrcidTicket))
+            {
+                var rawTicket = request.OrcidTicket.Trim();
+
+                var ticketHash =
+                    ComputeSha256(rawTicket);
+
+                orcidRegistrationSession =
+                    await _orcidLinkSessionRepository
+                        .GetByTicketHashAsync(ticketHash);
+
+                if (orcidRegistrationSession == null)
+                {
+                    throw new Exception(
+                        "Invalid ORCID registration ticket.");
+                }
+
+                /*
+                    A registration ticket can only come from
+                    REGISTRATION context.
+
+                    ACCOUNT_LINK sessions must never be accepted here.
+                */
+                if (!string.Equals(
+                        orcidRegistrationSession.Context,
+                        "REGISTRATION",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new Exception(
+                        "The ORCID ticket is not valid for registration.");
+                }
+
+                /*
+                    AUTHENTICATED means:
+                    ORCID OAuth succeeded, but the ticket has not yet
+                    been consumed by account registration.
+                */
+                if (!string.Equals(
+                        orcidRegistrationSession.Status,
+                        "AUTHENTICATED",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.Equals(
+                            orcidRegistrationSession.Status,
+                            "COMPLETED",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new Exception(
+                            "This ORCID registration ticket has already been used.");
+                    }
+
+                    throw new Exception(
+                        "The ORCID registration ticket is not active.");
+                }
+
+                if (orcidRegistrationSession.ExpiresAt <= now)
+                {
+                    throw new Exception(
+                        "The ORCID registration ticket has expired. Please connect ORCID again.");
+                }
+
+                if (string.IsNullOrWhiteSpace(
+                        orcidRegistrationSession.AuthenticatedOrcidId))
+                {
+                    throw new Exception(
+                        "The ORCID registration session does not contain an authenticated ORCID iD.");
+                }
+
+                /*
+                    Never trust even the value stored in the temporary
+                    OAuth session without validating its ORCID format
+                    again at the User boundary.
+                */
+                if (!OrcidIdUtility.TryNormalizeAndValidate(
+                        orcidRegistrationSession.AuthenticatedOrcidId,
+                        out verifiedOrcidId))
+                {
+                    throw new Exception(
+                        "The authenticated ORCID iD is invalid.");
+                }
+
+                /*
+                    One ORCID must belong to only one ARS User.
+
+                    GetByOrcidAsync was added in Step 4D.
+                */
+                var existingOrcidUser =
+                    await _userRepository
+                        .GetByOrcidAsync(verifiedOrcidId);
+
+                if (existingOrcidUser != null &&
+                    (existingUser == null ||
+                     existingOrcidUser.UserId != existingUser.UserId))
+                {
+                    throw new Exception(
+                        "This ORCID iD is already connected to another ARS account.");
+                }
+
+                /*
+                    If this email already has an unfinished/unverified
+                    ARS User, never silently replace another ORCID that
+                    may already belong to that same account.
+                */
+                if (existingUser != null &&
+                    !string.IsNullOrWhiteSpace(existingUser.OrcidId) &&
+                    !string.Equals(
+                        existingUser.OrcidId,
+                        verifiedOrcidId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new Exception(
+                        "This ARS account already has another ORCID iD connected.");
+                }
+            }
+
             var otp = GenerateOtp();
 
             User user;
+
             if (existingUser != null)
             {
                 user = existingUser;
+
                 user.FullName = request.FullName;
-                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-                user.OrcidId = normalizedOrcidId;
+                user.PasswordHash =
+                    BCrypt.Net.BCrypt.HashPassword(
+                        request.Password);
+
                 user.IsActive = false;
                 user.IsEmailVerified = false;
                 user.VerificationStatus = "Pending";
-                user.ProofDocumentUrl = request.PdfUrl.Trim();
+                user.ProofDocumentUrl =
+                    request.PdfUrl.Trim();
+
                 user.UpdatedAt = now;
                 user.IsOtpUsed = false;
                 user.OtpCode = otp;
-                user.ExpiresOtpAt = now.AddMinutes(5);
+                user.ExpiresOtpAt =
+                    now.AddMinutes(5);
+
+                /*
+                    Only a verified OAuth ticket is allowed
+                    to write these fields.
+                */
+                if (!string.IsNullOrWhiteSpace(
+                        verifiedOrcidId))
+                {
+                    user.OrcidId =
+                        verifiedOrcidId;
+
+                    user.IsOrcidVerified =
+                        true;
+
+                    user.OrcidVerifiedAt =
+                        now;
+                }
+
                 _userRepository.Update(user);
             }
             else
             {
-                user = _mapper.Map<User>(request);
-                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-                user.OrcidId = normalizedOrcidId;
+                user =
+                    _mapper.Map<User>(request);
+
+                user.PasswordHash =
+                    BCrypt.Net.BCrypt.HashPassword(
+                        request.Password);
+
                 user.IsActive = false;
                 user.IsEmailVerified = false;
                 user.VerificationStatus = "Pending";
-                user.ProofDocumentUrl = request.PdfUrl.Trim();
+                user.ProofDocumentUrl =
+                    request.PdfUrl.Trim();
+
                 user.CreatedAt = now;
                 user.UpdatedAt = now;
+
                 user.IsOtpUsed = false;
                 user.OtpCode = otp;
-                user.ExpiresOtpAt = now.AddMinutes(5); // OTP valid for 5 minutes
-                user.UserRoles = new List<UserRole>();
+
+                user.ExpiresOtpAt =
+                    now.AddMinutes(5);
+
+                user.UserRoles =
+                    new List<UserRole>();
+
+                /*
+                    New account without ORCID:
+                        OrcidId remains NULL
+                        IsOrcidVerified remains false
+
+                    New account with valid OAuth ticket:
+                        persist the authenticated ORCID.
+                */
+                if (!string.IsNullOrWhiteSpace(
+                        verifiedOrcidId))
+                {
+                    user.OrcidId =
+                        verifiedOrcidId;
+
+                    user.IsOrcidVerified =
+                        true;
+
+                    user.OrcidVerifiedAt =
+                        now;
+                }
 
                 await _userRepository.AddAsync(user);
 
@@ -160,6 +316,7 @@ namespace ARSPlatform.SERVICES
                     Balance = 0,
                     UpdatedAt = now
                 };
+
                 await _walletRepository.AddAsync(wallet);
             }
 
@@ -175,7 +332,31 @@ namespace ARSPlatform.SERVICES
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            await _roleRequestRepository.AddAsync(roleRequest);
+
+            await _roleRequestRepository
+                .AddAsync(roleRequest);
+
+            /*
+                Consume the ORCID one-time registration ticket.
+
+                This is done before SaveChanges so User + RoleRequest +
+                OrcidLinkSession are committed by the same scoped
+                AppDbContext SaveChanges operation.
+            */
+            if (orcidRegistrationSession != null)
+            {
+                orcidRegistrationSession.Status =
+                    "COMPLETED";
+
+                orcidRegistrationSession.CompletedAt =
+                    now;
+
+                orcidRegistrationSession.FailureCode =
+                    null;
+
+                _orcidLinkSessionRepository
+                    .Update(orcidRegistrationSession);
+            }
 
             // Persist registration atomically.
             await _userRepository.SaveChangesAsync();
@@ -183,7 +364,11 @@ namespace ARSPlatform.SERVICES
             // Send OTP email
             try
             {
-                var emailBody = BuildOtpEmailBody(user.FullName, otp);
+                var emailBody =
+                    BuildOtpEmailBody(
+                        user.FullName,
+                        otp);
+
                 await _emailService.SendEmailAsync(
                     user.Email,
                     "[ARS] Your OTP Code for Account Registration",
@@ -191,15 +376,25 @@ namespace ARSPlatform.SERVICES
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EMAIL_ERROR] Failed to send OTP email to {user.Email}: {ex.Message}");
-                throw new Exception($"Account created/updated, but failed to send OTP email: {ex.Message}");
+                Console.WriteLine(
+                    $"[EMAIL_ERROR] Failed to send OTP email to {user.Email}: {ex.Message}");
+
+                throw new Exception(
+                    $"Account created/updated, but failed to send OTP email: {ex.Message}");
             }
 
-            var createdUser = await _userRepository.GetWithRoleByIdAsync(user.UserId);
+            var createdUser =
+                await _userRepository
+                    .GetWithRoleByIdAsync(
+                        user.UserId);
+
             if (createdUser == null)
                 return null;
 
-            var token = GenerateJwtToken(createdUser, "Guest");
+            var token =
+                GenerateJwtToken(
+                    createdUser,
+                    "Guest");
 
             return new AuthResponse
             {
@@ -210,7 +405,8 @@ namespace ARSPlatform.SERVICES
                 Role = "Guest",
                 IsEmailVerified = createdUser.IsEmailVerified,
                 IsActive = createdUser.IsActive,
-                VerificationStatus = createdUser.VerificationStatus
+                VerificationStatus =
+                    createdUser.VerificationStatus
             };
         }
 
@@ -538,6 +734,27 @@ namespace ARSPlatform.SERVICES
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private static string ComputeSha256(
+            string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException(
+                    "Value cannot be empty.",
+                    nameof(value));
+            }
+
+            var bytes =
+                Encoding.UTF8.GetBytes(value);
+
+            var hash =
+                SHA256.HashData(bytes);
+
+            return Convert
+                .ToHexString(hash)
+                .ToLowerInvariant();
         }
 
         private string GenerateOtp()

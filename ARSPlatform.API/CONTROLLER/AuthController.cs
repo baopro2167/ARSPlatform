@@ -4,6 +4,7 @@ using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Security.Claims;
 using System.Collections.Generic;
 using System;
@@ -17,11 +18,16 @@ namespace ARSPlatform.API.CONTROLLER
     {
         private readonly IAuthService _authService;
         private readonly IConfiguration _configuration;
+        private readonly IOrcidLinkService _orcidLinkService;
 
-        public AuthController(IAuthService authService, IConfiguration configuration)
+        public AuthController(
+            IAuthService authService,
+            IConfiguration configuration,
+            IOrcidLinkService orcidLinkService)
         {
             _authService = authService;
             _configuration = configuration;
+            _orcidLinkService = orcidLinkService;
         }
 
         /// <summary>
@@ -217,6 +223,221 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Bắt đầu liên kết ORCID trong quá trình đăng ký tài khoản mới.
+        /// User chưa tồn tại nên OAuth session sẽ có Context = REGISTRATION và UserId = NULL.
+        /// </summary>
+        /// <returns>ORCID authorization URL để Frontend chuyển hướng người dùng</returns>
+        [HttpPost("orcid/registration/start")]
+        [AllowAnonymous]
+        public async Task<IActionResult> StartOrcidRegistrationLink(
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result =
+                    await _orcidLinkService.StartRegistrationAsync(
+                        cancellationToken);
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+                when (IsOrcidConfigurationException(ex))
+            {
+                return StatusCode(
+                    503,
+                    new
+                    {
+                        Code = "ORCID_NOT_CONFIGURED",
+                        Message = ex.Message
+                    });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        Code = "ORCID_LINK_START_FAILED",
+                        Message = ex.Message
+                    });
+            }
+        }
+
+        /// <summary>
+        /// Bắt đầu liên kết ORCID cho một ARS User đã đăng nhập.
+        /// UserId được lấy từ JWT, không nhận UserId từ Frontend.
+        /// </summary>
+        /// <returns>ORCID authorization URL để Frontend chuyển hướng người dùng</returns>
+        [HttpPost("orcid/account/start")]
+        [Authorize(Policy = "AuthenticatedUser")]
+        public async Task<IActionResult> StartOrcidAccountLink(
+            CancellationToken cancellationToken)
+        {
+            var userIdValue =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (!int.TryParse(
+                    userIdValue,
+                    out var userId))
+            {
+                return Unauthorized(
+                    new
+                    {
+                        Code = "UNAUTHENTICATED",
+                        Message = "User is not authenticated."
+                    });
+            }
+
+            try
+            {
+                var result =
+                    await _orcidLinkService
+                        .StartAccountLinkAsync(
+                            userId,
+                            cancellationToken);
+
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(
+                    new
+                    {
+                        Code = "USER_NOT_FOUND",
+                        Message = ex.Message
+                    });
+            }
+            catch (InvalidOperationException ex)
+                when (IsOrcidConfigurationException(ex))
+            {
+                return StatusCode(
+                    503,
+                    new
+                    {
+                        Code = "ORCID_NOT_CONFIGURED",
+                        Message = ex.Message
+                    });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(
+                    new
+                    {
+                        Code = "ACCOUNT_ALREADY_HAS_ORCID",
+                        Message = ex.Message
+                    });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        Code = "ORCID_LINK_START_FAILED",
+                        Message = ex.Message
+                    });
+            }
+        }
+
+        /// <summary>
+        /// Lấy trạng thái liên kết ORCID của ARS User hiện tại.
+        /// UserId được lấy trực tiếp từ JWT.
+        /// </summary>
+        /// <returns>Trạng thái ORCID của tài khoản đang đăng nhập</returns>
+        [HttpGet("orcid/status")]
+        [Authorize(Policy = "AuthenticatedUser")]
+        public async Task<ActionResult<OrcidStatusResponse>>
+            GetOrcidStatus(
+                CancellationToken cancellationToken)
+        {
+            var userIdValue =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (!int.TryParse(
+                    userIdValue,
+                    out var userId))
+            {
+                return Unauthorized(
+                    new
+                    {
+                        Code = "UNAUTHENTICATED",
+                        Message = "User is not authenticated."
+                    });
+            }
+
+            var result =
+                await _orcidLinkService
+                    .GetStatusAsync(
+                        userId,
+                        cancellationToken);
+
+            if (result == null)
+            {
+                return NotFound(
+                    new
+                    {
+                        Code = "USER_NOT_FOUND",
+                        Message = "User was not found."
+                    });
+            }
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Callback OAuth từ ORCID.
+        /// ORCID redirect authorization code và state về endpoint này.
+        /// </summary>
+        /// <param name="code">Authorization code từ ORCID</param>
+        /// <param name="state">OAuth state</param>
+        /// <param name="error">OAuth error nếu user cancel hoặc provider từ chối</param>
+        /// <returns>Redirect về Frontend với kết quả ORCID linking</returns>
+        [HttpGet("orcid/callback")]
+        [AllowAnonymous]
+        public async Task<IActionResult> OrcidCallback(
+            [FromQuery] string? code,
+            [FromQuery] string? state,
+            [FromQuery] string? error,
+            CancellationToken cancellationToken)
+        {
+            OrcidLinkCallbackResponse result;
+
+            try
+            {
+                result =
+                    await _orcidLinkService
+                        .HandleCallbackAsync(
+                            code,
+                            state,
+                            error,
+                            cancellationToken);
+            }
+            catch (Exception)
+            {
+                result =
+                    new OrcidLinkCallbackResponse
+                    {
+                        Success = false,
+                        Status = "FAILED",
+                        ErrorCode =
+                            "ORCID_CALLBACK_FAILED",
+                        ErrorMessage =
+                            "ORCID callback could not be processed."
+                    };
+            }
+
+            var frontendCallbackUrl =
+                GetOrcidFrontendCallbackUrl();
+
+            var redirectUrl =
+                BuildOrcidFrontendRedirectUrl(
+                    frontendCallbackUrl,
+                    result);
+
+            return Redirect(redirectUrl);
+        }
+
+        /// <summary>
         /// Khởi tạo luồng đăng nhập OAuth Google Redirect
         /// </summary>
         /// <returns>Chuyển hướng đến Google OAuth</returns>
@@ -254,7 +475,7 @@ namespace ARSPlatform.API.CONTROLLER
                 var scheme = Request.Host.Host.Contains("localhost") ? Request.Scheme : "https";
                 var redirectUri = $"{scheme}://{Request.Host}/api/Auth/google-callback";
                 var result = await _authService.AuthenticateGoogleLoginAsync(code, redirectUri);
-                
+
                 if (result == null)
                 {
                     throw new Exception("Google authentication returned no account details.");
@@ -278,6 +499,130 @@ namespace ARSPlatform.API.CONTROLLER
             {
                 return Redirect($"{frontendCallbackUrl}?error={Uri.EscapeDataString(ex.Message)}");
             }
+        }
+
+        private string GetOrcidFrontendCallbackUrl()
+        {
+            var configuredUrl =
+                Environment.GetEnvironmentVariable(
+                    "ORCID_FRONTEND_CALLBACK_URL")
+                ?? _configuration[
+                    "OrcidSettings:FrontendCallbackUrl"];
+
+            if (!string.IsNullOrWhiteSpace(
+                    configuredUrl))
+            {
+                return configuredUrl.Trim();
+            }
+
+            var baseVerifyUrl =
+                _configuration[
+                    "EmailSettings:VerificationUrl"]
+                ?? "https://fe-ars.vercel.app/verify-email";
+
+            var frontendOrigin =
+                new Uri(baseVerifyUrl)
+                    .GetLeftPart(
+                        UriPartial.Authority);
+
+            return
+                $"{frontendOrigin}/auth/orcid/callback";
+        }
+
+        private static string
+            BuildOrcidFrontendRedirectUrl(
+                string frontendCallbackUrl,
+                OrcidLinkCallbackResponse result)
+        {
+            var fragmentParts =
+                new List<string>
+                {
+                    $"success={result.Success.ToString().ToLowerInvariant()}"
+                };
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.Context))
+            {
+                fragmentParts.Add(
+                    "context="
+                    + Uri.EscapeDataString(
+                        result.Context));
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.Status))
+            {
+                fragmentParts.Add(
+                    "status="
+                    + Uri.EscapeDataString(
+                        result.Status));
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.OrcidId))
+            {
+                fragmentParts.Add(
+                    "orcidId="
+                    + Uri.EscapeDataString(
+                        result.OrcidId));
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.DisplayName))
+            {
+                fragmentParts.Add(
+                    "displayName="
+                    + Uri.EscapeDataString(
+                        result.DisplayName));
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.RegistrationTicket))
+            {
+                fragmentParts.Add(
+                    "registrationTicket="
+                    + Uri.EscapeDataString(
+                        result.RegistrationTicket));
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.ErrorCode))
+            {
+                fragmentParts.Add(
+                    "errorCode="
+                    + Uri.EscapeDataString(
+                        result.ErrorCode));
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.ErrorMessage))
+            {
+                fragmentParts.Add(
+                    "errorMessage="
+                    + Uri.EscapeDataString(
+                        result.ErrorMessage));
+            }
+
+            var baseUrl =
+                frontendCallbackUrl
+                    .Split('#')[0];
+
+            return
+                $"{baseUrl}#{string.Join("&", fragmentParts)}";
+        }
+
+        private static bool
+            IsOrcidConfigurationException(
+                InvalidOperationException exception)
+        {
+            return
+                exception.Message.Contains(
+                    "ORCID",
+                    StringComparison.OrdinalIgnoreCase)
+                &&
+                exception.Message.Contains(
+                    "not configured",
+                    StringComparison.OrdinalIgnoreCase);
         }
     }
 }
