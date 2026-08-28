@@ -552,13 +552,10 @@ namespace ARSPlatform.SERVICES
             if (user == null)
                 return false;
 
-            if (user.IsOtpUsed == true)
-                throw new Exception("This OTP has already been used.");
-
             if (user.ExpiresOtpAt == null || user.ExpiresOtpAt < DateTime.UtcNow)
                 throw new Exception("This OTP has expired.");
 
-            if (user.OtpCode != otpCode)
+            if (string.IsNullOrEmpty(user.OtpCode) || user.OtpCode != otpCode.Trim())
                 return false;
 
             user.IsOtpUsed = true;
@@ -630,13 +627,10 @@ namespace ARSPlatform.SERVICES
             if (user == null)
                 throw new Exception("User with this email does not exist.");
 
-            if (user.IsOtpUsed == true)
-                throw new Exception("This OTP has already been used.");
-
             if (user.ExpiresOtpAt == null || user.ExpiresOtpAt < DateTime.UtcNow)
                 throw new Exception("This OTP has expired.");
 
-            if (user.OtpCode != request.OtpCode.Trim())
+            if (string.IsNullOrEmpty(user.OtpCode) || user.OtpCode != request.OtpCode.Trim())
                 throw new Exception("Invalid OTP code.");
 
             // Update password hash
