@@ -26,6 +26,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// </summary>
         /// <returns>Danh sách bình chọn</returns>
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<CommentVoteResponse>>> GetAll()
         {
             var items = await _service.GetAllAsync();
@@ -38,6 +39,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
         /// <returns>Danh sách lượt bình chọn có phân trang</returns>
         [HttpGet("paged")]
+        [AllowAnonymous]
         public async Task<ActionResult<PagedResult<CommentVoteResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
         {
             var result = await _service.GetPagedAsync(paginationParams);

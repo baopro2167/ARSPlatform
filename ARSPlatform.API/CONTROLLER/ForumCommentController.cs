@@ -27,7 +27,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="postId">Lọc theo ID bài viết (tùy chọn)</param>
         /// <returns>Danh sách bình luận</returns>
         [HttpGet]
-        [Authorize(Policy = "ForumRead")]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ForumCommentResponse>>> GetAll([FromQuery] int? postId = null)
         {
             var items = await _service.GetAllAsync(postId);
@@ -41,7 +41,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="postId">Lọc theo ID bài viết (tùy chọn)</param>
         /// <returns>Danh sách bình luận có phân trang</returns>
         [HttpGet("paged")]
-        [Authorize(Policy = "ForumRead")]
+        [AllowAnonymous]
         public async Task<ActionResult<PagedResult<ForumCommentResponse>>> GetPaged(
             [FromQuery] PaginationParams paginationParams,
             [FromQuery] int? postId = null)
@@ -75,7 +75,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID bình luận</param>
         /// <returns>Thông tin bình luận</returns>
         [HttpGet("{id:int}")]
-        [Authorize(Policy = "ForumRead")]
+        [AllowAnonymous]
         public async Task<ActionResult<ForumCommentResponse>> GetById(int id)
         {
             var item = await _service.GetByIdAsync(id);
