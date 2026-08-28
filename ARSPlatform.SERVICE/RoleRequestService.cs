@@ -14,15 +14,18 @@ namespace ARSPlatform.SERVICES
         private readonly IRoleRequestRepository _roleRequestRepository;
         private readonly IUserRoleRepository _userRoleRepository;
         private readonly IProfessionalProfileRepository _professionalProfileRepository;
+        private readonly INotificationRepository _notificationRepository;
 
         public RoleRequestService(
             IRoleRequestRepository roleRequestRepository,
             IUserRoleRepository userRoleRepository,
-            IProfessionalProfileRepository professionalProfileRepository)
+            IProfessionalProfileRepository professionalProfileRepository,
+            INotificationRepository notificationRepository)
         {
             _roleRequestRepository = roleRequestRepository;
             _userRoleRepository = userRoleRepository;
             _professionalProfileRepository = professionalProfileRepository;
+            _notificationRepository = notificationRepository;
         }
 
         public async Task<IEnumerable<RoleRequestResponse>> GetAllAsync()
@@ -213,6 +216,15 @@ namespace ARSPlatform.SERVICES
 
             try
             {
+                var notification = new Notification
+                {
+                    UserId = user.UserId,
+                    Message = $"Yêu cầu xét duyệt vai trò \"{requestedRole.Name}\" của bạn đã được phê duyệt thành công.",
+                    IsRead = false,
+                    CreatedAt = now
+                };
+                await _notificationRepository.AddAsync(notification);
+
                 await _roleRequestRepository.SaveChangesAsync();
             }
             catch (DbUpdateException ex)
@@ -258,6 +270,16 @@ namespace ARSPlatform.SERVICES
                 roleRequest.User.VerificationStatus = "Rejected";
                 roleRequest.User.UpdatedAt = now;
             }
+
+            var noteSuffix = !string.IsNullOrWhiteSpace(request.Notes) ? $" Lý do: {request.Notes}" : "";
+            var notification = new Notification
+            {
+                UserId = roleRequest.UserId,
+                Message = $"Yêu cầu xét duyệt vai trò \"{roleRequest.RequestedRole?.Name}\" của bạn đã bị từ chối.{noteSuffix}",
+                IsRead = false,
+                CreatedAt = now
+            };
+            await _notificationRepository.AddAsync(notification);
 
             await _roleRequestRepository.SaveChangesAsync();
 

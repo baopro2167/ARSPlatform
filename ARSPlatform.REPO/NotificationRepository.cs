@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
@@ -28,6 +29,38 @@ namespace ARSPlatform.REPOSITORIES
         public async Task<PagedResult<Notification>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize)
         {
             return await GetByUserIdPagedAsync(userId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+
+        public async Task<IEnumerable<Notification>> GetByUserIdAsync(int userId)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<int> GetUnreadCountAsync(int userId)
+        {
+            return await _dbSet
+                .CountAsync(x => x.UserId == userId && (x.IsRead == null || x.IsRead == false));
+        }
+
+        public async Task<int> MarkAllAsReadAsync(int userId)
+        {
+            var unreadNotifications = await _dbSet
+                .Where(x => x.UserId == userId && (x.IsRead == null || x.IsRead == false))
+                .ToListAsync();
+
+            if (!unreadNotifications.Any())
+                return 0;
+
+            foreach (var item in unreadNotifications)
+            {
+                item.IsRead = true;
+            }
+
+            return await _context.SaveChangesAsync();
         }
     }
 }

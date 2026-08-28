@@ -8,5 +8,8 @@ namespace ARSPlatform.REPO.Interfaces
     {
         Task<PagedResult<Notification>> GetByUserIdPagedAsync(int userId, PaginationParams paginationParams);
         Task<PagedResult<Notification>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize);
+        Task<IEnumerable<Notification>> GetByUserIdAsync(int userId);
+        Task<int> GetUnreadCountAsync(int userId);
+        Task<int> MarkAllAsReadAsync(int userId);
     }
 }

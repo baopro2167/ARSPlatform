@@ -14,11 +14,16 @@ namespace ARSPlatform.SERVICES
     public class ReviewRequestService : IReviewRequestService
     {
         private readonly IReviewRequestRepository _repository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
 
-        public ReviewRequestService(IReviewRequestRepository repository, IMapper mapper)
+        public ReviewRequestService(
+            IReviewRequestRepository repository,
+            INotificationRepository notificationRepository,
+            IMapper mapper)
         {
             _repository = repository;
+            _notificationRepository = notificationRepository;
             _mapper = mapper;
         }
 
@@ -73,7 +78,22 @@ namespace ARSPlatform.SERVICES
             await _repository.SaveChangesAsync();
 
             var created = await _repository.GetByIdWithReviewerAsync(item.ReviewRequestId);
-            return _mapper.Map<ReviewRequestResponse>(created);
+
+            if (created != null && created.ReviewerId.HasValue)
+            {
+                var paperTitle = created.Paper?.Title ?? "Bài báo mới";
+                var notification = new Notification
+                {
+                    UserId = created.ReviewerId.Value,
+                    Message = $"Bạn có một bài báo mới được phân công phản biện: \"{paperTitle}\".",
+                    IsRead = false,
+                    CreatedAt = System.DateTime.UtcNow
+                };
+                await _notificationRepository.AddAsync(notification);
+                await _notificationRepository.SaveChangesAsync();
+            }
+
+            return _mapper.Map<ReviewRequestResponse>(created ?? item);
         }
 
         public async Task<ReviewRequestResponse?> UpdateAsync(int id, ReviewRequestUpdateRequest request)

@@ -18,17 +18,20 @@ namespace ARSPlatform.SERVICES
         private readonly ISeminarParticipantRepository _repository;
         private readonly ISeminarRepository _seminarRepository;
         private readonly IUserRepository _userRepository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
 
         public SeminarParticipantService(
             ISeminarParticipantRepository repository,
             ISeminarRepository seminarRepository,
             IUserRepository userRepository,
+            INotificationRepository notificationRepository,
             IMapper mapper)
         {
             _repository = repository;
             _seminarRepository = seminarRepository;
             _userRepository = userRepository;
+            _notificationRepository = notificationRepository;
             _mapper = mapper;
         }
 
@@ -160,6 +163,20 @@ namespace ARSPlatform.SERVICES
 
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
+
+            if (user?.UserId != null)
+            {
+                var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
+                var notification = new Notification
+                {
+                    UserId = user.UserId,
+                    Message = $"Bạn đã nhận được lời mời tham gia Hội thảo khoa học: \"{seminarTitle}\".",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _notificationRepository.AddAsync(notification);
+                await _notificationRepository.SaveChangesAsync();
+            }
 
             var created = await _repository.GetByIdWithSeminarAndUserAsync(item.SeminarParticipantId);
             return _mapper.Map<SeminarParticipantResponse>(created ?? item);
