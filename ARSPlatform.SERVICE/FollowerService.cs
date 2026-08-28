@@ -16,15 +16,18 @@ namespace ARSPlatform.SERVICES
     {
         private readonly IFollowerRepository _repository;
         private readonly IUserRepository _userRepository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
 
         public FollowerService(
             IFollowerRepository repository,
             IUserRepository userRepository,
+            INotificationRepository notificationRepository,
             IMapper mapper)
         {
             _repository = repository;
             _userRepository = userRepository;
+            _notificationRepository = notificationRepository;
             _mapper = mapper;
         }
 
@@ -93,6 +96,26 @@ namespace ARSPlatform.SERVICES
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
 
+            // Tự động tạo bản ghi thông báo cho Người B (người được follow)
+            try
+            {
+                var followerUser = await _userRepository.GetByIdAsync(currentUserId);
+                var followerName = !string.IsNullOrWhiteSpace(followerUser?.FullName) ? followerUser.FullName : "Một người dùng";
+                var notification = new Notification
+                {
+                    UserId = followedId,
+                    Message = $"{followerName} đã bắt đầu theo dõi bạn.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _notificationRepository.AddAsync(notification);
+                await _notificationRepository.SaveChangesAsync();
+            }
+            catch
+            {
+                // Bỏ qua nếu có lỗi phát sinh để không làm gián đoạn luồng chính
+            }
+
             var created = await _repository.GetRelationAsync(currentUserId, followedId);
             return _mapper.Map<FollowerResponse>(created ?? item);
         }
@@ -141,6 +164,27 @@ namespace ARSPlatform.SERVICES
 
                 await _repository.AddAsync(item);
                 await _repository.SaveChangesAsync();
+
+                // Tự động tạo bản ghi thông báo cho Người B (người được follow)
+                try
+                {
+                    var followerUser = await _userRepository.GetByIdAsync(currentUserId);
+                    var followerName = !string.IsNullOrWhiteSpace(followerUser?.FullName) ? followerUser.FullName : "Một người dùng";
+                    var notification = new Notification
+                    {
+                        UserId = followedId,
+                        Message = $"{followerName} đã bắt đầu theo dõi bạn.",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepository.AddAsync(notification);
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Bỏ qua nếu có lỗi phát sinh để không làm gián đoạn luồng chính
+                }
+
                 return true; // Now following
             }
         }
