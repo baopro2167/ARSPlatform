@@ -248,7 +248,7 @@ namespace ARSPlatform.API.CONTROLLER
             try
             {
                 var result = await _authService.ResetPasswordAsync(request);
-                return Ok(new { Message = "Password has been reset successfully. Please login with your new password." });
+                return Ok(new { Message = "Password reset successfully! Redirecting to login..." });
             }
             catch (Exception ex)
             {
