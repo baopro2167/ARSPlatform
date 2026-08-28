@@ -54,6 +54,10 @@ public partial class User
     = new List<ForumPost>();
 
     [JsonIgnore]
+    public virtual ICollection<ForumPostLike> ForumPostLikes { get; set; }
+    = new List<ForumPostLike>();
+
+    [JsonIgnore]
     public virtual ICollection<DetailedEvaluation> DetailedEvaluations { get; set; }
         = new List<DetailedEvaluation>();
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.MODEL.Entities;
@@ -35,4 +35,7 @@ public partial class ForumPost
 
     public virtual ICollection<ForumComment> ForumComments { get; set; }
         = new List<ForumComment>();
+
+    public virtual ICollection<ForumPostLike> ForumPostLikes { get; set; }
+        = new List<ForumPostLike>();
 }

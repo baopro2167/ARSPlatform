@@ -24,6 +24,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<ForumPost> ForumPosts { get; set; }
 
+    public virtual DbSet<ForumPostLike> ForumPostLikes { get; set; }
+
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
 
     public virtual DbSet<GuidanceProject> GuidanceProjects { get; set; }
@@ -120,6 +122,23 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.CommentVotes)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK__CommentVo__UserI__02084FDA");
+        });
+
+        modelBuilder.Entity<ForumPostLike>(entity =>
+        {
+            entity.HasKey(e => new { e.UserId, e.ForumPostId });
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.ForumPost).WithMany(p => p.ForumPostLikes)
+                .HasForeignKey(d => d.ForumPostId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ForumPostLikes_ForumPost");
+
+            entity.HasOne(d => d.User).WithMany(p => p.ForumPostLikes)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ForumPostLikes_User");
         });
 
         modelBuilder.Entity<DetailedEvaluation>(entity =>
