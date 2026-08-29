@@ -19,6 +19,7 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await _dbSet
                 .Include(p => p.Creator)
+                .Include(p => p.PaperAuthors)
                 .FirstOrDefaultAsync(p => p.PaperId == id);
         }
 
@@ -31,7 +32,8 @@ namespace ARSPlatform.REPOSITORIES
                 includes: new System.Linq.Expressions.Expression<System.Func<Paper, object>>[]
                 {
                     x => x.Creator!,
-                    x => x.SubField!
+                    x => x.SubField!,
+                    x => x.PaperAuthors
                 });
         }
 
@@ -49,7 +51,8 @@ namespace ARSPlatform.REPOSITORIES
                 includes: new System.Linq.Expressions.Expression<System.Func<Paper, object>>[]
                 {
                     x => x.Creator!,
-                    x => x.SubField!
+                    x => x.SubField!,
+                    x => x.PaperAuthors
                 });
         }
 

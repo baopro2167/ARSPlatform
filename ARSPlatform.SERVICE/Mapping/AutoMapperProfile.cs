@@ -28,16 +28,28 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.UserRoles, opt => opt.Ignore());
 
             // Paper
+            CreateMap<PaperAuthor, PaperAuthorResponse>();
+
             CreateMap<Paper, PaperResponse>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.PaperId))
                 .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.CreatorId))
                 .ForMember(dest => dest.AuthorName, opt => opt.MapFrom(src =>
-                    src.Creator != null ? src.Creator.FullName : string.Empty));
+                    src.Creator != null ? src.Creator.FullName : string.Empty))
+                .ForMember(dest => dest.AuthorOrcidId, opt => opt.MapFrom(src =>
+                    src.Creator != null ? src.Creator.OrcidId : null))
+                .ForMember(dest => dest.AuthorOrcidDisplayName, opt => opt.MapFrom(src =>
+                    src.Creator != null ? src.Creator.OrcidDisplayName : null))
+                .ForMember(dest => dest.AuthorIsOrcidVerified, opt => opt.MapFrom(src =>
+                    src.Creator != null && src.Creator.IsOrcidVerified))
+                .ForMember(dest => dest.Authors, opt => opt.MapFrom(src =>
+                    src.PaperAuthors.OrderBy(author => author.AuthorOrder)));
 
-            CreateMap<PaperCreateRequest, Paper>();
+            CreateMap<PaperCreateRequest, Paper>()
+                .ForMember(dest => dest.PaperAuthors, opt => opt.Ignore());
             CreateMap<PaperUpdateRequest, Paper>()
                 .ForMember(dest => dest.PaperId, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.PaperAuthors, opt => opt.Ignore());
 
             // AuditLog
             CreateMap<AuditLog, AuditLogResponse>();
@@ -143,8 +155,6 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // GroupMember
             CreateMap<GroupMember, GroupMemberResponse>()
-                .ForMember(dest => dest.LeaderId, opt => opt.MapFrom(src => src.LeaderId))
-                .ForMember(dest => dest.IsLeader, opt => opt.MapFrom(src => src.LeaderId == true))
                 .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src =>
                     src.Student != null ? src.Student.FullName : null))
                 .ForMember(dest => dest.StudentEmail, opt => opt.MapFrom(src =>
@@ -202,10 +212,6 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // PhasedReport
             CreateMap<PhasedReport, PhasedReportResponse>()
-                .ForMember(dest => dest.TopicId, opt => opt.MapFrom(src =>
-                    src.TopicId ?? (src.ResearchGroup != null ? src.ResearchGroup.TopicId : null)))
-                .ForMember(dest => dest.TopicTitle, opt => opt.MapFrom(src =>
-                    src.Topic != null ? src.Topic.Title : (src.ResearchGroup != null && src.ResearchGroup.Topic != null ? src.ResearchGroup.Topic.Title : null)))
                 .ForMember(dest => dest.GroupName, opt => opt.MapFrom(src =>
                     src.ResearchGroup != null ? src.ResearchGroup.Name : null))
                 .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src =>

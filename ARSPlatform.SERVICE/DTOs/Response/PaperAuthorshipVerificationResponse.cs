@@ -20,6 +20,12 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string? VerifiedOrcidId { get; set; }
 
+        public string? OrcidDisplayName { get; set; }
+
+        public bool IsOrcidMatch { get; set; }
+
+        public bool? IsNameMatch { get; set; }
+
         public string? MatchSource { get; set; }
 
         public string? MatchedAuthorName { get; set; }

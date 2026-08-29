@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
@@ -23,5 +25,22 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? Quartile { get; set; }
 
         public int? SubFieldId { get; set; }
+
+        [MaxLength(50)]
+        [RegularExpression(@"^W[0-9]+$", ErrorMessage = "OpenAlexWorkId must be a canonical W-prefixed OpenAlex Work ID.")]
+        public string? OpenAlexWorkId { get; set; }
+
+        [MaxLength(255)]
+        public string? Doi { get; set; }
+
+        public DateTime? PublicationDate { get; set; }
+
+        [MaxLength(255)]
+        public string? SourceName { get; set; }
+
+        [MaxLength(50)]
+        public string? IssnValue { get; set; }
+
+        public List<PaperAuthorRequest>? Authors { get; set; }
     }
 }

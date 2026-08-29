@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -30,7 +31,21 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string AuthorName { get; set; } = string.Empty;
 
+        public string? AuthorOrcidId { get; set; }
+
+        public string? AuthorOrcidDisplayName { get; set; }
+
+        public bool AuthorIsOrcidVerified { get; set; }
+
         public string? OpenAlexWorkId { get; set; }
+
+        public string? Doi { get; set; }
+
+        public DateTime? PublicationDate { get; set; }
+
+        public string? SourceName { get; set; }
+
+        public string? IssnValue { get; set; }
 
         public string AuthorshipVerificationStatus { get; set; }
             = "NOT_CHECKED";
@@ -38,5 +53,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public DateTime? AuthorshipVerifiedAt { get; set; }
 
         public string? AuthorshipVerificationReason { get; set; }
+
+        public List<PaperAuthorResponse> Authors { get; set; } = new List<PaperAuthorResponse>();
     }
 }
