@@ -9,5 +9,9 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<OrcidLookupResponse> LookupByOrcidAsync(
             string orcidId,
             CancellationToken cancellationToken = default);
+
+        Task<OpenAlexWorkLookupResponse> LookupWorkByIdAsync(
+            string openAlexWorkId,
+            CancellationToken cancellationToken = default);
     }
 }
