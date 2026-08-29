@@ -4,15 +4,20 @@ using ARSPlatform.REPO;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPOSITORIES;
 using ARSPlatform.SERVICE.ExternalServices;
+using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.Interfaces;
 using ARSPlatform.SERVICE.Mapping;
 using ARSPlatform.SERVICES;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
+using System.Threading.RateLimiting;
 using ARSPlatform.SERVICE;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -70,6 +75,118 @@ if (!string.IsNullOrEmpty(renderPort))
 // Register External API Service
 builder.Services.AddScoped<IExternalApiService, ExternalApiService>();
 
+// OpenAlex work preview cache and endpoint rate limiting
+builder.Services.AddMemoryCache();
+
+var openAlexPermitLimit =
+    int.TryParse(
+        Environment.GetEnvironmentVariable("OPENALEX_WORK_LOOKUP_PERMIT_LIMIT")
+        ?? builder.Configuration["OpenAlexSettings:WorkLookupPermitLimit"],
+        out var configuredOpenAlexPermitLimit)
+        ? configuredOpenAlexPermitLimit
+        : 30;
+
+var openAlexWindowSeconds =
+    int.TryParse(
+        Environment.GetEnvironmentVariable("OPENALEX_WORK_LOOKUP_WINDOW_SECONDS")
+        ?? builder.Configuration["OpenAlexSettings:WorkLookupWindowSeconds"],
+        out var configuredOpenAlexWindowSeconds)
+        ? configuredOpenAlexWindowSeconds
+        : 60;
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy(
+        "OpenAlexWorkLookup",
+        httpContext =>
+        {
+            var actorKey =
+                httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown";
+
+            return RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: actorKey,
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = Math.Max(1, openAlexPermitLimit),
+                    Window = TimeSpan.FromSeconds(
+                        Math.Max(1, openAlexWindowSeconds)),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                });
+        });
+
+    options.RejectionStatusCode =
+        StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(
+                MetadataName.RetryAfter,
+                out var retryAfter))
+        {
+            context.HttpContext.Response.Headers["Retry-After"] =
+                Math.Ceiling(retryAfter.TotalSeconds).ToString();
+        }
+
+        var actorIdValue =
+            context.HttpContext.User
+                .FindFirst(ClaimTypes.NameIdentifier)
+                ?.Value;
+
+        if (!int.TryParse(actorIdValue, out var actorId))
+        {
+            return;
+        }
+
+        var actorName =
+            context.HttpContext.User.FindFirst(ClaimTypes.Name)?.Value
+            ?? context.HttpContext.User.Identity?.Name
+            ?? context.HttpContext.User.FindFirst(ClaimTypes.Email)?.Value
+            ?? $"User {actorId}";
+
+        var workId =
+            context.HttpContext.Request.RouteValues
+                .TryGetValue("workId", out var routeWorkId)
+                ? routeWorkId?.ToString()
+                : null;
+
+        var auditLogService =
+            context.HttpContext.RequestServices
+                .GetService<IAuditLogService>();
+
+        if (auditLogService == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await auditLogService.CreateAsync(
+                new AuditLogCreateRequest
+                {
+                    AdminId = actorId,
+                    AdminName = actorName,
+                    Action = "OPENALEX_WORK_LOOKUP",
+                    Target = "OpenAlexWork",
+                    TargetId = workId,
+                    Details = JsonSerializer.Serialize(
+                        new
+                        {
+                            Provider = "OpenAlex",
+                            Outcome = "RateLimitRejected",
+                            Timestamp = DateTime.UtcNow
+                        })
+                });
+        }
+        catch
+        {
+            // Rate-limit response must not fail because audit persistence failed.
+        }
+    };
+});
+
 // Register OpenAlex Settings and Service
 builder.Services.Configure<OpenAlexSettings>(options =>
 {
@@ -97,6 +214,30 @@ builder.Services.Configure<OpenAlexSettings>(options =>
             out var maxWorks)
             ? maxWorks
             : 100;
+
+    options.WorkCacheSeconds =
+        int.TryParse(
+            Environment.GetEnvironmentVariable("OPENALEX_WORK_CACHE_SECONDS")
+            ?? section["WorkCacheSeconds"],
+            out var workCacheSeconds)
+            ? workCacheSeconds
+            : 300;
+
+    options.WorkLookupPermitLimit =
+        int.TryParse(
+            Environment.GetEnvironmentVariable("OPENALEX_WORK_LOOKUP_PERMIT_LIMIT")
+            ?? section["WorkLookupPermitLimit"],
+            out var workLookupPermitLimit)
+            ? workLookupPermitLimit
+            : 30;
+
+    options.WorkLookupWindowSeconds =
+        int.TryParse(
+            Environment.GetEnvironmentVariable("OPENALEX_WORK_LOOKUP_WINDOW_SECONDS")
+            ?? section["WorkLookupWindowSeconds"],
+            out var workLookupWindowSeconds)
+            ? workLookupWindowSeconds
+            : 60;
 });
 
 builder.Services.AddHttpClient<IOpenAlexService, OpenAlexService>(
@@ -481,9 +622,12 @@ using (var scope = app.Services.CreateScope())
 
 
 
+app.UseRouting();
+
 app.UseCors("AllowAll");
 
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

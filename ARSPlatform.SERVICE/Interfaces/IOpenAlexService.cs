@@ -13,5 +13,9 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<OpenAlexWorkLookupResponse> LookupWorkByIdAsync(
             string openAlexWorkId,
             CancellationToken cancellationToken = default);
+
+        Task<OpenAlexWorkPreviewResponse> GetWorkPreviewByIdAsync(
+            string workId,
+            CancellationToken cancellationToken = default);
     }
 }

@@ -2,6 +2,7 @@
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Net;
@@ -18,6 +19,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
         private const string NotFound = "NotFound";
         private const string RateLimited = "RateLimited";
         private const string ProviderUnavailable = "ProviderUnavailable";
+        private const string ProviderTimeout = "ProviderTimeout";
         private const string ProviderError = "ProviderError";
 
         private const string WorksSelect =
@@ -36,15 +38,18 @@ namespace ARSPlatform.SERVICE.ExternalServices
         private readonly HttpClient _httpClient;
         private readonly OpenAlexSettings _settings;
         private readonly ILogger<OpenAlexService> _logger;
+        private readonly IMemoryCache _cache;
 
         public OpenAlexService(
             HttpClient httpClient,
             IOptions<OpenAlexSettings> settings,
-            ILogger<OpenAlexService> logger)
+            ILogger<OpenAlexService> logger,
+            IMemoryCache cache)
         {
             _httpClient = httpClient;
             _settings = settings.Value;
             _logger = logger;
+            _cache = cache;
         }
 
         public async Task<OrcidLookupResponse> LookupByOrcidAsync(
@@ -376,6 +381,293 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     ProviderError,
                     "OpenAlex returned an invalid work response.");
             }
+        }
+
+        public async Task<OpenAlexWorkPreviewResponse> GetWorkPreviewByIdAsync(
+            string workId,
+            CancellationToken cancellationToken = default)
+        {
+            if (!IsCanonicalOpenAlexWorkId(workId))
+            {
+                return PreviewFailure(
+                    workId?.Trim() ?? string.Empty,
+                    InvalidWorkId,
+                    "The supplied OpenAlex Work ID must be a canonical W-prefixed ID.");
+            }
+
+            var normalizedWorkId = workId.Trim();
+            var cacheKey = $"openalex:work-preview:{normalizedWorkId}";
+
+            if (_cache.TryGetValue(
+                    cacheKey,
+                    out OpenAlexWorkPreviewResponse? cached) &&
+                cached != null)
+            {
+                return cached;
+            }
+
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"works/{normalizedWorkId}");
+
+                using var response = await _httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
+
+                var fetchedAt = DateTime.UtcNow;
+
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return PreviewFailure(
+                        normalizedWorkId,
+                        NotFound,
+                        "No OpenAlex work was found for this Work ID.",
+                        fetchedAt);
+                }
+
+                if ((int)response.StatusCode == 429)
+                {
+                    return PreviewFailure(
+                        normalizedWorkId,
+                        RateLimited,
+                        "OpenAlex work lookup is temporarily rate limited.",
+                        fetchedAt,
+                        GetRetryAfterSeconds(response));
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var statusCode = (int)response.StatusCode;
+
+                    _logger.LogWarning(
+                        "OpenAlex work preview lookup failed with HTTP status {StatusCode}.",
+                        statusCode);
+
+                    if (response.StatusCode == HttpStatusCode.RequestTimeout)
+                    {
+                        return PreviewFailure(
+                            normalizedWorkId,
+                            ProviderTimeout,
+                            "OpenAlex work lookup timed out.",
+                            fetchedAt);
+                    }
+
+                    if (statusCode >= 500)
+                    {
+                        return PreviewFailure(
+                            normalizedWorkId,
+                            ProviderUnavailable,
+                            "OpenAlex is temporarily unavailable.",
+                            fetchedAt);
+                    }
+
+                    return PreviewFailure(
+                        normalizedWorkId,
+                        ProviderError,
+                        "OpenAlex returned an unexpected response.",
+                        fetchedAt);
+                }
+
+                await using var stream = await response.Content
+                    .ReadAsStreamAsync(cancellationToken);
+
+                var work = await JsonSerializer
+                    .DeserializeAsync<OpenAlexWorkApiResponse>(
+                        stream,
+                        JsonOptions,
+                        cancellationToken);
+
+                if (work == null ||
+                    string.IsNullOrWhiteSpace(work.Id))
+                {
+                    _logger.LogWarning(
+                        "OpenAlex work preview lookup returned a successful response without a work ID.");
+
+                    return PreviewFailure(
+                        normalizedWorkId,
+                        ProviderError,
+                        "OpenAlex returned incomplete work metadata.",
+                        fetchedAt);
+                }
+
+                var result = MapWorkPreview(
+                    normalizedWorkId,
+                    fetchedAt,
+                    work);
+
+                _cache.Set(
+                    cacheKey,
+                    result,
+                    TimeSpan.FromSeconds(
+                        Math.Clamp(
+                            _settings.WorkCacheSeconds,
+                            30,
+                            3600)));
+
+                return result;
+            }
+            catch (OperationCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "OpenAlex work preview lookup timed out.");
+
+                return PreviewFailure(
+                    normalizedWorkId,
+                    ProviderTimeout,
+                    "OpenAlex work lookup timed out.");
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "OpenAlex work preview lookup failed because of a network or transport error.");
+
+                return PreviewFailure(
+                    normalizedWorkId,
+                    ProviderUnavailable,
+                    "OpenAlex is temporarily unavailable.");
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "OpenAlex work preview lookup returned malformed JSON.");
+
+                return PreviewFailure(
+                    normalizedWorkId,
+                    ProviderError,
+                    "OpenAlex returned an invalid work response.");
+            }
+        }
+
+        private static OpenAlexWorkPreviewResponse MapWorkPreview(
+            string normalizedWorkId,
+            DateTime fetchedAt,
+            OpenAlexWorkApiResponse work)
+        {
+            var authors = (work.Authorships ?? new List<OpenAlexAuthorshipApiResponse>())
+                .Select(authorship => new OpenAlexWorkPreviewAuthorResponse
+                {
+                    RawAuthorName = authorship.RawAuthorName,
+                    RawOrcid = NormalizeOrcidForResponse(authorship.RawOrcid),
+                    AuthorOpenAlexId = authorship.Author?.Id,
+                    AuthorDisplayName = authorship.Author?.DisplayName,
+                    AuthorOrcid = NormalizeOrcidForResponse(authorship.Author?.Orcid),
+                    IsCorresponding = authorship.IsCorresponding,
+                    Institutions = (authorship.Institutions ?? new List<OpenAlexInstitutionApiResponse>())
+                        .Select(institution => new OpenAlexWorkPreviewInstitutionResponse
+                        {
+                            OpenAlexId = institution.Id,
+                            DisplayName = institution.DisplayName,
+                            Ror = institution.Ror,
+                            CountryCode = institution.CountryCode,
+                            Type = institution.Type
+                        })
+                        .ToList()
+                })
+                .ToList();
+
+            var topics = (work.Topics ?? new List<OpenAlexTopicApiResponse>())
+                .Select(topic => new OpenAlexWorkPreviewTopicResponse
+                {
+                    TopicId = topic.Id,
+                    TopicName = topic.DisplayName,
+                    Score = topic.Score,
+                    SubFieldId = topic.SubField?.Id,
+                    SubFieldName = topic.SubField?.DisplayName,
+                    FieldId = topic.Field?.Id,
+                    FieldName = topic.Field?.DisplayName,
+                    DomainId = topic.Domain?.Id,
+                    DomainName = topic.Domain?.DisplayName
+                })
+                .ToList();
+
+            var concepts = (work.Concepts ?? new List<OpenAlexConceptApiResponse>())
+                .Select(concept => new OpenAlexWorkPreviewConceptResponse
+                {
+                    ConceptId = concept.Id,
+                    ConceptName = concept.DisplayName,
+                    Score = concept.Score,
+                    Level = concept.Level
+                })
+                .ToList();
+
+            OpenAlexWorkPreviewSourceResponse? source = null;
+            var sourceApi = work.PrimaryLocation?.Source;
+
+            if (sourceApi != null)
+            {
+                source = new OpenAlexWorkPreviewSourceResponse
+                {
+                    OpenAlexSourceId = sourceApi.Id,
+                    DisplayName = sourceApi.DisplayName,
+                    IssnL = sourceApi.IssnL,
+                    Issns = sourceApi.Issn ?? new List<string>(),
+                    Type = sourceApi.Type,
+                    HostOrganizationOpenAlexId = sourceApi.HostOrganization
+                };
+            }
+
+            return new OpenAlexWorkPreviewResponse
+            {
+                OpenAlexWorkId = normalizedWorkId,
+                LookupStatus = Found,
+                SourceFetchedAt = fetchedAt,
+                Title = work.Title ?? work.DisplayName,
+                Abstract = ReconstructAbstract(work.AbstractInvertedIndex),
+                PublicationYear = work.PublicationYear,
+                PublicationDate = ParseDate(work.PublicationDate),
+                Doi = work.Doi,
+                Type = work.Type,
+                CitedByCount = work.CitedByCount ?? 0,
+                IsRetracted = work.IsRetracted ?? false,
+                IsOpenAccess = work.OpenAccess?.IsOpenAccess,
+                OpenAccessStatus = work.OpenAccess?.Status,
+                Authors = authors,
+                Topics = topics,
+                Concepts = concepts,
+                Source = source,
+                ExternalUrl = !string.IsNullOrWhiteSpace(work.Id)
+                    ? work.Id
+                    : work.Doi
+            };
+        }
+
+        private static string? NormalizeOrcidForResponse(
+            string? orcid)
+        {
+            return OrcidIdUtility.TryNormalizeAndValidate(
+                    orcid,
+                    out var normalized)
+                ? normalized
+                : null;
+        }
+
+        private static string? ReconstructAbstract(
+            Dictionary<string, List<int>>? invertedIndex)
+        {
+            if (invertedIndex == null || invertedIndex.Count == 0)
+            {
+                return null;
+            }
+
+            var words = new SortedDictionary<int, string>();
+
+            foreach (var entry in invertedIndex)
+            {
+                foreach (var position in entry.Value)
+                {
+                    words[position] = entry.Key;
+                }
+            }
+
+            return words.Count == 0
+                ? null
+                : string.Join(" ", words.Values);
         }
 
         private OrcidLookupResponse MapAuthor(
@@ -931,6 +1223,27 @@ namespace ARSPlatform.SERVICE.ExternalServices
             return value.ToUpperInvariant();
         }
 
+        private static bool IsCanonicalOpenAlexWorkId(
+            string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input) ||
+                input.Length < 2 ||
+                input[0] != 'W')
+            {
+                return false;
+            }
+
+            for (var index = 1; index < input.Length; index++)
+            {
+                if (!char.IsDigit(input[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static bool TryNormalizeOpenAlexWorkId(
             string? input,
             out string normalizedWorkId)
@@ -1129,6 +1442,23 @@ namespace ARSPlatform.SERVICE.ExternalServices
             }
         }
 
+        private static OpenAlexWorkPreviewResponse PreviewFailure(
+            string openAlexWorkId,
+            string lookupStatus,
+            string message,
+            DateTime? fetchedAt = null,
+            int? retryAfterSeconds = null)
+        {
+            return new OpenAlexWorkPreviewResponse
+            {
+                OpenAlexWorkId = openAlexWorkId,
+                LookupStatus = lookupStatus,
+                SourceFetchedAt = fetchedAt ?? DateTime.UtcNow,
+                Message = message,
+                RetryAfterSeconds = retryAfterSeconds
+            };
+        }
+
         private static OpenAlexWorkLookupResponse WorkFailure(
             string openAlexWorkId,
             string lookupStatus,
@@ -1286,6 +1616,9 @@ namespace ARSPlatform.SERVICE.ExternalServices
             [JsonPropertyName("count")]
             public int? Count { get; set; }
 
+            [JsonPropertyName("score")]
+            public double? Score { get; set; }
+
             [JsonPropertyName("subfield")]
             public OpenAlexClassificationApiResponse?
                 SubField
@@ -1348,6 +1681,9 @@ namespace ARSPlatform.SERVICE.ExternalServices
             [JsonPropertyName("display_name")]
             public string? DisplayName { get; set; }
 
+            [JsonPropertyName("abstract_inverted_index")]
+            public Dictionary<string, List<int>>? AbstractInvertedIndex { get; set; }
+
             [JsonPropertyName("publication_year")]
             public int? PublicationYear { get; set; }
 
@@ -1377,6 +1713,16 @@ namespace ARSPlatform.SERVICE.ExternalServices
             public List<OpenAlexAuthorshipApiResponse>?
                 Authorships
             { get; set; }
+
+            [JsonPropertyName("topics")]
+            public List<OpenAlexTopicApiResponse>?
+                Topics
+            { get; set; }
+
+            [JsonPropertyName("concepts")]
+            public List<OpenAlexConceptApiResponse>?
+                Concepts
+            { get; set; }
         }
 
         private sealed class OpenAlexAuthorshipApiResponse
@@ -1393,6 +1739,11 @@ namespace ARSPlatform.SERVICE.ExternalServices
             [JsonPropertyName("author")]
             public OpenAlexAuthorshipAuthorApiResponse?
                 Author
+            { get; set; }
+
+            [JsonPropertyName("institutions")]
+            public List<OpenAlexInstitutionApiResponse>?
+                Institutions
             { get; set; }
         }
 
@@ -1418,8 +1769,38 @@ namespace ARSPlatform.SERVICE.ExternalServices
 
         private sealed class OpenAlexSourceApiResponse
         {
+            [JsonPropertyName("id")]
+            public string? Id { get; set; }
+
             [JsonPropertyName("display_name")]
             public string? DisplayName { get; set; }
+
+            [JsonPropertyName("issn_l")]
+            public string? IssnL { get; set; }
+
+            [JsonPropertyName("issn")]
+            public List<string>? Issn { get; set; }
+
+            [JsonPropertyName("type")]
+            public string? Type { get; set; }
+
+            [JsonPropertyName("host_organization")]
+            public string? HostOrganization { get; set; }
+        }
+
+        private sealed class OpenAlexConceptApiResponse
+        {
+            [JsonPropertyName("id")]
+            public string? Id { get; set; }
+
+            [JsonPropertyName("display_name")]
+            public string? DisplayName { get; set; }
+
+            [JsonPropertyName("level")]
+            public int? Level { get; set; }
+
+            [JsonPropertyName("score")]
+            public double? Score { get; set; }
         }
 
         private sealed class OpenAlexOpenAccessApiResponse
