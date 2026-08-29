@@ -18,5 +18,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<AuthResponse?> SelectRoleAsync(int userId, string roleName);
         Task<bool> VerifyOtpAsync(string email, string otpCode);
         Task<string?> ResendOtpAsync(string email);
+        Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request);
+        Task<bool> ResetPasswordAsync(ResetPasswordRequest request);
     }
 }

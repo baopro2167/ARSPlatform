@@ -24,6 +24,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<ForumPost> ForumPosts { get; set; }
 
+    public virtual DbSet<ForumPostLike> ForumPostLikes { get; set; }
+
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
 
     public virtual DbSet<GuidanceProject> GuidanceProjects { get; set; }
@@ -122,6 +124,23 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.CommentVotes)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK__CommentVo__UserI__02084FDA");
+        });
+
+        modelBuilder.Entity<ForumPostLike>(entity =>
+        {
+            entity.HasKey(e => new { e.UserId, e.ForumPostId });
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.ForumPost).WithMany(p => p.ForumPostLikes)
+                .HasForeignKey(d => d.ForumPostId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ForumPostLikes_ForumPost");
+
+            entity.HasOne(d => d.User).WithMany(p => p.ForumPostLikes)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ForumPostLikes_User");
         });
 
         modelBuilder.Entity<DetailedEvaluation>(entity =>
@@ -231,6 +250,10 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Student).WithMany(p => p.GuidanceProjectStudents)
                 .HasForeignKey(d => d.StudentId)
                 .HasConstraintName("FK__GuidanceP__Stude__1F98B2C1");
+
+            entity.HasOne(d => d.ResearchGroup).WithMany(p => p.GuidanceProjects)
+                .HasForeignKey(d => d.ResearchGroupId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<LearningMaterial>(entity =>
@@ -419,6 +442,8 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.CapacityEvaluation).HasMaxLength(255);
             entity.Property(e => e.FinalOutcomeEvaluation).HasMaxLength(255);
             entity.Property(e => e.LectureFeedback).HasColumnType("decimal(15, 2)");
+            entity.Property(e => e.Status).HasMaxLength(50).IsUnicode(false);
+            entity.Property(e => e.MilestoneTitle).HasMaxLength(255);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.GroupMember).WithMany(p => p.PhasedReports)
@@ -520,6 +545,10 @@ public partial class AppDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.Title).HasMaxLength(255);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.Lecturer).WithMany(p => p.ResearchTopics)
+                .HasForeignKey(d => d.LecturerId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ReviewRequest>(entity =>

@@ -10,5 +10,10 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<CommentVote>> GetByCommentIdPagedAsync(int commentId, int pageNumber, int pageSize);
         Task<PagedResult<CommentVote>> GetByUserIdPagedAsync(int userId, PaginationParams paginationParams);
         Task<PagedResult<CommentVote>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize);
+
+        Task<(bool isUpvoted, int upvoteCount)> ToggleVoteAsync(int commentId, int userId);
+        Task<bool> IsCommentVotedAsync(int commentId, int userId);
+        Task<System.Collections.Generic.List<int>> GetVotedCommentIdsByUserAsync(int userId, System.Collections.Generic.IEnumerable<int> commentIds);
+        Task<System.Collections.Generic.List<int>> GetAllVotedCommentIdsByUserAsync(int userId);
     }
 }

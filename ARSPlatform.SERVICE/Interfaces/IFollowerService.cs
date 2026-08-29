@@ -13,6 +13,11 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<PagedResult<FollowerResponse>> GetByFollowedIdAsync(int followedId, int pageNumber, int pageSize);
         Task<PagedResult<FollowerResponse>> GetByFollowerIdAsync(int followerId, int pageNumber, int pageSize);
         Task<PagedResult<FollowerResponse>> GetAllAsync(int pageNumber, int pageSize);
-        Task<FollowerResponse> CreateAsync(FollowerCreateRequest request);
+        Task<FollowerResponse> CreateAsync(FollowerCreateRequest request, int currentUserId);
+        Task<FollowerResponse> FollowAsync(int currentUserId, int followedId);
+        Task<bool> UnfollowAsync(int currentUserId, int followedId);
+        Task<bool> ToggleFollowAsync(int currentUserId, int followedId);
+        Task<bool> IsFollowingAsync(int currentUserId, int followedId);
+        Task<FollowCountsResponse> GetCountsAsync(int userId);
     }
 }

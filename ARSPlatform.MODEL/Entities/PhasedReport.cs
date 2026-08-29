@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.MODEL.Entities;
@@ -18,6 +18,12 @@ public partial class PhasedReport
     public string? FinalOutcomeEvaluation { get; set; }
 
     public decimal? LectureFeedback { get; set; }
+
+    public int? PhaseNumber { get; set; }
+
+    public string? MilestoneTitle { get; set; }
+
+    public string? Status { get; set; }
 
     public DateTime? SubmittedAt { get; set; }
 

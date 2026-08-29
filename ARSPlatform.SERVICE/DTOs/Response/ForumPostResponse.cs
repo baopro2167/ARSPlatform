@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
@@ -35,5 +35,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? AttachedImageUrl { get; set; }
 
         public int AuthorId { get; set; }
+
+        public bool IsLiked { get; set; } = false;
     }
 }

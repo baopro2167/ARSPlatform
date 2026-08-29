@@ -18,5 +18,13 @@ namespace ARSPlatform.REPO.Interfaces
             string? search,
             string? category,
             string? sort);
+
+        Task<(bool isLiked, int likesCount)> ToggleLikeAsync(int postId, int userId);
+
+        Task<bool> IsPostLikedAsync(int postId, int userId);
+
+        Task<List<int>> GetLikedPostIdsByUserAsync(int userId, IEnumerable<int> postIds);
+
+        Task<List<int>> GetAllLikedPostIdsByUserAsync(int userId);
     }
 }

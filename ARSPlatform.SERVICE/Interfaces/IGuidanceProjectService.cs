@@ -8,13 +8,13 @@ namespace ARSPlatform.SERVICE.Interfaces
 {
     public interface IGuidanceProjectService
     {
-        Task<IEnumerable<GuidanceProjectResponse>> GetAllAsync();
-        Task<PagedResult<GuidanceProjectResponse>> GetPagedAsync(PaginationParams paginationParams);
+        Task<IEnumerable<GuidanceProjectResponse>> GetAllAsync(int? researchGroupId = null);
+        Task<PagedResult<GuidanceProjectResponse>> GetPagedAsync(PaginationParams paginationParams, int? researchGroupId = null);
         Task<PagedResult<GuidanceProjectResponse>> GetByLecturerIdAsync(int lecturerId, int pageNumber, int pageSize);
         Task<PagedResult<GuidanceProjectResponse>> GetByStudentIdAsync(int studentId, int pageNumber, int pageSize);
         Task<PagedResult<GuidanceProjectResponse>> GetAllAsync(int pageNumber, int pageSize);
         Task<GuidanceProjectResponse?> GetByIdAsync(int id);
-        Task<GuidanceProjectResponse> CreateAsync(GuidanceProjectCreateRequest request);
+        Task<GuidanceProjectResponse> CreateAsync(GuidanceProjectCreateRequest request, int? lecturerId = null);
         Task<GuidanceProjectResponse?> UpdateAsync(int id, GuidanceProjectUpdateRequest request);
         Task<bool> DeleteAsync(int id);
     }

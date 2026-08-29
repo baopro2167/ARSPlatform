@@ -77,12 +77,28 @@ namespace ARSPlatform.SERVICE.Mapping
                 });
 
             // Follower
-            CreateMap<Follower, FollowerResponse>();
+            CreateMap<Follower, FollowerResponse>()
+                .ForMember(dest => dest.FollowerName, opt => opt.MapFrom(src =>
+                    src.FollowerNavigation != null ? src.FollowerNavigation.FullName : string.Empty))
+                .ForMember(dest => dest.FollowerEmail, opt => opt.MapFrom(src =>
+                    src.FollowerNavigation != null ? src.FollowerNavigation.Email : string.Empty))
+                .ForMember(dest => dest.FollowerAvatarUrl, opt => opt.MapFrom(src =>
+                    src.FollowerNavigation != null ? src.FollowerNavigation.AvatarUrl : null))
+                .ForMember(dest => dest.FollowedName, opt => opt.MapFrom(src =>
+                    src.Followed != null ? src.Followed.FullName : string.Empty))
+                .ForMember(dest => dest.FollowedEmail, opt => opt.MapFrom(src =>
+                    src.Followed != null ? src.Followed.Email : string.Empty))
+                .ForMember(dest => dest.FollowedAvatarUrl, opt => opt.MapFrom(src =>
+                    src.Followed != null ? src.Followed.AvatarUrl : null));
             CreateMap<FollowerCreateRequest, Follower>();
             CreateMap<FollowerUpdateRequest, Follower>();
 
             // ForumComment
-            CreateMap<ForumComment, ForumCommentResponse>();
+            CreateMap<ForumComment, ForumCommentResponse>()
+                .ForMember(dest => dest.Author, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.FullName : string.Empty))
+                .ForMember(dest => dest.AuthorAvatar, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.AvatarUrl : null));
             CreateMap<ForumCommentCreateRequest, ForumComment>();
             CreateMap<ForumCommentUpdateRequest, ForumComment>()
                 .ForMember(dest => dest.ForumCommentId, opt => opt.Ignore())
@@ -122,14 +138,22 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.ForumComments, opt => opt.Ignore());
 
             // GroupMember
-            CreateMap<GroupMember, GroupMemberResponse>();
+            CreateMap<GroupMember, GroupMemberResponse>()
+                .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src =>
+                    src.Student != null ? src.Student.FullName : null))
+                .ForMember(dest => dest.StudentEmail, opt => opt.MapFrom(src =>
+                    src.Student != null ? src.Student.Email : null))
+                .ForMember(dest => dest.StudentAvatarUrl, opt => opt.MapFrom(src =>
+                    src.Student != null ? src.Student.AvatarUrl : null));
             CreateMap<GroupMemberCreateRequest, GroupMember>();
             CreateMap<GroupMemberUpdateRequest, GroupMember>()
                 .ForMember(dest => dest.GroupMemberId, opt => opt.Ignore())
                 .ForMember(dest => dest.JoinedAt, opt => opt.Ignore());
 
             // GuidanceProject
-            CreateMap<GuidanceProject, GuidanceProjectResponse>();
+            CreateMap<GuidanceProject, GuidanceProjectResponse>()
+                .ForMember(dest => dest.ResearchGroupName, opt => opt.MapFrom(src =>
+                    src.ResearchGroup != null ? src.ResearchGroup.Name : null));
             CreateMap<GuidanceProjectCreateRequest, GuidanceProject>();
             CreateMap<GuidanceProjectUpdateRequest, GuidanceProject>()
                 .ForMember(dest => dest.GuidanceProjectId, opt => opt.Ignore())
@@ -171,7 +195,11 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // PhasedReport
-            CreateMap<PhasedReport, PhasedReportResponse>();
+            CreateMap<PhasedReport, PhasedReportResponse>()
+                .ForMember(dest => dest.GroupName, opt => opt.MapFrom(src =>
+                    src.ResearchGroup != null ? src.ResearchGroup.Name : null))
+                .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src =>
+                    src.GroupMember != null && src.GroupMember.Student != null ? src.GroupMember.Student.FullName : null));
             CreateMap<PhasedReportCreateRequest, PhasedReport>();
             CreateMap<PhasedReportUpdateRequest, PhasedReport>()
                 .ForMember(dest => dest.PhasedReportId, opt => opt.Ignore())
@@ -248,14 +276,23 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // ResearchGroup
-            CreateMap<ResearchGroup, ResearchGroupResponse>();
+            CreateMap<ResearchGroup, ResearchGroupResponse>()
+                .ForMember(dest => dest.LecturerName, opt => opt.MapFrom(src =>
+                    src.Lecturer != null ? src.Lecturer.FullName : null))
+                .ForMember(dest => dest.TopicTitle, opt => opt.MapFrom(src =>
+                    src.Topic != null ? src.Topic.Title : null))
+                .ForMember(dest => dest.MemberCount, opt => opt.MapFrom(src =>
+                    src.GroupMembers != null ? src.GroupMembers.Count : 0))
+                .ForMember(dest => dest.Members, opt => opt.MapFrom(src => src.GroupMembers));
             CreateMap<ResearchGroupCreateRequest, ResearchGroup>();
             CreateMap<ResearchGroupUpdateRequest, ResearchGroup>()
                 .ForMember(dest => dest.ResearchGroupId, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
             // ResearchTopic
-            CreateMap<ResearchTopic, ResearchTopicResponse>();
+            CreateMap<ResearchTopic, ResearchTopicResponse>()
+                .ForMember(dest => dest.LecturerName, opt => opt.MapFrom(src =>
+                    src.Lecturer != null ? src.Lecturer.FullName : null));
             CreateMap<ResearchTopicCreateRequest, ResearchTopic>();
             CreateMap<ResearchTopicUpdateRequest, ResearchTopic>()
                 .ForMember(dest => dest.TopicId, opt => opt.Ignore())

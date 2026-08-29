@@ -54,24 +54,80 @@ namespace ARSPlatform.SERVICES
             return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
-        public async Task<NotificationResponse?> GetByIdAsync(int id)
+        public async Task<NotificationResponse?> GetByIdAsync(int id, int? currentUserId = null, bool isAdmin = false)
         {
             var item = await _repository.GetByIdAsync(id);
-            return item == null ? null : _mapper.Map<NotificationResponse>(item);
+            if (item == null) return null;
+
+            if (currentUserId.HasValue && !isAdmin && item.UserId != currentUserId.Value)
+            {
+                throw new UnauthorizedAccessException("You do not have permission to access this notification.");
+            }
+
+            return _mapper.Map<NotificationResponse>(item);
+        }
+
+        public async Task<int> GetUnreadCountAsync(int userId)
+        {
+            return await _repository.GetUnreadCountAsync(userId);
+        }
+
+        public async Task<NotificationResponse?> MarkAsReadAsync(int id, int currentUserId, bool isAdmin = false)
+        {
+            var item = await _repository.GetByIdAsync(id);
+            if (item == null) return null;
+
+            if (!isAdmin && item.UserId != currentUserId)
+            {
+                throw new UnauthorizedAccessException("You do not have permission to update this notification.");
+            }
+
+            item.IsRead = true;
+            _repository.Update(item);
+            await _repository.SaveChangesAsync();
+            return _mapper.Map<NotificationResponse>(item);
+        }
+
+        public async Task<int> MarkAllAsReadAsync(int userId)
+        {
+            return await _repository.MarkAllAsReadAsync(userId);
         }
 
         public async Task<NotificationResponse> CreateAsync(NotificationCreateRequest request)
         {
             var item = _mapper.Map<Notification>(request);
+            item.CreatedAt = DateTime.UtcNow;
+            if (item.IsRead == null) item.IsRead = false;
+
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
             return _mapper.Map<NotificationResponse>(item);
         }
 
-        public async Task<NotificationResponse?> UpdateAsync(int id, NotificationUpdateRequest request)
+        public async Task<NotificationResponse> CreateNotificationAsync(int userId, string message)
+        {
+            var item = new Notification
+            {
+                UserId = userId,
+                Message = message,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _repository.AddAsync(item);
+            await _repository.SaveChangesAsync();
+            return _mapper.Map<NotificationResponse>(item);
+        }
+
+        public async Task<NotificationResponse?> UpdateAsync(int id, NotificationUpdateRequest request, int? currentUserId = null, bool isAdmin = false)
         {
             var item = await _repository.GetByIdAsync(id);
             if (item == null) return null;
+
+            if (currentUserId.HasValue && !isAdmin && item.UserId != currentUserId.Value)
+            {
+                throw new UnauthorizedAccessException("You do not have permission to update this notification.");
+            }
 
             _mapper.Map(request, item);
             _repository.Update(item);
@@ -79,10 +135,15 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<NotificationResponse>(item);
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id, int? currentUserId = null, bool isAdmin = false)
         {
             var item = await _repository.GetByIdAsync(id);
             if (item == null) return false;
+
+            if (currentUserId.HasValue && !isAdmin && item.UserId != currentUserId.Value)
+            {
+                throw new UnauthorizedAccessException("You do not have permission to delete this notification.");
+            }
 
             _repository.Delete(item);
             await _repository.SaveChangesAsync();

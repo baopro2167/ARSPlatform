@@ -21,13 +21,24 @@ namespace ARSPlatform.REPOSITORIES
             _dbSet = _context.Set<T>();
         }
 
-        public virtual async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? predicate = null)
+        public virtual async Task<IEnumerable<T>> GetAllAsync(
+            Expression<Func<T, bool>>? predicate = null,
+            params Expression<Func<T, object>>[] includes)
         {
+            IQueryable<T> query = _dbSet;
+            if (includes != null)
+            {
+                foreach (var include in includes)
+                {
+                    query = query.Include(include);
+                }
+            }
+
             if (predicate != null)
             {
-                return await _dbSet.Where(predicate).ToListAsync();
+                query = query.Where(predicate);
             }
-            return await _dbSet.ToListAsync();
+            return await query.ToListAsync();
         }
 
         public virtual async Task<PagedResult<T>> GetPagedAsync(

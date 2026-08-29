@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
@@ -22,17 +24,34 @@ namespace ARSPlatform.SERVICES
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<ResearchTopicResponse>> GetAllAsync()
+        public async Task<IEnumerable<ResearchTopicResponse>> GetAllAsync(int? lecturerId = null)
         {
-            var items = await _repository.GetAllAsync();
+            Expression<Func<ResearchTopic, bool>>? predicate = lecturerId.HasValue ? x => x.LecturerId == lecturerId.Value : null;
+            var items = await _repository.GetAllAsync(predicate, includes: new Expression<Func<ResearchTopic, object>>[]
+            {
+                x => x.Lecturer!
+            });
             return _mapper.Map<IEnumerable<ResearchTopicResponse>>(items);
         }
 
-        public async Task<PagedResult<ResearchTopicResponse>> GetPagedAsync(PaginationParams paginationParams)
+        public async Task<PagedResult<ResearchTopicResponse>> GetPagedAsync(PaginationParams paginationParams, int? lecturerId = null)
         {
-            var paged = await _repository.GetPagedAsync(paginationParams);
+            Expression<Func<ResearchTopic, bool>>? predicate = lecturerId.HasValue ? x => x.LecturerId == lecturerId.Value : null;
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: predicate,
+                orderBy: q => q.OrderByDescending(x => x.CreatedAt),
+                includes: new Expression<Func<ResearchTopic, object>>[]
+                {
+                    x => x.Lecturer!
+                });
             var dtos = _mapper.Map<List<ResearchTopicResponse>>(paged.Items);
             return new PagedResult<ResearchTopicResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
+        }
+
+        public async Task<IEnumerable<ResearchTopicResponse>> GetMyTopicsAsync(int lecturerId)
+        {
+            return await GetAllAsync(lecturerId);
         }
 
         public async Task<PagedResult<ResearchTopicResponse>> GetAllAsync(int pageNumber, int pageSize)
@@ -42,16 +61,24 @@ namespace ARSPlatform.SERVICES
 
         public async Task<ResearchTopicResponse?> GetByIdAsync(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
+            var item = (await _repository.GetAllAsync(x => x.TopicId == id, x => x.Lecturer!)).FirstOrDefault();
             return item == null ? null : _mapper.Map<ResearchTopicResponse>(item);
         }
 
-        public async Task<ResearchTopicResponse> CreateAsync(ResearchTopicCreateRequest request)
+        public async Task<ResearchTopicResponse> CreateAsync(ResearchTopicCreateRequest request, int? lecturerId = null)
         {
             var item = _mapper.Map<ResearchTopic>(request);
+            if (lecturerId.HasValue && !item.LecturerId.HasValue)
+            {
+                item.LecturerId = lecturerId.Value;
+            }
+            item.CreatedAt = DateTime.UtcNow;
+            item.UpdatedAt = DateTime.UtcNow;
+
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            return _mapper.Map<ResearchTopicResponse>(item);
+            var created = await GetByIdAsync(item.TopicId);
+            return created ?? _mapper.Map<ResearchTopicResponse>(item);
         }
 
         public async Task<ResearchTopicResponse?> UpdateAsync(int id, ResearchTopicUpdateRequest request)
@@ -60,6 +87,7 @@ namespace ARSPlatform.SERVICES
             if (item == null) return null;
 
             _mapper.Map(request, item);
+            item.UpdatedAt = DateTime.UtcNow;
             _repository.Update(item);
             await _repository.SaveChangesAsync();
             return _mapper.Map<ResearchTopicResponse>(item);

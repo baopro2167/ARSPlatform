@@ -154,5 +154,62 @@ namespace ARSPlatform.REPOSITORIES
 
             return new PagedResult<ForumPost>(items, totalCount, pageNumber, pageSize);
         }
+
+        public async Task<(bool isLiked, int likesCount)> ToggleLikeAsync(int postId, int userId)
+        {
+            var post = await _context.ForumPosts.FirstOrDefaultAsync(p => p.ForumPostId == postId);
+            if (post == null)
+                throw new KeyNotFoundException($"Forum post with ID {postId} does not exist.");
+
+            var existingLike = await _context.ForumPostLikes
+                .FirstOrDefaultAsync(l => l.ForumPostId == postId && l.UserId == userId);
+
+            bool isLiked;
+            if (existingLike != null)
+            {
+                _context.ForumPostLikes.Remove(existingLike);
+                post.LikeCount = Math.Max(0, post.LikeCount - 1);
+                isLiked = false;
+            }
+            else
+            {
+                var newLike = new ForumPostLike
+                {
+                    ForumPostId = postId,
+                    UserId = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.ForumPostLikes.AddAsync(newLike);
+                post.LikeCount += 1;
+                isLiked = true;
+            }
+
+            await _context.SaveChangesAsync();
+            return (isLiked, post.LikeCount);
+        }
+
+        public async Task<bool> IsPostLikedAsync(int postId, int userId)
+        {
+            return await _context.ForumPostLikes.AnyAsync(l => l.ForumPostId == postId && l.UserId == userId);
+        }
+
+        public async Task<List<int>> GetLikedPostIdsByUserAsync(int userId, IEnumerable<int> postIds)
+        {
+            var idsList = postIds.ToList();
+            if (!idsList.Any()) return new List<int>();
+
+            return await _context.ForumPostLikes
+                .Where(l => l.UserId == userId && idsList.Contains(l.ForumPostId))
+                .Select(l => l.ForumPostId)
+                .ToListAsync();
+        }
+
+        public async Task<List<int>> GetAllLikedPostIdsByUserAsync(int userId)
+        {
+            return await _context.ForumPostLikes
+                .Where(l => l.UserId == userId)
+                .Select(l => l.ForumPostId)
+                .ToListAsync();
+        }
     }
 }

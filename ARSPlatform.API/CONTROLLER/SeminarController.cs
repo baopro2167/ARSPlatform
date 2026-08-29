@@ -17,33 +17,55 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Lecturer")]
+    [Authorize]
     public class SeminarController : ControllerBase
     {
         private readonly ISeminarService _seminarService;
+        private readonly ISeminarParticipantService _participantService;
         private readonly IAudioSummaryService _audioSummaryService;
 
         public SeminarController(
             ISeminarService seminarService,
+            ISeminarParticipantService participantService,
             IAudioSummaryService audioSummaryService)
         {
             _seminarService = seminarService;
+            _participantService = participantService;
             _audioSummaryService = audioSummaryService;
         }
 
         /// <summary>
-        /// Lấy danh sách toàn bộ buổi Seminar do Lecturer tổ chức
+        /// Lấy danh sách toàn bộ buổi Seminar (Nếu là Lecturer sẽ lấy theo Organizer, nếu là Researcher/Role khác sẽ lấy toàn bộ danh sách Seminar)
         /// </summary>
         /// <returns>Danh sách Seminar</returns>
         [HttpGet]
+        [Authorize]
         public async Task<ActionResult<IEnumerable<SeminarResponse>>> GetAll()
         {
-            if (!TryGetCurrentUserId(out var organizerId))
+            if (!TryGetCurrentUserId(out var userId))
             {
                 return Unauthorized();
             }
 
+            int? organizerId = User.IsInRole("Lecturer") ? userId : null;
             var response = await _seminarService.GetAllAsync(organizerId);
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Lấy danh sách các buổi Seminar mà người dùng hiện tại được mời tham dự
+        /// </summary>
+        /// <returns>Danh sách Seminar được mời</returns>
+        [HttpGet("my-invitations")]
+        [Authorize]
+        public async Task<ActionResult<IEnumerable<SeminarInvitationResponse>>> GetMyInvitations()
+        {
+            if (!TryGetCurrentUserId(out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _participantService.GetMyInvitationsAsync(currentUserId);
             return Ok(response);
         }
 
@@ -53,13 +75,15 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
         /// <returns>Danh sách Seminar có phân trang</returns>
         [HttpGet("paged")]
+        [Authorize]
         public async Task<ActionResult<PagedResult<SeminarResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
         {
-            if (!TryGetCurrentUserId(out var organizerId))
+            if (!TryGetCurrentUserId(out var userId))
             {
                 return Unauthorized();
             }
 
+            int? organizerId = User.IsInRole("Lecturer") ? userId : null;
             var result = await _seminarService.GetPagedAsync(paginationParams, organizerId);
             return Ok(result);
         }
@@ -71,6 +95,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Buổi Seminar vừa tạo</returns>
         [HttpPost]
+        [Authorize(Roles = "Lecturer")]
         public async Task<ActionResult<SeminarResponse>> Create(
             [FromBody] SeminarCreateRequest request,
             CancellationToken cancellationToken)
@@ -113,20 +138,70 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID buổi Seminar</param>
         /// <returns>Chi tiết Seminar</returns>
         [HttpGet("{id:int}")]
+        [Authorize]
         public async Task<ActionResult<SeminarResponse>> GetById(int id)
         {
-            if (!TryGetCurrentUserId(out var organizerId))
+            if (!TryGetCurrentUserId(out var userId))
             {
                 return Unauthorized();
             }
 
+            int? organizerId = User.IsInRole("Lecturer") ? userId : null;
             var response = await _seminarService.GetByIdAsync(id, organizerId);
             if (response == null)
             {
-                return NotFound();
+                // Nếu là Lecturer kiểm tra không phải của họ, thử lấy thông tin seminar chung
+                response = await _seminarService.GetByIdAsync(id, null);
+                if (response == null)
+                {
+                    return NotFound();
+                }
             }
 
             return Ok(response);
+        }
+
+        /// <summary>
+        /// Nộp form đánh giá / feedback cho buổi Seminar
+        /// </summary>
+        /// <param name="id">ID buổi Seminar</param>
+        /// <param name="request">Nội dung đánh giá</param>
+        /// <returns>Kết quả nộp đánh giá</returns>
+        [HttpPost("{id:int}/feedback")]
+        [Authorize]
+        public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int id, [FromBody] SeminarFeedbackRequest request)
+        {
+            if (!TryGetCurrentUserId(out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            if (request == null || string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
+            {
+                return BadRequest(new { message = "Participant evaluation is required." });
+            }
+
+            try
+            {
+                var response = await _participantService.SubmitFeedbackAsync(id, request, currentUserId);
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -137,6 +212,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Seminar sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "Lecturer")]
         public async Task<ActionResult<SeminarResponse>> Update(
             int id,
             [FromBody] SeminarUpdateRequest request,
@@ -178,6 +254,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID Seminar</param>
         /// <returns>Thông báo kết quả xóa</returns>
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "Lecturer")]
         public async Task<IActionResult> Delete(int id)
         {
             if (!TryGetCurrentUserId(out var organizerId))
@@ -202,6 +279,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Kết quả gửi lời mời</returns>
         [HttpPost("{id:int}/invite")]
+        [Authorize(Roles = "Lecturer")]
         [ProducesResponseType(typeof(SeminarInviteResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Invite(
             int id,
@@ -243,6 +321,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID Seminar</param>
         /// <returns>Thống kê số liệu</returns>
         [HttpGet("{id:int}/stats")]
+        [Authorize(Roles = "Lecturer")]
         [ProducesResponseType(typeof(SeminarStatsResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetStats(int id)
         {
@@ -267,6 +346,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Kết quả gửi nhắc nhở</returns>
         [HttpPost("{id:int}/reminders/send")]
+        [Authorize(Roles = "Lecturer")]
         [ProducesResponseType(typeof(SeminarReminderResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> SendFeedbackReminders(
             int id,
@@ -300,6 +380,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Bản tóm tắt nội dung buổi Seminar từ AI</returns>
         [HttpPost("{id:int}/summarize-audio")]
+        [Authorize(Roles = "Lecturer")]
         [RequestSizeLimit(524_288_000)]
         [RequestFormLimits(MultipartBodyLengthLimit = 524_288_000)]
         [ProducesResponseType(typeof(SeminarAudioSummaryResponse), StatusCodes.Status200OK)]

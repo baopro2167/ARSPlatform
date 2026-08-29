@@ -18,17 +18,20 @@ namespace ARSPlatform.SERVICES
         private readonly IDetailedEvaluationRepository _repository;
         private readonly IReviewRequestRepository _reviewRequestRepository;
         private readonly ISubFieldRepository _subFieldRepository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
 
         public DetailedEvaluationService(
             IDetailedEvaluationRepository repository,
             IReviewRequestRepository reviewRequestRepository,
             ISubFieldRepository subFieldRepository,
+            INotificationRepository notificationRepository,
             IMapper mapper)
         {
             _repository = repository;
             _reviewRequestRepository = reviewRequestRepository;
             _subFieldRepository = subFieldRepository;
+            _notificationRepository = notificationRepository;
             _mapper = mapper;
         }
 
@@ -101,6 +104,20 @@ namespace ARSPlatform.SERVICES
             var item = _mapper.Map<DetailedEvaluation>(request);
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
+
+            if (reviewRequest.Paper?.CreatorId.HasValue == true)
+            {
+                var paperTitle = reviewRequest.Paper.Title ?? "Bài báo của bạn";
+                var notification = new Notification
+                {
+                    UserId = reviewRequest.Paper.CreatorId.Value,
+                    Message = $"Bài báo \"{paperTitle}\" của bạn đã có kết quả đánh giá / phản biện mới từ Reviewer.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _notificationRepository.AddAsync(notification);
+                await _notificationRepository.SaveChangesAsync();
+            }
 
             return _mapper.Map<DetailedEvaluationResponse>(item);
         }

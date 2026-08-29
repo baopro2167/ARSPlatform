@@ -18,17 +18,20 @@ namespace ARSPlatform.SERVICES
         private readonly ISeminarParticipantRepository _repository;
         private readonly ISeminarRepository _seminarRepository;
         private readonly IUserRepository _userRepository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
 
         public SeminarParticipantService(
             ISeminarParticipantRepository repository,
             ISeminarRepository seminarRepository,
             IUserRepository userRepository,
+            INotificationRepository notificationRepository,
             IMapper mapper)
         {
             _repository = repository;
             _seminarRepository = seminarRepository;
             _userRepository = userRepository;
+            _notificationRepository = notificationRepository;
             _mapper = mapper;
         }
 
@@ -161,14 +164,38 @@ namespace ARSPlatform.SERVICES
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
 
+            if (user?.UserId != null)
+            {
+                var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
+                var notification = new Notification
+                {
+                    UserId = user.UserId,
+                    Message = $"Bạn đã nhận được lời mời tham gia Hội thảo khoa học: \"{seminarTitle}\".",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _notificationRepository.AddAsync(notification);
+                await _notificationRepository.SaveChangesAsync();
+            }
+
             var created = await _repository.GetByIdWithSeminarAndUserAsync(item.SeminarParticipantId);
             return _mapper.Map<SeminarParticipantResponse>(created ?? item);
         }
 
-        public async Task<SeminarParticipantResponse?> UpdateAsync(int id, SeminarParticipantUpdateRequest request, int organizerId)
+        public async Task<SeminarParticipantResponse?> UpdateAsync(int id, SeminarParticipantUpdateRequest request, int currentUserId)
         {
             var item = await _repository.GetByIdWithSeminarAndUserAsync(id);
-            if (item == null || item.Seminar?.OrganizerId != organizerId)
+            if (item == null)
+            {
+                return null;
+            }
+
+            var currentUser = await _userRepository.GetByIdAsync(currentUserId);
+            var isOrganizer = item.Seminar?.OrganizerId == currentUserId;
+            var isParticipant = item.UserId == currentUserId ||
+                (!string.IsNullOrWhiteSpace(currentUser?.Email) && string.Equals(item.InvitedEmail, currentUser.Email, StringComparison.OrdinalIgnoreCase));
+
+            if (!isOrganizer && !isParticipant)
             {
                 return null;
             }
@@ -187,8 +214,39 @@ namespace ARSPlatform.SERVICES
                 }
             }
 
+            if (isParticipant && item.UserId == null)
+            {
+                item.UserId = currentUserId;
+            }
+
             _repository.Update(item);
             await _repository.SaveChangesAsync();
+
+            // Nếu người tham dự nộp feedback, tự động sinh notification cho Giảng viên / Chủ tọa
+            if (isParticipant && !string.IsNullOrWhiteSpace(request.ParticipantEvaluation) && item.Seminar?.OrganizerId != null)
+            {
+                try
+                {
+                    var participantName = !string.IsNullOrWhiteSpace(currentUser?.FullName) ? currentUser.FullName : (currentUser?.Email ?? "Người tham dự");
+                    var seminarTitle = !string.IsNullOrWhiteSpace(item.Seminar.Content)
+                        ? (item.Seminar.Content.Length > 50 ? item.Seminar.Content.Substring(0, 50) + "..." : item.Seminar.Content)
+                        : "Hội thảo";
+
+                    var notification = new Notification
+                    {
+                        UserId = item.Seminar.OrganizerId.Value,
+                        Message = $"[Seminar] {participantName} đã gửi phản hồi cho buổi Seminar: \"{seminarTitle}\"",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepository.AddAsync(notification);
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Tránh lỗi notification
+                }
+            }
 
             return _mapper.Map<SeminarParticipantResponse>(item);
         }
@@ -204,6 +262,95 @@ namespace ARSPlatform.SERVICES
             _repository.Delete(item);
             await _repository.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<SeminarFeedbackResponse> SubmitFeedbackAsync(int seminarId, SeminarFeedbackRequest request, int currentUserId)
+        {
+            if (string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
+            {
+                throw new ArgumentException("Participant evaluation is required.");
+            }
+
+            var currentUser = await _userRepository.GetByIdAsync(currentUserId);
+            if (currentUser == null)
+            {
+                throw new UnauthorizedAccessException("User not found.");
+            }
+
+            var participant = await _repository.GetBySeminarAndUserAsync(seminarId, currentUserId, currentUser.Email);
+            if (participant == null)
+            {
+                var seminarExists = await _seminarRepository.GetByIdAsync(seminarId);
+                if (seminarExists == null)
+                {
+                    throw new KeyNotFoundException($"Seminar with ID {seminarId} not found.");
+                }
+                throw new InvalidOperationException("You are not registered or invited to this seminar.");
+            }
+
+            participant.ParticipantEvaluation = request.ParticipantEvaluation.Trim();
+            participant.InvitationStatus = "SUBMITTED";
+            if (participant.UserId == null)
+            {
+                participant.UserId = currentUserId;
+            }
+
+            _repository.Update(participant);
+            await _repository.SaveChangesAsync();
+
+            // Tự động tạo Notification cho Giảng viên / Chủ tọa (organizerId)
+            if (participant.Seminar?.OrganizerId != null)
+            {
+                try
+                {
+                    var participantName = !string.IsNullOrWhiteSpace(currentUser.FullName) ? currentUser.FullName : currentUser.Email;
+                    var seminarTitle = !string.IsNullOrWhiteSpace(participant.Seminar.Content)
+                        ? (participant.Seminar.Content.Length > 50 ? participant.Seminar.Content.Substring(0, 50) + "..." : participant.Seminar.Content)
+                        : "Hội thảo";
+
+                    var notification = new Notification
+                    {
+                        UserId = participant.Seminar.OrganizerId.Value,
+                        Message = $"[Seminar] {participantName} đã gửi phản hồi cho buổi Seminar: \"{seminarTitle}\"",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepository.AddAsync(notification);
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Bỏ qua lỗi notification để không ảnh hưởng luồng feedback
+                }
+            }
+
+            return new SeminarFeedbackResponse
+            {
+                SeminarId = seminarId,
+                SeminarParticipantId = participant.SeminarParticipantId,
+                ParticipantEvaluation = participant.ParticipantEvaluation,
+                InvitationStatus = participant.InvitationStatus,
+                Message = "Feedback submitted successfully."
+            };
+        }
+
+        public async Task<IEnumerable<SeminarInvitationResponse>> GetMyInvitationsAsync(int currentUserId)
+        {
+            var currentUser = await _userRepository.GetByIdAsync(currentUserId);
+            var list = await _repository.GetMyInvitationsAsync(currentUserId, currentUser?.Email);
+
+            return list.Select(p => new SeminarInvitationResponse
+            {
+                SeminarId = p.SeminarId ?? 0,
+                SeminarParticipantId = p.SeminarParticipantId,
+                Title = p.Seminar?.Content ?? "Seminar",
+                StartTime = p.Seminar?.StartTime ?? DateTime.MinValue,
+                EndTime = p.Seminar?.EndTime ?? DateTime.MinValue,
+                OnlineLink = p.Seminar?.OnlineLink,
+                OrganizerName = p.Seminar?.Organizer?.FullName ?? "Giảng viên",
+                InvitationStatus = p.InvitationStatus,
+                ParticipantEvaluation = p.ParticipantEvaluation
+            }).ToList();
         }
 
         private static string NormalizeParticipantStatus(string status)

@@ -14,5 +14,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<PagedResult<CommentVoteResponse>> GetByUserIdAsync(int userId, int pageNumber, int pageSize);
         Task<PagedResult<CommentVoteResponse>> GetAllAsync(int pageNumber, int pageSize);
         Task<CommentVoteResponse> CreateAsync(CommentVoteCreateRequest request);
+        Task<CommentVoteToggleResponse> ToggleVoteAsync(int commentId, int userId);
+        Task<List<int>> GetMyVotedCommentIdsAsync(int userId);
     }
 }

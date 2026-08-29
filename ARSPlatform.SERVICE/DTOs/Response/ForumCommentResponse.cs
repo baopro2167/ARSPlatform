@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -21,5 +21,11 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public DateTime? CreatedAt { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
+
+        public string? Author { get; set; }
+
+        public string? AuthorAvatar { get; set; }
+
+        public bool IsUpvoted { get; set; } = false;
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.MODEL.Entities;
@@ -19,7 +19,11 @@ public partial class GuidanceProject
 
     public int? StudentId { get; set; }
 
+    public int? ResearchGroupId { get; set; }
+
     public virtual User? Lecturer { get; set; }
 
     public virtual User? Student { get; set; }
+
+    public virtual ResearchGroup? ResearchGroup { get; set; }
 }

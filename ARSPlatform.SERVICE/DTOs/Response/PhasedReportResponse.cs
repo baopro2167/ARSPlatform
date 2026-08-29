@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -18,8 +18,18 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public decimal? LectureFeedback { get; set; }
 
+        public int? PhaseNumber { get; set; }
+
+        public string? MilestoneTitle { get; set; }
+
+        public string? Status { get; set; }
+
         public DateTime? SubmittedAt { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
+
+        public string? GroupName { get; set; }
+
+        public string? StudentName { get; set; }
     }
 }
