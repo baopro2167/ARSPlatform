@@ -82,6 +82,11 @@ namespace ARSPlatform.SERVICES
         public async Task<ReviewRequestResponse> CreateAsync(ReviewRequestCreateRequest request)
         {
             var item = _mapper.Map<ReviewRequest>(request);
+            if (!item.CreatedAt.HasValue)
+            {
+                item.CreatedAt = DateTime.UtcNow;
+            }
+
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
 
@@ -95,7 +100,7 @@ namespace ARSPlatform.SERVICES
                     UserId = created.ReviewerId.Value,
                     Message = $"Bạn có một bài báo mới được phân công phản biện: \"{paperTitle}\".",
                     IsRead = false,
-                    CreatedAt = GetVietnamTime()
+                    CreatedAt = DateTime.UtcNow
                 };
                 await _notificationRepository.AddAsync(notification);
                 await _notificationRepository.SaveChangesAsync();
@@ -146,9 +151,10 @@ namespace ARSPlatform.SERVICES
             }
 
             var targetSubFieldId = paper.SubFieldId.Value;
-            var nowVn = GetVietnamTime();
-            var sevenDaysAgoVn = nowVn.AddDays(-7);
-            var sevenDaysAgoUtc = DateTime.UtcNow.AddDays(-7);
+            var nowUtc = DateTime.UtcNow;
+            var sevenDaysAgoUtc = nowUtc.AddDays(-7);
+            var sevenDaysAgoLocal = DateTime.Now.AddDays(-7);
+            var sevenDaysCutoff = sevenDaysAgoUtc < sevenDaysAgoLocal ? sevenDaysAgoUtc : sevenDaysAgoLocal;
 
             // 1. Lấy danh sách Reviewer đã được gán cho bài báo này trước đó (tránh gán trùng)
             var alreadyAssignedReviewerIds = await _repository.GetQueryable()
@@ -158,8 +164,11 @@ namespace ARSPlatform.SERVICES
             var alreadyAssignedSet = new HashSet<int>(alreadyAssignedReviewerIds);
 
             // 2. Lấy danh sách Reviewer đã nhận bất kỳ yêu cầu phản biện nào trong vòng 7 ngày gần đây
+            // (So sánh an toàn với mốc 7 ngày qua cả chuẩn UTC và Local để không bị lệch múi giờ)
             var recentlyAssignedReviewerIds = await _repository.GetQueryable()
-                .Where(rr => rr.ReviewerId.HasValue && (rr.CreatedAt >= sevenDaysAgoVn || rr.CreatedAt >= sevenDaysAgoUtc))
+                .Where(rr => rr.ReviewerId.HasValue 
+                          && rr.CreatedAt.HasValue 
+                          && (rr.CreatedAt.Value >= sevenDaysAgoUtc || rr.CreatedAt.Value >= sevenDaysCutoff))
                 .Select(rr => rr.ReviewerId!.Value)
                 .Distinct()
                 .ToListAsync();
@@ -207,7 +216,7 @@ namespace ARSPlatform.SERVICES
                     ReviewerId = reviewer.UserId,
                     Fee = reviewer.ProfessionalProfile?.ReviewFee ?? 0,
                     Status = "PENDING",
-                    CreatedAt = nowVn,
+                    CreatedAt = nowUtc,
                     Airecommended = false,
                     Type = "AutoAssigned"
                 };
@@ -220,7 +229,7 @@ namespace ARSPlatform.SERVICES
                     UserId = reviewer.UserId,
                     Message = $"Bạn có một yêu cầu phản biện bài báo mới: \"{paper.Title}\".",
                     IsRead = false,
-                    CreatedAt = nowVn
+                    CreatedAt = nowUtc
                 };
                 await _notificationRepository.AddAsync(notification);
 
@@ -234,7 +243,7 @@ namespace ARSPlatform.SERVICES
                     ReviewFee = reviewer.ProfessionalProfile?.ReviewFee,
                     ReviewRequestId = reviewRequest.ReviewRequestId,
                     Status = "PENDING",
-                    CreatedAt = nowVn
+                    CreatedAt = nowUtc
                 });
             }
 
@@ -268,27 +277,6 @@ namespace ARSPlatform.SERVICES
                 AssignedReviewers = assignedList,
                 Message = resultMessage
             };
-        }
-
-        private static DateTime GetVietnamTime()
-        {
-            try
-            {
-                var tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-                return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
-            }
-            catch
-            {
-                try
-                {
-                    var tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
-                    return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
-                }
-                catch
-                {
-                    return DateTime.UtcNow.AddHours(7);
-                }
-            }
         }
     }
 }
