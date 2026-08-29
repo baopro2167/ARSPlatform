@@ -9,6 +9,8 @@ public partial class PhasedReport
 
     public int? ResearchGroupId { get; set; }
 
+    public int? TopicId { get; set; }
+
     public int? GroupMemberId { get; set; }
 
     public string? ReportFileUrl { get; set; }
@@ -19,11 +21,17 @@ public partial class PhasedReport
 
     public decimal? LectureFeedback { get; set; }
 
+    public string? LecturerDescription { get; set; }
+
     public int? PhaseNumber { get; set; }
 
     public string? MilestoneTitle { get; set; }
 
     public string? Status { get; set; }
+
+    public DateTime? CreatedAt { get; set; }
+
+    public DateTime? DeadlineAt { get; set; }
 
     public DateTime? SubmittedAt { get; set; }
 
@@ -32,4 +40,6 @@ public partial class PhasedReport
     public virtual GroupMember? GroupMember { get; set; }
 
     public virtual ResearchGroup? ResearchGroup { get; set; }
+
+    public virtual ResearchTopic? Topic { get; set; }
 }

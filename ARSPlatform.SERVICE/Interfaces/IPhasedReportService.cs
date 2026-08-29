@@ -8,14 +8,19 @@ namespace ARSPlatform.SERVICE.Interfaces
 {
     public interface IPhasedReportService
     {
-        Task<IEnumerable<PhasedReportResponse>> GetAllAsync(int? researchGroupId = null);
-        Task<PagedResult<PhasedReportResponse>> GetPagedAsync(PaginationParams paginationParams, int? researchGroupId = null);
+        Task<IEnumerable<PhasedReportResponse>> GetAllAsync(int? researchGroupId = null, int? topicId = null);
+        Task<PagedResult<PhasedReportResponse>> GetPagedAsync(PaginationParams paginationParams, int? researchGroupId = null, int? topicId = null);
         Task<PagedResult<PhasedReportResponse>> GetByResearchGroupIdAsync(int researchGroupId, int pageNumber, int pageSize);
         Task<PagedResult<PhasedReportResponse>> GetByGroupMemberIdAsync(int groupMemberId, int pageNumber, int pageSize);
         Task<PagedResult<PhasedReportResponse>> GetAllAsync(int pageNumber, int pageSize);
         Task<PhasedReportResponse?> GetByIdAsync(int id);
+        Task<IEnumerable<PhasedReportResponse>> GetByTopicIdAsync(int topicId);
+        Task<IEnumerable<GroupMemberResponse>> GetMembersByTopicIdAsync(int topicId);
+        Task<IEnumerable<PhasedReportResponse>> CreateTopicMilestonesAsync(TopicMilestonesCreateRequest request, int? lecturerUserId = null);
         Task<PhasedReportResponse> CreateAsync(PhasedReportCreateRequest request, int? currentUserId = null);
         Task<PhasedReportResponse?> UpdateAsync(int id, PhasedReportUpdateRequest request, int? currentUserId = null);
+        Task<PhasedReportResponse> SubmitReportAsync(PhasedReportSubmitRequest request, int? currentUserId = null);
+        Task<PhasedReportResponse?> EvaluateReportAsync(int phasedReportId, PhasedReportEvaluationRequest request, int? lecturerUserId = null);
         Task<bool> DeleteAsync(int id);
     }
 }

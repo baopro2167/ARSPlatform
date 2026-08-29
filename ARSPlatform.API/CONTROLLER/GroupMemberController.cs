@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
@@ -98,6 +99,98 @@ namespace ARSPlatform.API.CONTROLLER
             var success = await _service.DeleteAsync(id);
             if (!success) return NotFound(new { Message = "Group member not found." });
             return Ok(new { Message = "Deleted successfully." });
+        }
+
+        /// <summary>
+        /// Cập nhật / Gán vai trò Trưởng nhóm (Leader) cho thành viên trong nhóm nghiên cứu
+        /// </summary>
+        /// <param name="id">ID bản ghi GroupMember</param>
+        /// <param name="userId">ID người dùng (tùy chọn để đối soát)</param>
+        /// <returns>Thông tin thành viên sau khi được gán Leader</returns>
+        [HttpPost("{id:int}/set-leader")]
+        public async Task<ActionResult<GroupMemberResponse>> SetLeader(int id, [FromQuery] int? userId = null)
+        {
+            try
+            {
+                var response = await _service.SetLeaderAsync(id, userId);
+                return Ok(new
+                {
+                    Message = "Cập nhật chức vụ Trưởng nhóm (Leader) thành công.",
+                    Data = response
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Cập nhật / Gán vai trò Trưởng nhóm (Leader) qua Request Body
+        /// </summary>
+        /// <param name="request">Request chứa groupMemberId và userId</param>
+        /// <returns>Thông tin thành viên sau khi gán Leader</returns>
+        [HttpPost("set-leader")]
+        public async Task<ActionResult<GroupMemberResponse>> SetLeaderFromBody([FromBody] GroupMemberSetLeaderRequest request)
+        {
+            if (!request.GroupMemberId.HasValue)
+            {
+                return BadRequest(new { Message = "Vui lòng cung cấp GroupMemberId." });
+            }
+
+            try
+            {
+                var response = await _service.SetLeaderAsync(request.GroupMemberId.Value, request.UserId);
+                return Ok(new
+                {
+                    Message = "Cập nhật chức vụ Trưởng nhóm (Leader) thành công.",
+                    Data = response
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Xóa / Hủy vai trò Trưởng nhóm (Leader) của thành viên
+        /// </summary>
+        /// <param name="id">ID bản ghi GroupMember</param>
+        /// <returns>Thông báo kết quả hủy Leader</returns>
+        [HttpPost("{id:int}/remove-leader")]
+        [HttpDelete("{id:int}/leader")]
+        public async Task<ActionResult<GroupMemberResponse>> RemoveLeader(int id)
+        {
+            try
+            {
+                var response = await _service.RemoveLeaderAsync(id);
+                return Ok(new
+                {
+                    Message = "Đã xóa chức vụ vai trò Trưởng nhóm thành công.",
+                    Data = response
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
         }
     }
 }

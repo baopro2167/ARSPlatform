@@ -17,5 +17,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<GroupMemberResponse> CreateAsync(GroupMemberCreateRequest request);
         Task<GroupMemberResponse?> UpdateAsync(int id, GroupMemberUpdateRequest request);
         Task<bool> DeleteAsync(int id);
+        Task<GroupMemberResponse> SetLeaderAsync(int groupMemberId, int? userId = null);
+        Task<GroupMemberResponse> RemoveLeaderAsync(int groupMemberId);
     }
 }
