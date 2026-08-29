@@ -46,21 +46,27 @@ namespace ARSPlatform.SERVICES
             _logger = logger;
         }
 
-        public async Task<IEnumerable<SeminarResponse>> GetAllAsync(int organizerId)
+        public async Task<IEnumerable<SeminarResponse>> GetAllAsync(int? organizerId = null)
         {
-            var seminars = await _seminarRepository
-                .GetAllForOrganizerWithParticipantsAsync(organizerId);
+            var seminars = organizerId.HasValue
+                ? await _seminarRepository.GetAllForOrganizerWithParticipantsAsync(organizerId.Value)
+                : await _seminarRepository.GetAllWithParticipantsAsync();
 
             return _mapper.Map<IEnumerable<SeminarResponse>>(seminars);
         }
 
-        public async Task<PagedResult<SeminarResponse>> GetPagedAsync(PaginationParams paginationParams, int organizerId)
+        public async Task<PagedResult<SeminarResponse>> GetPagedAsync(PaginationParams paginationParams, int? organizerId = null)
         {
-            var paged = await _seminarRepository.GetPagedAsync(
-                paginationParams,
-                predicate: x => x.OrganizerId == organizerId,
-                orderBy: q => q.OrderByDescending(x => x.StartTime),
-                includes: x => x.SeminarParticipants);
+            var paged = organizerId.HasValue
+                ? await _seminarRepository.GetPagedAsync(
+                    paginationParams,
+                    predicate: x => x.OrganizerId == organizerId.Value,
+                    orderBy: q => q.OrderByDescending(x => x.StartTime),
+                    includes: x => x.SeminarParticipants)
+                : await _seminarRepository.GetPagedAsync(
+                    paginationParams,
+                    orderBy: q => q.OrderByDescending(x => x.StartTime),
+                    includes: x => x.SeminarParticipants);
 
             var dtos = _mapper.Map<List<SeminarResponse>>(paged.Items);
             return new PagedResult<SeminarResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
@@ -71,11 +77,16 @@ namespace ARSPlatform.SERVICES
             return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize }, organizerId);
         }
 
-        public async Task<SeminarResponse?> GetByIdAsync(int seminarId, int organizerId)
+        public async Task<SeminarResponse?> GetByIdAsync(int seminarId, int? organizerId = null)
         {
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
-            if (seminar == null || seminar.OrganizerId != organizerId)
+            if (seminar == null)
+            {
+                return null;
+            }
+
+            if (organizerId.HasValue && seminar.OrganizerId != organizerId.Value)
             {
                 return null;
             }

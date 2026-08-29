@@ -35,18 +35,19 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Lấy danh sách toàn bộ buổi Seminar do Lecturer tổ chức
+        /// Lấy danh sách toàn bộ buổi Seminar (Nếu là Lecturer sẽ lấy theo Organizer, nếu là Researcher/Role khác sẽ lấy toàn bộ danh sách Seminar)
         /// </summary>
         /// <returns>Danh sách Seminar</returns>
         [HttpGet]
-        [Authorize(Roles = "Lecturer")]
+        [Authorize]
         public async Task<ActionResult<IEnumerable<SeminarResponse>>> GetAll()
         {
-            if (!TryGetCurrentUserId(out var organizerId))
+            if (!TryGetCurrentUserId(out var userId))
             {
                 return Unauthorized();
             }
 
+            int? organizerId = User.IsInRole("Lecturer") ? userId : null;
             var response = await _seminarService.GetAllAsync(organizerId);
             return Ok(response);
         }
@@ -74,14 +75,15 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
         /// <returns>Danh sách Seminar có phân trang</returns>
         [HttpGet("paged")]
-        [Authorize(Roles = "Lecturer")]
+        [Authorize]
         public async Task<ActionResult<PagedResult<SeminarResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
         {
-            if (!TryGetCurrentUserId(out var organizerId))
+            if (!TryGetCurrentUserId(out var userId))
             {
                 return Unauthorized();
             }
 
+            int? organizerId = User.IsInRole("Lecturer") ? userId : null;
             var result = await _seminarService.GetPagedAsync(paginationParams, organizerId);
             return Ok(result);
         }
@@ -136,18 +138,24 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID buổi Seminar</param>
         /// <returns>Chi tiết Seminar</returns>
         [HttpGet("{id:int}")]
-        [Authorize(Roles = "Lecturer")]
+        [Authorize]
         public async Task<ActionResult<SeminarResponse>> GetById(int id)
         {
-            if (!TryGetCurrentUserId(out var organizerId))
+            if (!TryGetCurrentUserId(out var userId))
             {
                 return Unauthorized();
             }
 
+            int? organizerId = User.IsInRole("Lecturer") ? userId : null;
             var response = await _seminarService.GetByIdAsync(id, organizerId);
             if (response == null)
             {
-                return NotFound();
+                // Nếu là Lecturer kiểm tra không phải của họ, thử lấy thông tin seminar chung
+                response = await _seminarService.GetByIdAsync(id, null);
+                if (response == null)
+                {
+                    return NotFound();
+                }
             }
 
             return Ok(response);

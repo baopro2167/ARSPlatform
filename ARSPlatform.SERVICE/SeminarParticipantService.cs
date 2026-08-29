@@ -182,10 +182,20 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<SeminarParticipantResponse>(created ?? item);
         }
 
-        public async Task<SeminarParticipantResponse?> UpdateAsync(int id, SeminarParticipantUpdateRequest request, int organizerId)
+        public async Task<SeminarParticipantResponse?> UpdateAsync(int id, SeminarParticipantUpdateRequest request, int currentUserId)
         {
             var item = await _repository.GetByIdWithSeminarAndUserAsync(id);
-            if (item == null || item.Seminar?.OrganizerId != organizerId)
+            if (item == null)
+            {
+                return null;
+            }
+
+            var currentUser = await _userRepository.GetByIdAsync(currentUserId);
+            var isOrganizer = item.Seminar?.OrganizerId == currentUserId;
+            var isParticipant = item.UserId == currentUserId ||
+                (!string.IsNullOrWhiteSpace(currentUser?.Email) && string.Equals(item.InvitedEmail, currentUser.Email, StringComparison.OrdinalIgnoreCase));
+
+            if (!isOrganizer && !isParticipant)
             {
                 return null;
             }
@@ -204,8 +214,39 @@ namespace ARSPlatform.SERVICES
                 }
             }
 
+            if (isParticipant && item.UserId == null)
+            {
+                item.UserId = currentUserId;
+            }
+
             _repository.Update(item);
             await _repository.SaveChangesAsync();
+
+            // Nếu người tham dự nộp feedback, tự động sinh notification cho Giảng viên / Chủ tọa
+            if (isParticipant && !string.IsNullOrWhiteSpace(request.ParticipantEvaluation) && item.Seminar?.OrganizerId != null)
+            {
+                try
+                {
+                    var participantName = !string.IsNullOrWhiteSpace(currentUser?.FullName) ? currentUser.FullName : (currentUser?.Email ?? "Người tham dự");
+                    var seminarTitle = !string.IsNullOrWhiteSpace(item.Seminar.Content)
+                        ? (item.Seminar.Content.Length > 50 ? item.Seminar.Content.Substring(0, 50) + "..." : item.Seminar.Content)
+                        : "Hội thảo";
+
+                    var notification = new Notification
+                    {
+                        UserId = item.Seminar.OrganizerId.Value,
+                        Message = $"[Seminar] {participantName} đã gửi phản hồi cho buổi Seminar: \"{seminarTitle}\"",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepository.AddAsync(notification);
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Tránh lỗi notification
+                }
+            }
 
             return _mapper.Map<SeminarParticipantResponse>(item);
         }

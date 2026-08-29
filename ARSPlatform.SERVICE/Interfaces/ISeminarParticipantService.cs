@@ -15,7 +15,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<PagedResult<SeminarParticipantResponse>> GetAllAsync(int pageNumber, int pageSize);
         Task<SeminarParticipantResponse?> GetByIdAsync(int id, int organizerId);
         Task<SeminarParticipantResponse> CreateAsync(SeminarParticipantCreateRequest request, int organizerId);
-        Task<SeminarParticipantResponse?> UpdateAsync(int id, SeminarParticipantUpdateRequest request, int organizerId);
+        Task<SeminarParticipantResponse?> UpdateAsync(int id, SeminarParticipantUpdateRequest request, int currentUserId);
         Task<bool> DeleteAsync(int id, int organizerId);
         Task<SeminarFeedbackResponse> SubmitFeedbackAsync(int seminarId, SeminarFeedbackRequest request, int currentUserId);
         Task<IEnumerable<SeminarInvitationResponse>> GetMyInvitationsAsync(int currentUserId);

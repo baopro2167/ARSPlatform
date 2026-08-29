@@ -176,24 +176,24 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Cập nhật trạng thái mời / đánh giá người tham dự Seminar
+        /// Cập nhật trạng thái mời / đánh giá người tham dự Seminar (dành cho Lecturer hoặc Người tham dự nộp Feedback)
         /// </summary>
         /// <param name="id">ID bản ghi người tham dự</param>
         /// <param name="request">Dữ liệu cập nhật</param>
         /// <returns>Người tham dự sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "Lecturer")]
+        [Authorize]
         public async Task<ActionResult<SeminarParticipantResponse>> Update(int id, [FromBody] SeminarParticipantUpdateRequest request)
         {
-            if (!TryGetCurrentUserId(out var organizerId))
+            if (!TryGetCurrentUserId(out var currentUserId))
             {
                 return Unauthorized();
             }
 
             try
             {
-                var response = await _service.UpdateAsync(id, request, organizerId);
-                if (response == null) return NotFound();
+                var response = await _service.UpdateAsync(id, request, currentUserId);
+                if (response == null) return NotFound(new { Message = "Participant record not found or access denied." });
                 return Ok(response);
             }
             catch (ArgumentException ex)
