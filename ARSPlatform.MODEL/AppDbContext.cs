@@ -139,7 +139,7 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.User).WithMany(p => p.ForumPostLikes)
                 .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade)
+                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ForumPostLikes_User");
         });
 
@@ -790,7 +790,7 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.Wallet).WithMany(p => p.WithdrawalRequests)
                 .HasForeignKey(d => d.WalletId)
-                .OnDelete(DeleteBehavior.Cascade)
+                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_WithdrawalRequests_Wallet");
         });
 

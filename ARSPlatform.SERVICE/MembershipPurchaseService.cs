@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,11 +15,16 @@ namespace ARSPlatform.SERVICES
     public class MembershipPurchaseService : IMembershipPurchaseService
     {
         private readonly IMembershipPurchaseRepository _repository;
+        private readonly IMembershipPackageRepository _packageRepository;
         private readonly IMapper _mapper;
 
-        public MembershipPurchaseService(IMembershipPurchaseRepository repository, IMapper mapper)
+        public MembershipPurchaseService(
+            IMembershipPurchaseRepository repository,
+            IMembershipPackageRepository packageRepository,
+            IMapper mapper)
         {
             _repository = repository;
+            _packageRepository = packageRepository;
             _mapper = mapper;
         }
 
@@ -62,9 +68,39 @@ namespace ARSPlatform.SERVICES
 
         public async Task<MembershipPurchaseResponse> CreateAsync(MembershipPurchaseCreateRequest request)
         {
+            if (!request.PackageId.HasValue)
+            {
+                throw new ArgumentException("PackageId is required to purchase a membership.");
+            }
+
+            var package = await _packageRepository.GetByIdAsync(request.PackageId.Value);
+            if (package == null)
+            {
+                throw new KeyNotFoundException($"Membership package with ID {request.PackageId} not found.");
+            }
+
+            if (!package.IsActive)
+            {
+                throw new InvalidOperationException($"Membership package '{package.Name}' is currently inactive and cannot be purchased.");
+            }
+
             var item = _mapper.Map<MembershipPurchase>(request);
+
+            // Bắt buộc sử dụng giá niêm yết từ DB, client không được tự ý can thiệp giá
+            item.PricePaid = package.Price;
+            item.PurchasedAt = request.PurchasedAt ?? DateTime.UtcNow;
+
+            var durationDays = package.DurationDays > 0 ? package.DurationDays : 365;
+            item.ExpiresAt = item.PurchasedAt.Value.AddDays(durationDays);
+
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
+
+            // Tăng số lượng subscriber của package
+            package.SubscriberCount++;
+            _packageRepository.Update(package);
+            await _packageRepository.SaveChangesAsync();
+
             return _mapper.Map<MembershipPurchaseResponse>(item);
         }
 
