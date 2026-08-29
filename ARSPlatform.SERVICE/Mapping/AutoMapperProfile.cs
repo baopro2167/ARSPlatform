@@ -109,6 +109,8 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.ForumPostId))
                 .ForMember(dest => dest.Author, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.FullName : string.Empty))
+                .ForMember(dest => dest.FullName, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.FullName : string.Empty))
                 .ForMember(dest => dest.AuthorAvatar, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.AvatarUrl : null))
                 .ForMember(dest => dest.Timestamp, opt => opt.MapFrom(src => src.CreatedAt))
