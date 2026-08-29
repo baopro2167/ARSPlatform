@@ -35,13 +35,13 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpGet("works/{workId}")]
         [Authorize(Policy = "AuthenticatedUser")]
         [EnableRateLimiting("OpenAlexWorkLookup")]
-        public async Task<ActionResult<OpenAlexWorkLookupResponse>> GetWorkPreview(
+        public async Task<ActionResult<OpenAlexWorkPreviewResponse>> GetWorkPreview(
             string workId,
             CancellationToken cancellationToken)
         {
             if (!IsCanonicalWorkId(workId))
             {
-                var invalid = new OpenAlexWorkLookupResponse
+                var invalid = new OpenAlexWorkPreviewResponse
                 {
                     OpenAlexWorkId = workId?.Trim() ?? string.Empty,
                     LookupStatus = "InvalidWorkId",
@@ -58,7 +58,7 @@ namespace ARSPlatform.API.CONTROLLER
             }
 
             var result = await _openAlexService
-                .LookupWorkByIdAsync(
+                .GetWorkPreviewByIdAsync(
                     workId,
                     cancellationToken);
 
@@ -96,7 +96,7 @@ namespace ARSPlatform.API.CONTROLLER
 
         private async Task WriteLookupAuditAsync(
             string workId,
-            OpenAlexWorkLookupResponse result,
+            OpenAlexWorkPreviewResponse result,
             CancellationToken cancellationToken)
         {
             var userIdValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
