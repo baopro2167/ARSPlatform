@@ -22,5 +22,11 @@ namespace ARSPlatform.REPO.Interfaces
 
         Task<SeminarParticipant?>
             GetByIdWithSeminarAndUserAsync(int id);
+
+        Task<SeminarParticipant?>
+            GetBySeminarAndUserAsync(int seminarId, int userId, string? email = null);
+
+        Task<IEnumerable<SeminarParticipant>>
+            GetMyInvitationsAsync(int userId, string? email = null);
     }
 }

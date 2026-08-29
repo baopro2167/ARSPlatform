@@ -223,6 +223,95 @@ namespace ARSPlatform.SERVICES
             return true;
         }
 
+        public async Task<SeminarFeedbackResponse> SubmitFeedbackAsync(int seminarId, SeminarFeedbackRequest request, int currentUserId)
+        {
+            if (string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
+            {
+                throw new ArgumentException("Participant evaluation is required.");
+            }
+
+            var currentUser = await _userRepository.GetByIdAsync(currentUserId);
+            if (currentUser == null)
+            {
+                throw new UnauthorizedAccessException("User not found.");
+            }
+
+            var participant = await _repository.GetBySeminarAndUserAsync(seminarId, currentUserId, currentUser.Email);
+            if (participant == null)
+            {
+                var seminarExists = await _seminarRepository.GetByIdAsync(seminarId);
+                if (seminarExists == null)
+                {
+                    throw new KeyNotFoundException($"Seminar with ID {seminarId} not found.");
+                }
+                throw new InvalidOperationException("You are not registered or invited to this seminar.");
+            }
+
+            participant.ParticipantEvaluation = request.ParticipantEvaluation.Trim();
+            participant.InvitationStatus = "SUBMITTED";
+            if (participant.UserId == null)
+            {
+                participant.UserId = currentUserId;
+            }
+
+            _repository.Update(participant);
+            await _repository.SaveChangesAsync();
+
+            // Tự động tạo Notification cho Giảng viên / Chủ tọa (organizerId)
+            if (participant.Seminar?.OrganizerId != null)
+            {
+                try
+                {
+                    var participantName = !string.IsNullOrWhiteSpace(currentUser.FullName) ? currentUser.FullName : currentUser.Email;
+                    var seminarTitle = !string.IsNullOrWhiteSpace(participant.Seminar.Content)
+                        ? (participant.Seminar.Content.Length > 50 ? participant.Seminar.Content.Substring(0, 50) + "..." : participant.Seminar.Content)
+                        : "Hội thảo";
+
+                    var notification = new Notification
+                    {
+                        UserId = participant.Seminar.OrganizerId.Value,
+                        Message = $"[Seminar] {participantName} đã gửi phản hồi cho buổi Seminar: \"{seminarTitle}\"",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepository.AddAsync(notification);
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Bỏ qua lỗi notification để không ảnh hưởng luồng feedback
+                }
+            }
+
+            return new SeminarFeedbackResponse
+            {
+                SeminarId = seminarId,
+                SeminarParticipantId = participant.SeminarParticipantId,
+                ParticipantEvaluation = participant.ParticipantEvaluation,
+                InvitationStatus = participant.InvitationStatus,
+                Message = "Feedback submitted successfully."
+            };
+        }
+
+        public async Task<IEnumerable<SeminarInvitationResponse>> GetMyInvitationsAsync(int currentUserId)
+        {
+            var currentUser = await _userRepository.GetByIdAsync(currentUserId);
+            var list = await _repository.GetMyInvitationsAsync(currentUserId, currentUser?.Email);
+
+            return list.Select(p => new SeminarInvitationResponse
+            {
+                SeminarId = p.SeminarId ?? 0,
+                SeminarParticipantId = p.SeminarParticipantId,
+                Title = p.Seminar?.Content ?? "Seminar",
+                StartTime = p.Seminar?.StartTime ?? DateTime.MinValue,
+                EndTime = p.Seminar?.EndTime ?? DateTime.MinValue,
+                OnlineLink = p.Seminar?.OnlineLink,
+                OrganizerName = p.Seminar?.Organizer?.FullName ?? "Giảng viên",
+                InvitationStatus = p.InvitationStatus,
+                ParticipantEvaluation = p.ParticipantEvaluation
+            }).ToList();
+        }
+
         private static string NormalizeParticipantStatus(string status)
         {
             var value = status.Trim().ToLowerInvariant();

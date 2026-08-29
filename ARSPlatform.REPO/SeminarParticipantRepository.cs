@@ -83,9 +83,34 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await _dbSet
                 .Include(p => p.Seminar)
+                    .ThenInclude(s => s!.Organizer)
                 .Include(p => p.User)
                 .FirstOrDefaultAsync(
                     p => p.SeminarParticipantId == id);
+        }
+
+        public async Task<SeminarParticipant?>
+            GetBySeminarAndUserAsync(int seminarId, int userId, string? email = null)
+        {
+            return await _dbSet
+                .Include(p => p.Seminar)
+                    .ThenInclude(s => s!.Organizer)
+                .Include(p => p.User)
+                .FirstOrDefaultAsync(p => p.SeminarId == seminarId &&
+                    (p.UserId == userId || (!string.IsNullOrEmpty(email) && p.InvitedEmail == email)));
+        }
+
+        public async Task<IEnumerable<SeminarParticipant>>
+            GetMyInvitationsAsync(int userId, string? email = null)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Include(p => p.Seminar)
+                    .ThenInclude(s => s!.Organizer)
+                .Include(p => p.User)
+                .Where(p => p.UserId == userId || (!string.IsNullOrEmpty(email) && p.InvitedEmail == email))
+                .OrderByDescending(p => p.Seminar != null ? p.Seminar.StartTime : System.DateTime.MinValue)
+                .ToListAsync();
         }
     }
 }

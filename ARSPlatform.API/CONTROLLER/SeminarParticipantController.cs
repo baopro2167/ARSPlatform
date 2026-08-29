@@ -13,7 +13,7 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Lecturer")]
+    [Authorize]
     public class SeminarParticipantController : ControllerBase
     {
         private readonly ISeminarParticipantService _service;
@@ -28,6 +28,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// </summary>
         /// <returns>Danh sách người tham dự</returns>
         [HttpGet]
+        [Authorize(Roles = "Lecturer")]
         public async Task<ActionResult<IEnumerable<SeminarParticipantResponse>>> GetAll()
         {
             if (!TryGetCurrentUserId(out var organizerId))
@@ -40,12 +41,74 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Lấy danh sách các buổi Seminar mà người dùng hiện tại được mời tham dự
+        /// </summary>
+        /// <returns>Danh sách Seminar được mời</returns>
+        [HttpGet("my-seminars")]
+        [Authorize]
+        public async Task<ActionResult<IEnumerable<SeminarInvitationResponse>>> GetMySeminars()
+        {
+            if (!TryGetCurrentUserId(out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _service.GetMyInvitationsAsync(currentUserId);
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Nộp form đánh giá / feedback cho buổi Seminar theo ID Seminar
+        /// </summary>
+        /// <param name="seminarId">ID buổi Seminar</param>
+        /// <param name="request">Nội dung đánh giá</param>
+        /// <returns>Kết quả nộp feedback</returns>
+        [HttpPost("feedback/{seminarId:int}")]
+        [HttpPost("{seminarId:int}/feedback")]
+        [Authorize]
+        public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int seminarId, [FromBody] SeminarFeedbackRequest request)
+        {
+            if (!TryGetCurrentUserId(out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            if (request == null || string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
+            {
+                return BadRequest(new { message = "Participant evaluation is required." });
+            }
+
+            try
+            {
+                var response = await _service.SubmitFeedbackAsync(seminarId, request, currentUserId);
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
         /// <param name="seminarId">Lọc theo ID Seminar (tùy chọn)</param>
         /// <returns>Danh sách người tham dự có phân trang</returns>
         [HttpGet("paged")]
+        [Authorize(Roles = "Lecturer")]
         public async Task<ActionResult<PagedResult<SeminarParticipantResponse>>> GetPaged(
             [FromQuery] PaginationParams paginationParams,
             [FromQuery] int? seminarId = null)
@@ -65,6 +128,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">Thông tin người tham dự</param>
         /// <returns>Bản ghi người tham dự vừa tạo</returns>
         [HttpPost]
+        [Authorize(Roles = "Lecturer")]
         public async Task<ActionResult<SeminarParticipantResponse>> Create([FromBody] SeminarParticipantCreateRequest request)
         {
             if (!TryGetCurrentUserId(out var organizerId))
@@ -97,6 +161,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID bản ghi người tham dự</param>
         /// <returns>Chi tiết người tham dự</returns>
         [HttpGet("{id:int}")]
+        [Authorize(Roles = "Lecturer")]
         public async Task<ActionResult<SeminarParticipantResponse>> GetById(int id)
         {
             if (!TryGetCurrentUserId(out var organizerId))
@@ -117,6 +182,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">Dữ liệu cập nhật</param>
         /// <returns>Người tham dự sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "Lecturer")]
         public async Task<ActionResult<SeminarParticipantResponse>> Update(int id, [FromBody] SeminarParticipantUpdateRequest request)
         {
             if (!TryGetCurrentUserId(out var organizerId))
@@ -142,6 +208,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID bản ghi người tham dự</param>
         /// <returns>Thông báo kết quả xóa</returns>
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "Lecturer")]
         public async Task<IActionResult> Delete(int id)
         {
             if (!TryGetCurrentUserId(out var organizerId))
