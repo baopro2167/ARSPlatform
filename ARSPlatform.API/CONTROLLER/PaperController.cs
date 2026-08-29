@@ -149,11 +149,11 @@ namespace ARSPlatform.API.CONTROLLER
         /// Kết quả xác minh authorship
         /// </returns>
         [HttpPost("{id:int}/verify-authorship")]
-        [Authorize]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<PaperAuthorshipVerificationResponse>>
             VerifyAuthorship(
                 int id,
-                [FromBody] PaperAuthorshipVerifyRequest request)
+                [FromBody] PaperAuthorshipVerifyRequest? request)
         {
             /*
                 Read Paper first to enforce ownership
@@ -211,7 +211,7 @@ namespace ARSPlatform.API.CONTROLLER
                     await _paperService
                         .VerifyAuthorshipAsync(
                             id,
-                            request);
+                            request ?? new PaperAuthorshipVerifyRequest());
 
                 if (result == null)
                 {
