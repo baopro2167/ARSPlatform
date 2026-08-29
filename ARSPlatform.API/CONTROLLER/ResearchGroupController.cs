@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -21,6 +23,12 @@ namespace ARSPlatform.API.CONTROLLER
             _service = service;
         }
 
+        private int? GetCurrentUserId()
+        {
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return int.TryParse(idClaim, out var id) ? id : null;
+        }
+
         /// <summary>
         /// Lấy toàn bộ danh sách nhóm nghiên cứu
         /// </summary>
@@ -30,6 +38,47 @@ namespace ARSPlatform.API.CONTROLLER
         {
             var items = await _service.GetAllAsync();
             return Ok(items);
+        }
+
+        /// <summary>
+        /// Lấy danh sách nhóm nghiên cứu của người dùng hiện tại (Giảng viên phụ trách hoặc Sinh viên thành viên)
+        /// </summary>
+        /// <returns>Danh sách nhóm nghiên cứu của tôi</returns>
+        [HttpGet("my-groups")]
+        public async Task<ActionResult<IEnumerable<ResearchGroupResponse>>> GetMyGroups()
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            var items = await _service.GetMyGroupsAsync(currentUserId.Value);
+            return Ok(items);
+        }
+
+        /// <summary>
+        /// Mời sinh viên vào nhóm nghiên cứu bằng danh sách email
+        /// </summary>
+        /// <param name="id">ID nhóm nghiên cứu</param>
+        /// <param name="request">Danh sách email sinh viên</param>
+        /// <returns>Kết quả mời sinh viên</returns>
+        [HttpPost("{id:int}/invite")]
+        public async Task<ActionResult<ResearchGroupInviteResponse>> InviteStudents(int id, [FromBody] ResearchGroupInviteRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            try
+            {
+                var result = await _service.InviteStudentsAsync(id, request, currentUserId.Value);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -52,7 +101,8 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpPost]
         public async Task<ActionResult<ResearchGroupResponse>> Create([FromBody] ResearchGroupCreateRequest request)
         {
-            var response = await _service.CreateAsync(request);
+            var currentUserId = GetCurrentUserId();
+            var response = await _service.CreateAsync(request, currentUserId);
             return Ok(response);
         }
 

@@ -124,6 +124,10 @@ public partial class User
         = new List<ResearchGroup>();
 
     [JsonIgnore]
+    public virtual ICollection<ResearchTopic> ResearchTopics { get; set; }
+        = new List<ResearchTopic>();
+
+    [JsonIgnore]
     public virtual ICollection<ReviewRequest> ReviewRequests { get; set; }
         = new List<ReviewRequest>();
 

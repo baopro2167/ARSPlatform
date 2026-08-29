@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -19,5 +19,13 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public DateTime? AssignedAt { get; set; }
 
         public DateTime? CreatedAt { get; set; }
+
+        public string? LecturerName { get; set; }
+
+        public string? TopicTitle { get; set; }
+
+        public int MemberCount { get; set; }
+
+        public System.Collections.Generic.List<GroupMemberResponse>? Members { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -21,14 +22,36 @@ namespace ARSPlatform.API.CONTROLLER
             _service = service;
         }
 
+        private int? GetCurrentUserId()
+        {
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return int.TryParse(idClaim, out var id) ? id : null;
+        }
+
         /// <summary>
-        /// Lấy toàn bộ danh sách đề tài nghiên cứu
+        /// Lấy toàn bộ danh sách đề tài nghiên cứu (có thể lọc theo lecturerId)
         /// </summary>
+        /// <param name="lecturerId">ID Giảng viên phụ trách (tùy chọn)</param>
         /// <returns>Danh sách đề tài nghiên cứu</returns>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ResearchTopicResponse>>> GetAll()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<ResearchTopicResponse>>> GetAll([FromQuery] int? lecturerId = null)
         {
-            var items = await _service.GetAllAsync();
+            var items = await _service.GetAllAsync(lecturerId);
+            return Ok(items);
+        }
+
+        /// <summary>
+        /// Lấy danh sách đề tài nghiên cứu của Giảng viên hiện tại
+        /// </summary>
+        /// <returns>Danh sách đề tài nghiên cứu của tôi</returns>
+        [HttpGet("my-topics")]
+        public async Task<ActionResult<IEnumerable<ResearchTopicResponse>>> GetMyTopics()
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            var items = await _service.GetMyTopicsAsync(currentUserId.Value);
             return Ok(items);
         }
 
@@ -36,23 +59,28 @@ namespace ARSPlatform.API.CONTROLLER
         /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <param name="lecturerId">ID Giảng viên phụ trách (tùy chọn)</param>
         /// <returns>Danh sách đề tài nghiên cứu có phân trang</returns>
         [HttpGet("paged")]
-        public async Task<ActionResult<PagedResult<ResearchTopicResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
+        [AllowAnonymous]
+        public async Task<ActionResult<PagedResult<ResearchTopicResponse>>> GetPaged(
+            [FromQuery] PaginationParams paginationParams,
+            [FromQuery] int? lecturerId = null)
         {
-            var result = await _service.GetPagedAsync(paginationParams);
+            var result = await _service.GetPagedAsync(paginationParams, lecturerId);
             return Ok(result);
         }
 
         /// <summary>
-        /// Tạo đề tài nghiên cứu mới
+        /// Tạo đề tài nghiên cứu mới (tự động gán LecturerId của tài khoản hiện tại)
         /// </summary>
         /// <param name="request">Thông tin đề tài nghiên cứu</param>
         /// <returns>Đề tài nghiên cứu vừa tạo</returns>
         [HttpPost]
         public async Task<ActionResult<ResearchTopicResponse>> Create([FromBody] ResearchTopicCreateRequest request)
         {
-            var response = await _service.CreateAsync(request);
+            var currentUserId = GetCurrentUserId();
+            var response = await _service.CreateAsync(request, currentUserId);
             return Ok(response);
         }
 
@@ -62,6 +90,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID đề tài nghiên cứu</param>
         /// <returns>Chi tiết đề tài nghiên cứu</returns>
         [HttpGet("{id:int}")]
+        [AllowAnonymous]
         public async Task<ActionResult<ResearchTopicResponse>> GetById(int id)
         {
             var item = await _service.GetByIdAsync(id);

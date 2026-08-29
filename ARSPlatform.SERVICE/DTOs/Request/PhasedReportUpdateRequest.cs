@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
@@ -15,6 +15,12 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? FinalOutcomeEvaluation { get; set; }
 
         public decimal? LectureFeedback { get; set; }
+
+        public int? PhaseNumber { get; set; }
+
+        public string? MilestoneTitle { get; set; }
+
+        public string? Status { get; set; }
 
         public DateTime? SubmittedAt { get; set; }
     }

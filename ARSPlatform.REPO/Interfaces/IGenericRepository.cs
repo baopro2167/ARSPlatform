@@ -9,7 +9,9 @@ namespace ARSPlatform.REPO.Interfaces
 {
     public interface IGenericRepository<T> where T : class
     {
-        Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? predicate = null);
+        Task<IEnumerable<T>> GetAllAsync(
+            Expression<Func<T, bool>>? predicate = null,
+            params Expression<Func<T, object>>[] includes);
         Task<PagedResult<T>> GetPagedAsync(
             PaginationParams paginationParams,
             Expression<Func<T, bool>>? predicate = null,

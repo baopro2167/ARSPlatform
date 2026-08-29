@@ -20,6 +20,10 @@ public partial class ResearchTopic
 
     public string? MaterialsUrl { get; set; }
 
+    public int? LecturerId { get; set; }
+
+    public virtual User? Lecturer { get; set; }
+
     [JsonIgnore]
     public virtual ICollection<ResearchGroup> ResearchGroups { get; set; } = new List<ResearchGroup>();
 }

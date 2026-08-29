@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -21,14 +23,21 @@ namespace ARSPlatform.API.CONTROLLER
             _service = service;
         }
 
+        private int? GetCurrentUserId()
+        {
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return int.TryParse(idClaim, out var id) ? id : null;
+        }
+
         /// <summary>
-        /// Lấy toàn bộ danh sách dự án hướng dẫn nghiên cứu
+        /// Lấy toàn bộ danh sách dự án hướng dẫn nghiên cứu (có thể lọc theo researchGroupId)
         /// </summary>
+        /// <param name="researchGroupId">ID nhóm nghiên cứu (tùy chọn)</param>
         /// <returns>Danh sách dự án hướng dẫn</returns>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<GuidanceProjectResponse>>> GetAll()
+        public async Task<ActionResult<IEnumerable<GuidanceProjectResponse>>> GetAll([FromQuery] int? researchGroupId = null)
         {
-            var items = await _service.GetAllAsync();
+            var items = await _service.GetAllAsync(researchGroupId);
             return Ok(items);
         }
 
@@ -36,11 +45,14 @@ namespace ARSPlatform.API.CONTROLLER
         /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <param name="researchGroupId">ID nhóm nghiên cứu (tùy chọn)</param>
         /// <returns>Danh sách dự án hướng dẫn có phân trang</returns>
         [HttpGet("paged")]
-        public async Task<ActionResult<PagedResult<GuidanceProjectResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
+        public async Task<ActionResult<PagedResult<GuidanceProjectResponse>>> GetPaged(
+            [FromQuery] PaginationParams paginationParams,
+            [FromQuery] int? researchGroupId = null)
         {
-            var result = await _service.GetPagedAsync(paginationParams);
+            var result = await _service.GetPagedAsync(paginationParams, researchGroupId);
             return Ok(result);
         }
 
@@ -52,7 +64,8 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpPost]
         public async Task<ActionResult<GuidanceProjectResponse>> Create([FromBody] GuidanceProjectCreateRequest request)
         {
-            var response = await _service.CreateAsync(request);
+            var currentUserId = GetCurrentUserId();
+            var response = await _service.CreateAsync(request, currentUserId);
             return Ok(response);
         }
 

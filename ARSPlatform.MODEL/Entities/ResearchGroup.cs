@@ -30,5 +30,8 @@ public partial class ResearchGroup
     [JsonIgnore]
     public virtual ICollection<PhasedReport> PhasedReports { get; set; } = new List<PhasedReport>();
 
+    [JsonIgnore]
+    public virtual ICollection<GuidanceProject> GuidanceProjects { get; set; } = new List<GuidanceProject>();
+
     public virtual ResearchTopic? Topic { get; set; }
 }

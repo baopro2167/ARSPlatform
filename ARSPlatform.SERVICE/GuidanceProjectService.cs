@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
@@ -22,15 +24,37 @@ namespace ARSPlatform.SERVICES
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<GuidanceProjectResponse>> GetAllAsync()
+        public async Task<IEnumerable<GuidanceProjectResponse>> GetAllAsync(int? researchGroupId = null)
         {
-            var items = await _repository.GetAllAsync();
+            Expression<Func<GuidanceProject, bool>>? predicate = researchGroupId.HasValue
+                ? x => x.ResearchGroupId == researchGroupId.Value
+                : null;
+
+            var items = await _repository.GetAllAsync(predicate, includes: new Expression<Func<GuidanceProject, object>>[]
+            {
+                x => x.Lecturer!,
+                x => x.Student!,
+                x => x.ResearchGroup!
+            });
             return _mapper.Map<IEnumerable<GuidanceProjectResponse>>(items);
         }
 
-        public async Task<PagedResult<GuidanceProjectResponse>> GetPagedAsync(PaginationParams paginationParams)
+        public async Task<PagedResult<GuidanceProjectResponse>> GetPagedAsync(PaginationParams paginationParams, int? researchGroupId = null)
         {
-            var paged = await _repository.GetPagedAsync(paginationParams);
+            Expression<Func<GuidanceProject, bool>>? predicate = researchGroupId.HasValue
+                ? x => x.ResearchGroupId == researchGroupId.Value
+                : null;
+
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: predicate,
+                orderBy: q => q.OrderByDescending(x => x.CreatedAt),
+                includes: new Expression<Func<GuidanceProject, object>>[]
+                {
+                    x => x.Lecturer!,
+                    x => x.Student!,
+                    x => x.ResearchGroup!
+                });
             var dtos = _mapper.Map<List<GuidanceProjectResponse>>(paged.Items);
             return new PagedResult<GuidanceProjectResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
         }
@@ -56,16 +80,26 @@ namespace ARSPlatform.SERVICES
 
         public async Task<GuidanceProjectResponse?> GetByIdAsync(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
+            var item = (await _repository.GetAllAsync(x => x.GuidanceProjectId == id,
+                x => x.Lecturer!,
+                x => x.Student!,
+                x => x.ResearchGroup!)).FirstOrDefault();
             return item == null ? null : _mapper.Map<GuidanceProjectResponse>(item);
         }
 
-        public async Task<GuidanceProjectResponse> CreateAsync(GuidanceProjectCreateRequest request)
+        public async Task<GuidanceProjectResponse> CreateAsync(GuidanceProjectCreateRequest request, int? lecturerId = null)
         {
             var item = _mapper.Map<GuidanceProject>(request);
+            if (lecturerId.HasValue && !item.LecturerId.HasValue)
+            {
+                item.LecturerId = lecturerId.Value;
+            }
+            item.CreatedAt = DateTime.UtcNow;
+
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            return _mapper.Map<GuidanceProjectResponse>(item);
+            var created = await GetByIdAsync(item.GuidanceProjectId);
+            return created ?? _mapper.Map<GuidanceProjectResponse>(item);
         }
 
         public async Task<GuidanceProjectResponse?> UpdateAsync(int id, GuidanceProjectUpdateRequest request)

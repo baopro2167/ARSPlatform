@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
@@ -13,5 +13,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? Status { get; set; }
 
         public string? MaterialsUrl { get; set; }
+
+        public int? LecturerId { get; set; }
     }
 }

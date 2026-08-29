@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -17,5 +17,9 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public DateTime? CreatedAt { get; set; }
 
         public int? StudentId { get; set; }
+
+        public int? ResearchGroupId { get; set; }
+
+        public string? ResearchGroupName { get; set; }
     }
 }
