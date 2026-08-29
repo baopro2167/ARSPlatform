@@ -30,6 +30,14 @@ public partial class Paper
 
     public int? SubFieldId { get; set; }
 
+    public string? OpenAlexWorkId { get; set; }
+
+    public string AuthorshipVerificationStatus { get; set; } = "NOT_CHECKED";
+
+    public DateTime? AuthorshipVerifiedAt { get; set; }
+
+    public string? AuthorshipVerificationReason { get; set; }
+
     public virtual User? Creator { get; set; }
 
     [JsonIgnore]

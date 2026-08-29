@@ -14,6 +14,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
     {
         private const string Found = "Found";
         private const string InvalidOrcid = "InvalidOrcid";
+        private const string InvalidWorkId = "InvalidWorkId";
         private const string NotFound = "NotFound";
         private const string RateLimited = "RateLimited";
         private const string ProviderUnavailable = "ProviderUnavailable";
@@ -22,6 +23,10 @@ namespace ARSPlatform.SERVICE.ExternalServices
         private const string WorksSelect =
             "id,doi,title,display_name,publication_year,publication_date,type," +
             "cited_by_count,is_retracted,primary_location,open_access";
+
+        private const string WorkLookupSelect =
+            "id,doi,title,display_name,publication_year,publication_date,type," +
+            "cited_by_count,is_retracted,primary_location,open_access,authorships";
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -59,8 +64,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
             try
             {
                 var orcidUrl =
-    OrcidIdUtility.ToHttpsUrl(
-        normalizedOrcidId);
+                    OrcidIdUtility.ToHttpsUrl(
+                        normalizedOrcidId);
 
                 using var request = new HttpRequestMessage(
                     HttpMethod.Get,
@@ -185,6 +190,191 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     normalizedOrcidId,
                     ProviderError,
                     "OpenAlex returned an invalid response.");
+            }
+        }
+
+        public async Task<OpenAlexWorkLookupResponse> LookupWorkByIdAsync(
+            string openAlexWorkId,
+            CancellationToken cancellationToken = default)
+        {
+            if (!TryNormalizeOpenAlexWorkId(
+                    openAlexWorkId,
+                    out var normalizedWorkId))
+            {
+                return WorkFailure(
+                    openAlexWorkId?.Trim() ?? string.Empty,
+                    InvalidWorkId,
+                    "The supplied OpenAlex Work ID is invalid.");
+            }
+
+            try
+            {
+                var select =
+                    Uri.EscapeDataString(
+                        WorkLookupSelect);
+
+                using var request =
+                    new HttpRequestMessage(
+                        HttpMethod.Get,
+                        $"works/{normalizedWorkId}?select={select}");
+
+                using var response =
+                    await _httpClient.SendAsync(
+                        request,
+                        HttpCompletionOption.ResponseHeadersRead,
+                        cancellationToken);
+
+                var fetchedAt =
+                    DateTime.UtcNow;
+
+                if (response.StatusCode ==
+                    HttpStatusCode.NotFound)
+                {
+                    return WorkFailure(
+                        normalizedWorkId,
+                        NotFound,
+                        "No OpenAlex work was found for this Work ID.",
+                        fetchedAt);
+                }
+
+                if ((int)response.StatusCode == 429)
+                {
+                    return WorkFailure(
+                        normalizedWorkId,
+                        RateLimited,
+                        "OpenAlex work lookup is temporarily rate limited.",
+                        fetchedAt,
+                        GetRetryAfterSeconds(response));
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var statusCode =
+                        (int)response.StatusCode;
+
+                    _logger.LogWarning(
+                        "OpenAlex work lookup failed with HTTP status {StatusCode}.",
+                        statusCode);
+
+                    if (statusCode >= 500 ||
+                        response.StatusCode ==
+                        HttpStatusCode.RequestTimeout)
+                    {
+                        return WorkFailure(
+                            normalizedWorkId,
+                            ProviderUnavailable,
+                            "OpenAlex is temporarily unavailable.",
+                            fetchedAt);
+                    }
+
+                    return WorkFailure(
+                        normalizedWorkId,
+                        ProviderError,
+                        "OpenAlex returned an unexpected response.",
+                        fetchedAt);
+                }
+
+                await using var stream =
+                    await response.Content
+                        .ReadAsStreamAsync(
+                            cancellationToken);
+
+                var work =
+                    await JsonSerializer
+                        .DeserializeAsync<OpenAlexWorkApiResponse>(
+                            stream,
+                            JsonOptions,
+                            cancellationToken);
+
+                if (work == null ||
+                    string.IsNullOrWhiteSpace(work.Id))
+                {
+                    _logger.LogWarning(
+                        "OpenAlex work lookup returned a successful response without a work ID.");
+
+                    return WorkFailure(
+                        normalizedWorkId,
+                        ProviderError,
+                        "OpenAlex returned incomplete work metadata.",
+                        fetchedAt);
+                }
+
+                var authorships =
+                    (work.Authorships
+                        ?? new List<OpenAlexAuthorshipApiResponse>())
+                    .Select(authorship =>
+                        new OpenAlexWorkAuthorshipResponse
+                        {
+                            RawAuthorName =
+                                authorship.RawAuthorName,
+
+                            RawOrcid =
+                                authorship.RawOrcid,
+
+                            AuthorOpenAlexId =
+                                authorship.Author?.Id,
+
+                            AuthorDisplayName =
+                                authorship.Author?.DisplayName,
+
+                            AuthorOrcid =
+                                authorship.Author?.Orcid,
+
+                            IsCorresponding =
+                                authorship.IsCorresponding
+                        })
+                    .ToList();
+
+                return new OpenAlexWorkLookupResponse
+                {
+                    OpenAlexWorkId =
+                        normalizedWorkId,
+
+                    LookupStatus =
+                        Found,
+
+                    SourceFetchedAt =
+                        fetchedAt,
+
+                    Work =
+                        MapWork(work),
+
+                    Authorships =
+                        authorships
+                };
+            }
+            catch (OperationCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "OpenAlex work lookup timed out.");
+
+                return WorkFailure(
+                    normalizedWorkId,
+                    ProviderUnavailable,
+                    "OpenAlex work lookup timed out.");
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "OpenAlex work lookup failed because of a network or transport error.");
+
+                return WorkFailure(
+                    normalizedWorkId,
+                    ProviderUnavailable,
+                    "OpenAlex is temporarily unavailable.");
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "OpenAlex work lookup returned malformed JSON.");
+
+                return WorkFailure(
+                    normalizedWorkId,
+                    ProviderError,
+                    "OpenAlex returned an invalid work response.");
             }
         }
 
@@ -351,10 +541,10 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     WorksSelect);
 
             var requestUri =
-    $"works?filter={filter}" +
-    $"&sort=cited_by_count:desc" +
-    $"&per_page={maxWorks}" +
-    $"&select={select}";
+                $"works?filter={filter}" +
+                $"&sort=cited_by_count:desc" +
+                $"&per_page={maxWorks}" +
+                $"&select={select}";
 
             try
             {
@@ -741,6 +931,113 @@ namespace ARSPlatform.SERVICE.ExternalServices
             return value.ToUpperInvariant();
         }
 
+        private static bool TryNormalizeOpenAlexWorkId(
+            string? input,
+            out string normalizedWorkId)
+        {
+            normalizedWorkId =
+                string.Empty;
+
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return false;
+            }
+
+            var value =
+                input.Trim();
+
+            if (Uri.TryCreate(
+                    value,
+                    UriKind.Absolute,
+                    out var uri))
+            {
+                if (string.Equals(
+                        uri.Host,
+                        "openalex.org",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(uri.Query) ||
+                        !string.IsNullOrEmpty(uri.Fragment))
+                    {
+                        return false;
+                    }
+
+                    value =
+                        uri.AbsolutePath.Trim('/');
+                }
+                else if (string.Equals(
+                             uri.Host,
+                             "api.openalex.org",
+                             StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(uri.Query) ||
+                        !string.IsNullOrEmpty(uri.Fragment))
+                    {
+                        return false;
+                    }
+
+                    var segments =
+                        uri.AbsolutePath
+                            .Trim('/')
+                            .Split(
+                                '/',
+                                StringSplitOptions.RemoveEmptyEntries);
+
+                    if (segments.Length != 2 ||
+                        !string.Equals(
+                            segments[0],
+                            "works",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+
+                    value =
+                        segments[1];
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (value.StartsWith(
+                    "works/",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value =
+                    value["works/".Length..];
+            }
+
+            value =
+                value
+                    .Trim()
+                    .Trim('/')
+                    .ToUpperInvariant();
+
+            if (value.Length < 2 ||
+                value[0] != 'W')
+            {
+                return false;
+            }
+
+            for (var index = 1;
+                 index < value.Length;
+                 index++)
+            {
+                if (!char.IsDigit(
+                        value[index]))
+                {
+                    return false;
+                }
+            }
+
+            normalizedWorkId =
+                value;
+
+            return true;
+        }
+
         private static DateTime? ParseDate(
             string? value)
         {
@@ -761,7 +1058,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
         }
 
         private static int? GetRetryAfterSeconds(
-    HttpResponseMessage response)
+            HttpResponseMessage response)
         {
             var retryAfter =
                 response.Headers.RetryAfter;
@@ -830,6 +1127,33 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 result.ProviderWarnings
                     .Add(warning);
             }
+        }
+
+        private static OpenAlexWorkLookupResponse WorkFailure(
+            string openAlexWorkId,
+            string lookupStatus,
+            string message,
+            DateTime? fetchedAt = null,
+            int? retryAfterSeconds = null)
+        {
+            return new OpenAlexWorkLookupResponse
+            {
+                OpenAlexWorkId =
+                    openAlexWorkId,
+
+                LookupStatus =
+                    lookupStatus,
+
+                SourceFetchedAt =
+                    fetchedAt
+                    ?? DateTime.UtcNow,
+
+                Message =
+                    message,
+
+                RetryAfterSeconds =
+                    retryAfterSeconds
+            };
         }
 
         private static OrcidLookupResponse Failure(
@@ -1048,6 +1372,40 @@ namespace ARSPlatform.SERVICE.ExternalServices
             public OpenAlexOpenAccessApiResponse?
                 OpenAccess
             { get; set; }
+
+            [JsonPropertyName("authorships")]
+            public List<OpenAlexAuthorshipApiResponse>?
+                Authorships
+            { get; set; }
+        }
+
+        private sealed class OpenAlexAuthorshipApiResponse
+        {
+            [JsonPropertyName("raw_author_name")]
+            public string? RawAuthorName { get; set; }
+
+            [JsonPropertyName("raw_orcid")]
+            public string? RawOrcid { get; set; }
+
+            [JsonPropertyName("is_corresponding")]
+            public bool? IsCorresponding { get; set; }
+
+            [JsonPropertyName("author")]
+            public OpenAlexAuthorshipAuthorApiResponse?
+                Author
+            { get; set; }
+        }
+
+        private sealed class OpenAlexAuthorshipAuthorApiResponse
+        {
+            [JsonPropertyName("id")]
+            public string? Id { get; set; }
+
+            [JsonPropertyName("display_name")]
+            public string? DisplayName { get; set; }
+
+            [JsonPropertyName("orcid")]
+            public string? Orcid { get; set; }
         }
 
         private sealed class OpenAlexPrimaryLocationApiResponse

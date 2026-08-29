@@ -402,9 +402,19 @@ public partial class AppDbContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_Papers_update"));
 
+            entity.Property(e => e.AuthorshipVerificationReason)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.AuthorshipVerificationStatus)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("NOT_CHECKED");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.IsOpenAccess).HasDefaultValue(false);
             entity.Property(e => e.Issn).HasDefaultValue(false);
+            entity.Property(e => e.OpenAlexWorkId)
+                .HasMaxLength(50)
+                .IsUnicode(false);
             entity.Property(e => e.Quartile)
                 .HasMaxLength(10)
                 .IsUnicode(false);
