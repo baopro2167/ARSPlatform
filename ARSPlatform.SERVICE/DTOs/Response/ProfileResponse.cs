@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -13,6 +13,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? Bio { get; set; }
         public string[] Keywords { get; set; } = Array.Empty<string>();
         public string? AvatarInitials { get; set; }
+        public string? AvatarUrl { get; set; }
+        public string? RoleName { get; set; }
 
         public string? OrcidId { get; set; }
         public bool? IsOrcidVerified { get; set; }

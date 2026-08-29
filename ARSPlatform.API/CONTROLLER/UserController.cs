@@ -49,24 +49,16 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Lấy chi tiết thông tin người dùng theo ID
+        /// Lấy chi tiết thông tin người dùng theo ID (Công khai cho người dùng đã đăng nhập)
         /// </summary>
         /// <param name="id">ID người dùng</param>
         /// <returns>Thông tin chi tiết người dùng</returns>
         [HttpGet("{id:int}")]
         public async Task<ActionResult<UserResponse>> GetUserById(int id)
         {
-            var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
-            if (currentUserRole != "Admin" && currentUserIdStr != id.ToString())
-            {
-                return Forbid();
-            }
-
             var user = await _userService.GetUserByIdAsync(id);
             if (user == null)
-                return NotFound();
+                return NotFound(new { Message = "User not found." });
 
             return Ok(user);
         }

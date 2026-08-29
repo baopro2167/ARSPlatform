@@ -97,6 +97,8 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<ForumComment, ForumCommentResponse>()
                 .ForMember(dest => dest.Author, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.FullName : string.Empty))
+                .ForMember(dest => dest.FullName, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.FullName : string.Empty))
                 .ForMember(dest => dest.AuthorAvatar, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.AvatarUrl : null));
             CreateMap<ForumCommentCreateRequest, ForumComment>();
@@ -242,6 +244,14 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<ARSPlatform.MODEL.Entities.Profile, ProfileResponse>()
                 .ForMember(dest => dest.Email, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.Email : null))
+                .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.AvatarUrl : null))
+                .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src =>
+                    src.User != null && src.User.UserRoles != null && src.User.UserRoles.Any()
+                        ? (src.User.UserRoles.FirstOrDefault()!.Role != null
+                            ? src.User.UserRoles.FirstOrDefault()!.Role!.Name
+                            : src.User.UserRoles.FirstOrDefault()!.UserRole1)
+                        : null))
                 .ForMember(dest => dest.OrcidId, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.OrcidId : null))
                 .ForMember(dest => dest.IsOrcidVerified, opt => opt.MapFrom(src =>

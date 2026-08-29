@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,11 +15,16 @@ namespace ARSPlatform.SERVICES
     public class ProfessionalProfileService : IProfessionalProfileService
     {
         private readonly IProfessionalProfileRepository _repository;
+        private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
 
-        public ProfessionalProfileService(IProfessionalProfileRepository repository, IMapper mapper)
+        public ProfessionalProfileService(
+            IProfessionalProfileRepository repository,
+            IUserRepository userRepository,
+            IMapper mapper)
         {
             _repository = repository;
+            _userRepository = userRepository;
             _mapper = mapper;
         }
 
@@ -50,7 +56,29 @@ namespace ARSPlatform.SERVICES
         public async Task<ProfessionalProfileResponse?> GetByIdAsync(int id)
         {
             var item = await _repository.GetByIdWithUserAndFieldAsync(id);
-            return item == null ? null : _mapper.Map<ProfessionalProfileResponse>(item);
+            if (item != null)
+            {
+                return _mapper.Map<ProfessionalProfileResponse>(item);
+            }
+
+            // Fallback: If user exists in User table but hasn't created a ProfessionalProfile row yet
+            var user = await _userRepository.GetWithRoleByIdAsync(id);
+            if (user != null)
+            {
+                return new ProfessionalProfileResponse
+                {
+                    UserId = user.UserId,
+                    FullName = user.FullName ?? string.Empty,
+                    Email = user.Email ?? string.Empty,
+                    AvatarUrl = user.AvatarUrl,
+                    OrcidId = user.OrcidId,
+                    IsOrcidVerified = user.IsOrcidVerified,
+                    OrcidVerifiedAt = user.OrcidVerifiedAt,
+                    IsAvailable = user.IsAvailableForReview
+                };
+            }
+
+            return null;
         }
 
         public async Task<ProfessionalProfileResponse> CreateAsync(ProfessionalProfileCreateRequest request)
@@ -66,7 +94,20 @@ namespace ARSPlatform.SERVICES
         public async Task<ProfessionalProfileResponse?> UpdateAsync(int id, ProfessionalProfileUpdateRequest request)
         {
             var item = await _repository.GetByIdAsync(id);
-            if (item == null) return null;
+            if (item == null)
+            {
+                // If user exists, create on update (upsert)
+                var user = await _userRepository.GetByIdAsync(id);
+                if (user == null) return null;
+
+                var newProf = _mapper.Map<ProfessionalProfile>(request);
+                newProf.UserId = id;
+                await _repository.AddAsync(newProf);
+                await _repository.SaveChangesAsync();
+
+                var created = await _repository.GetByIdWithUserAndFieldAsync(id);
+                return _mapper.Map<ProfessionalProfileResponse>(created);
+            }
 
             _mapper.Map(request, item);
             _repository.Update(item);

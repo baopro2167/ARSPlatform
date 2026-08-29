@@ -364,7 +364,9 @@ builder.Services.AddAuthorization(options =>
             "Admin",
             "Reviewer",
             "Lecturer",
-            "Graduate Student")
+            "Graduate Student",
+            "Student",
+            "Guest")
         .Build();
 
     options.DefaultPolicy = approvedUserPolicy;
@@ -379,7 +381,8 @@ builder.Services.AddAuthorization(options =>
             "Admin",
             "Reviewer",
             "Lecturer",
-            "Graduate Student");
+            "Graduate Student",
+            "Student");
     });
 });
 

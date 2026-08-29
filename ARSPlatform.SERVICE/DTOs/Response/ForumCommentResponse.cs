@@ -24,6 +24,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string? Author { get; set; }
 
+        public string FullName { get; set; } = string.Empty;
+
         public string? AuthorAvatar { get; set; }
 
         public bool IsUpvoted { get; set; } = false;
