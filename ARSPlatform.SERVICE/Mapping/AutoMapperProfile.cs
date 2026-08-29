@@ -143,6 +143,8 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // GroupMember
             CreateMap<GroupMember, GroupMemberResponse>()
+                .ForMember(dest => dest.LeaderId, opt => opt.MapFrom(src => src.LeaderId))
+                .ForMember(dest => dest.IsLeader, opt => opt.MapFrom(src => src.LeaderId == true))
                 .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src =>
                     src.Student != null ? src.Student.FullName : null))
                 .ForMember(dest => dest.StudentEmail, opt => opt.MapFrom(src =>
@@ -200,6 +202,10 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // PhasedReport
             CreateMap<PhasedReport, PhasedReportResponse>()
+                .ForMember(dest => dest.TopicId, opt => opt.MapFrom(src =>
+                    src.TopicId ?? (src.ResearchGroup != null ? src.ResearchGroup.TopicId : null)))
+                .ForMember(dest => dest.TopicTitle, opt => opt.MapFrom(src =>
+                    src.Topic != null ? src.Topic.Title : (src.ResearchGroup != null && src.ResearchGroup.Topic != null ? src.ResearchGroup.Topic.Title : null)))
                 .ForMember(dest => dest.GroupName, opt => opt.MapFrom(src =>
                     src.ResearchGroup != null ? src.ResearchGroup.Name : null))
                 .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src =>

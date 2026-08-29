@@ -12,6 +12,10 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string? ActivityStatus { get; set; }
 
+        public bool? LeaderId { get; set; }
+
+        public bool IsLeader { get; set; }
+
         public DateTime? JoinedAt { get; set; }
 
         public string? StudentName { get; set; }

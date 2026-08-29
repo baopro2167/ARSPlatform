@@ -224,6 +224,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ActivityStatus)
                 .HasMaxLength(50)
                 .IsUnicode(false);
+            entity.Property(e => e.LeaderId).HasDefaultValue(false);
             entity.Property(e => e.JoinedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.ResearchGroup).WithMany(p => p.GroupMembers)
@@ -493,6 +494,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.LectureFeedback).HasColumnType("decimal(15, 2)");
             entity.Property(e => e.Status).HasMaxLength(50).IsUnicode(false);
             entity.Property(e => e.MilestoneTitle).HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.GroupMember).WithMany(p => p.PhasedReports)
@@ -503,6 +505,10 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ResearchGroupId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__PhasedRep__Resea__22751F6C");
+
+            entity.HasOne(d => d.Topic).WithMany(p => p.PhasedReports)
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ProfessionalProfile>(entity =>

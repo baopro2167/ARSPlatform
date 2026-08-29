@@ -26,4 +26,7 @@ public partial class ResearchTopic
 
     [JsonIgnore]
     public virtual ICollection<ResearchGroup> ResearchGroups { get; set; } = new List<ResearchGroup>();
+
+    [JsonIgnore]
+    public virtual ICollection<PhasedReport> PhasedReports { get; set; } = new List<PhasedReport>();
 }

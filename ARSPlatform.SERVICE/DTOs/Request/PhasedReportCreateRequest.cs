@@ -4,6 +4,8 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 {
     public class PhasedReportCreateRequest
     {
+        public int? TopicId { get; set; }
+
         public int? ResearchGroupId { get; set; }
 
         public int? GroupMemberId { get; set; }
@@ -16,11 +18,15 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public decimal? LectureFeedback { get; set; }
 
+        public string? LecturerDescription { get; set; }
+
         public int? PhaseNumber { get; set; }
 
         public string? MilestoneTitle { get; set; }
 
         public string? Status { get; set; }
+
+        public DateTime? DeadlineAt { get; set; }
 
         public DateTime? SubmittedAt { get; set; }
     }

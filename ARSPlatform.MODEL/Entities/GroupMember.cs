@@ -14,6 +14,11 @@ public partial class GroupMember
 
     public string? ActivityStatus { get; set; }
 
+    public bool? LeaderId { get; set; }
+
+    [JsonIgnore]
+    public bool IsLeader => LeaderId == true;
+
     public DateTime? JoinedAt { get; set; }
 
     [JsonIgnore]

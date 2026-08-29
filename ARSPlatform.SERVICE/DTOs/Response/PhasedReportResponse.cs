@@ -8,6 +8,10 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public int? ResearchGroupId { get; set; }
 
+        public int? TopicId { get; set; }
+
+        public string? TopicTitle { get; set; }
+
         public int? GroupMemberId { get; set; }
 
         public string? ReportFileUrl { get; set; }
@@ -18,11 +22,17 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public decimal? LectureFeedback { get; set; }
 
+        public string? LecturerDescription { get; set; }
+
         public int? PhaseNumber { get; set; }
 
         public string? MilestoneTitle { get; set; }
 
         public string? Status { get; set; }
+
+        public DateTime? CreatedAt { get; set; }
+
+        public DateTime? DeadlineAt { get; set; }
 
         public DateTime? SubmittedAt { get; set; }
 
@@ -31,5 +41,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? GroupName { get; set; }
 
         public string? StudentName { get; set; }
+
+        public bool IsOverdue => DeadlineAt.HasValue && SubmittedAt.HasValue && SubmittedAt.Value > DeadlineAt.Value;
     }
 }
