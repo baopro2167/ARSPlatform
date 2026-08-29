@@ -590,7 +590,7 @@ app.UseSwaggerUI(c =>
 
 // app.UseHttpsRedirection();
 
-// Automatically apply migrations and seed data on startup
+// Automatically apply migrations and schema updates on startup
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -598,7 +598,7 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // Drop the old unique constraint that doesn't allow multiple NULLs
+        // 1. Drop the old unique constraint for GoogleId if present
         context.Database.ExecuteSqlRaw(@"
             IF EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ__User__A6FBF2FBCD0C569B' AND type = 'UQ')
             BEGIN
@@ -606,17 +606,83 @@ using (var scope = app.Services.CreateScope())
             END
         ");
 
-        // Recreate it as a filtered index that allows multiple NULLs but enforces uniqueness for non-null GoogleId
+        // 2. Recreate GoogleId as a filtered index
         context.Database.ExecuteSqlRaw(@"
             IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UX_User_GoogleId' AND object_id = OBJECT_ID('dbo.User'))
             BEGIN
                 CREATE UNIQUE NONCLUSTERED INDEX UX_User_GoogleId ON [dbo].[User](GoogleId) WHERE GoogleId IS NOT NULL;
             END
         ");
+
+        // 3. Schema updates for GroupMember (LeaderId)
+        context.Database.ExecuteSqlRaw(@"
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'GroupMembers')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('GroupMembers') AND name = 'LeaderId')
+                BEGIN
+                    ALTER TABLE [GroupMembers] ADD [LeaderId] bit NULL CONSTRAINT DF_GroupMembers_LeaderId DEFAULT 0;
+                END
+            END
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'GroupMember')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('GroupMember') AND name = 'LeaderId')
+                BEGIN
+                    ALTER TABLE [GroupMember] ADD [LeaderId] bit NULL CONSTRAINT DF_GroupMember_LeaderId DEFAULT 0;
+                END
+            END
+        ");
+
+        // 4. Schema updates for PhasedReports (TopicId, LecturerDescription, CreatedAt, DeadlineAt)
+        context.Database.ExecuteSqlRaw(@"
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'PhasedReports')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReports') AND name = 'TopicId')
+                    ALTER TABLE [PhasedReports] ADD [TopicId] int NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReports') AND name = 'LecturerDescription')
+                    ALTER TABLE [PhasedReports] ADD [LecturerDescription] nvarchar(max) NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReports') AND name = 'CreatedAt')
+                    ALTER TABLE [PhasedReports] ADD [CreatedAt] datetime2 NULL CONSTRAINT DF_PhasedReports_CreatedAt DEFAULT GETUTCDATE();
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReports') AND name = 'DeadlineAt')
+                    ALTER TABLE [PhasedReports] ADD [DeadlineAt] datetime2 NULL;
+            END
+
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'PhasedReport')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'TopicId')
+                    ALTER TABLE [PhasedReport] ADD [TopicId] int NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'LecturerDescription')
+                    ALTER TABLE [PhasedReport] ADD [LecturerDescription] nvarchar(max) NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'CreatedAt')
+                    ALTER TABLE [PhasedReport] ADD [CreatedAt] datetime2 NULL CONSTRAINT DF_PhasedReport_CreatedAt DEFAULT GETUTCDATE();
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'DeadlineAt')
+                    ALTER TABLE [PhasedReport] ADD [DeadlineAt] datetime2 NULL;
+            END
+        ");
+
+        // 5. Schema updates for ResearchTopic (LecturerId)
+        context.Database.ExecuteSqlRaw(@"
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'ResearchTopics')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ResearchTopics') AND name = 'LecturerId')
+                    ALTER TABLE [ResearchTopics] ADD [LecturerId] int NULL;
+            END
+
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'ResearchTopic')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ResearchTopic') AND name = 'LecturerId')
+                    ALTER TABLE [ResearchTopic] ADD [LecturerId] int NULL;
+            END
+        ");
     }
     catch (System.Exception ex)
     {
-        Console.WriteLine($"Error updating GoogleId unique index: {ex.Message}");
+        Console.WriteLine($"Error applying automated database migrations: {ex.Message}");
     }
 }
 
