@@ -100,6 +100,7 @@ namespace ARSPlatform.SERVICES
             */
             OrcidLinkSession? orcidRegistrationSession = null;
             string? verifiedOrcidId = null;
+            string? verifiedOrcidDisplayName = null;
 
             if (!string.IsNullOrWhiteSpace(request.OrcidTicket))
             {
@@ -182,6 +183,12 @@ namespace ARSPlatform.SERVICES
                         "The authenticated ORCID iD is invalid.");
                 }
 
+                verifiedOrcidDisplayName =
+                    string.IsNullOrWhiteSpace(
+                        orcidRegistrationSession.DisplayName)
+                        ? null
+                        : orcidRegistrationSession.DisplayName.Trim();
+
                 /*
                     One ORCID must belong to only one ARS User.
 
@@ -251,6 +258,9 @@ namespace ARSPlatform.SERVICES
                     user.OrcidId =
                         verifiedOrcidId;
 
+                    user.OrcidDisplayName =
+                        verifiedOrcidDisplayName;
+
                     user.IsOrcidVerified =
                         true;
 
@@ -300,6 +310,9 @@ namespace ARSPlatform.SERVICES
                 {
                     user.OrcidId =
                         verifiedOrcidId;
+
+                    user.OrcidDisplayName =
+                        verifiedOrcidDisplayName;
 
                     user.IsOrcidVerified =
                         true;

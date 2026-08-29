@@ -427,6 +427,11 @@ namespace ARSPlatform.SERVICES
                         ? user.OrcidId
                         : null,
 
+                DisplayName =
+                    isVerified
+                        ? user.OrcidDisplayName
+                        : null,
+
                 VerifiedAt =
                     isVerified
                         ? user.OrcidVerifiedAt
@@ -555,6 +560,9 @@ namespace ARSPlatform.SERVICES
 
             user.OrcidId =
                 normalizedOrcidId;
+
+            user.OrcidDisplayName =
+                session.DisplayName;
 
             user.IsOrcidVerified =
                 true;

@@ -16,6 +16,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? ProofDocumentUrl { get; set; }
 
         public string? OrcidId { get; set; }
+        public string? OrcidDisplayName { get; set; }
         public bool IsOrcidVerified { get; set; }
         public DateTime? OrcidVerifiedAt { get; set; }
         public DateTime? CreatedAt { get; set; }
