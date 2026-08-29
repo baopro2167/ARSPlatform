@@ -15,11 +15,16 @@ namespace ARSPlatform.SERVICES
     public class ProfileService : IProfileService
     {
         private readonly IProfileRepository _repository;
+        private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
 
-        public ProfileService(IProfileRepository repository, IMapper mapper)
+        public ProfileService(
+            IProfileRepository repository,
+            IUserRepository userRepository,
+            IMapper mapper)
         {
             _repository = repository;
+            _userRepository = userRepository;
             _mapper = mapper;
         }
 
@@ -44,7 +49,37 @@ namespace ARSPlatform.SERVICES
         public async Task<ProfileResponse?> GetByIdAsync(int id)
         {
             var item = await _repository.GetByIdWithUserAsync(id);
-            return item == null ? null : _mapper.Map<ProfileResponse>(item);
+            if (item != null)
+            {
+                return _mapper.Map<ProfileResponse>(item);
+            }
+
+            // Fallback: If user exists in User table but hasn't created a Profile row yet
+            var user = await _userRepository.GetWithRoleByIdAsync(id);
+            if (user != null)
+            {
+                var roleName = user.UserRoles?.FirstOrDefault()?.Role?.Name 
+                            ?? user.UserRoles?.FirstOrDefault()?.UserRole1 
+                            ?? string.Empty;
+
+                return new ProfileResponse
+                {
+                    UserId = user.UserId,
+                    FullName = user.FullName ?? string.Empty,
+                    Email = user.Email ?? string.Empty,
+                    AvatarUrl = user.AvatarUrl,
+                    RoleName = roleName,
+                    AcademicTitle = string.Empty,
+                    Institution = string.Empty,
+                    Bio = string.Empty,
+                    Keywords = Array.Empty<string>(),
+                    OrcidId = user.OrcidId,
+                    IsOrcidVerified = user.IsOrcidVerified,
+                    OrcidVerifiedAt = user.OrcidVerifiedAt
+                };
+            }
+
+            return null;
         }
 
         public async Task<ProfileResponse> CreateAsync(ProfileCreateRequest request)
@@ -71,7 +106,20 @@ namespace ARSPlatform.SERVICES
             }
 
             var item = await _repository.GetByIdAsync(id);
-            if (item == null) return null;
+            if (item == null)
+            {
+                // If user exists, create profile row on update (upsert)
+                var user = await _userRepository.GetByIdAsync(id);
+                if (user == null) return null;
+
+                var newProfile = _mapper.Map<ProfileEntity>(request);
+                newProfile.UserId = id;
+                await _repository.AddAsync(newProfile);
+                await _repository.SaveChangesAsync();
+
+                var created = await _repository.GetByIdWithUserAsync(id);
+                return _mapper.Map<ProfileResponse>(created);
+            }
 
             _mapper.Map(request, item);
             _repository.Update(item);

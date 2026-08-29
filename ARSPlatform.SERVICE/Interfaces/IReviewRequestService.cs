@@ -17,5 +17,6 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<ReviewRequestResponse> CreateAsync(ReviewRequestCreateRequest request);
         Task<ReviewRequestResponse?> UpdateAsync(int id, ReviewRequestUpdateRequest request);
         Task<bool> DeleteAsync(int id);
+        Task<AutoAssignReviewersResponse> AutoAssignReviewersAsync(AutoAssignReviewersRequest request);
     }
 }

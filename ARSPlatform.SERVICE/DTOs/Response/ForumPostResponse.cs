@@ -11,6 +11,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string Author { get; set; } = string.Empty;
 
+        public string FullName { get; set; } = string.Empty;
+
         public string? AuthorAvatar { get; set; }
 
         public DateTime Timestamp { get; set; }

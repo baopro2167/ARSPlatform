@@ -38,7 +38,7 @@ namespace ARSPlatform.SERVICES
         public async Task<IEnumerable<ForumCommentResponse>> GetAllAsync(int? postId = null, int? currentUserId = null)
         {
             Expression<Func<ForumComment, bool>>? predicate = postId.HasValue ? x => x.ForumPostId == postId.Value : null;
-            var items = await _repository.GetAllAsync(predicate);
+            var items = await _repository.GetAllAsync(predicate, includes: x => x.User!);
             var dtos = _mapper.Map<List<ForumCommentResponse>>(items);
 
             if (currentUserId.HasValue && dtos.Any())
@@ -60,7 +60,12 @@ namespace ARSPlatform.SERVICES
             Expression<Func<ForumComment, bool>>? predicate = postId.HasValue ? x => x.ForumPostId == postId.Value : null;
             var paged = await _repository.GetPagedAsync(
                 paginationParams,
-                predicate: predicate);
+                predicate: predicate,
+                orderBy: q => q.OrderBy(x => x.CreatedAt),
+                includes: new Expression<Func<ForumComment, object>>[]
+                {
+                    x => x.User!
+                });
             var dtos = _mapper.Map<List<ForumCommentResponse>>(paged.Items);
 
             if (currentUserId.HasValue && dtos.Any())
@@ -122,7 +127,7 @@ namespace ARSPlatform.SERVICES
 
         public async Task<ForumCommentResponse?> GetByIdAsync(int id, int? currentUserId = null)
         {
-            var item = await _repository.GetByIdAsync(id);
+            var item = (await _repository.GetAllAsync(x => x.ForumCommentId == id, includes: x => x.User!)).FirstOrDefault();
             if (item == null) return null;
 
             var dto = _mapper.Map<ForumCommentResponse>(item);
@@ -144,7 +149,9 @@ namespace ARSPlatform.SERVICES
 
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            return _mapper.Map<ForumCommentResponse>(item);
+
+            var created = (await _repository.GetAllAsync(x => x.ForumCommentId == item.ForumCommentId, includes: x => x.User!)).FirstOrDefault();
+            return _mapper.Map<ForumCommentResponse>(created ?? item);
         }
 
         public async Task<ForumCommentResponse?> UpdateAsync(int id, ForumCommentUpdateRequest request)
@@ -156,7 +163,9 @@ namespace ARSPlatform.SERVICES
             item.UpdatedAt = DateTime.UtcNow;
             _repository.Update(item);
             await _repository.SaveChangesAsync();
-            return _mapper.Map<ForumCommentResponse>(item);
+
+            var updated = (await _repository.GetAllAsync(x => x.ForumCommentId == id, includes: x => x.User!)).FirstOrDefault();
+            return _mapper.Map<ForumCommentResponse>(updated ?? item);
         }
 
         public async Task<bool> DeleteAsync(int id)

@@ -304,5 +304,46 @@ namespace ARSPlatform.API.CONTROLLER
                         "Paper deleted successfully."
                 });
         }
+
+        /// <summary>
+        /// Tự động tìm và phân công phản biện viên cho bài báo theo ID
+        /// </summary>
+        /// <param name="id">ID bài báo</param>
+        /// <param name="reviewerCount">Số lượng phản biện viên cần phân công (mặc định 3)</param>
+        /// <param name="reviewRequestService">Service xử lý phân công phản biện</param>
+        /// <returns>Kết quả phân công phản biện viên</returns>
+        [HttpPost("{id:int}/assign-reviewers")]
+        [Authorize]
+        public async Task<ActionResult<AutoAssignReviewersResponse>> AssignReviewers(
+            int id,
+            [FromQuery] int reviewerCount = 3,
+            [FromServices] IReviewRequestService reviewRequestService = null!)
+        {
+            try
+            {
+                var result = await reviewRequestService.AutoAssignReviewersAsync(new AutoAssignReviewersRequest
+                {
+                    PaperId = id,
+                    ReviewerCount = reviewerCount
+                });
+                return Ok(result);
+            }
+            catch (System.Collections.Generic.KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (System.ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
     }
 }
