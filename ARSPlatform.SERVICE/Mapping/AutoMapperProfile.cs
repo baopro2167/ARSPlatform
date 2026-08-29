@@ -94,7 +94,11 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<FollowerUpdateRequest, Follower>();
 
             // ForumComment
-            CreateMap<ForumComment, ForumCommentResponse>();
+            CreateMap<ForumComment, ForumCommentResponse>()
+                .ForMember(dest => dest.Author, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.FullName : string.Empty))
+                .ForMember(dest => dest.AuthorAvatar, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.AvatarUrl : null));
             CreateMap<ForumCommentCreateRequest, ForumComment>();
             CreateMap<ForumCommentUpdateRequest, ForumComment>()
                 .ForMember(dest => dest.ForumCommentId, opt => opt.Ignore())

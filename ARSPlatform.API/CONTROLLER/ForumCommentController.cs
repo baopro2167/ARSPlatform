@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -21,8 +22,14 @@ namespace ARSPlatform.API.CONTROLLER
             _service = service;
         }
 
+        private int? GetCurrentUserId()
+        {
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return int.TryParse(idClaim, out var id) ? id : null;
+        }
+
         /// <summary>
-        /// Lấy toàn bộ bình luận trên diễn đàn
+        /// Lấy toàn bộ bình luận trên diễn đàn (hỗ trợ lọc theo postId và trạng thái isUpvoted)
         /// </summary>
         /// <param name="postId">Lọc theo ID bài viết (tùy chọn)</param>
         /// <returns>Danh sách bình luận</returns>
@@ -30,7 +37,8 @@ namespace ARSPlatform.API.CONTROLLER
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ForumCommentResponse>>> GetAll([FromQuery] int? postId = null)
         {
-            var items = await _service.GetAllAsync(postId);
+            var currentUserId = GetCurrentUserId();
+            var items = await _service.GetAllAsync(postId, currentUserId);
             return Ok(items);
         }
 
@@ -46,8 +54,55 @@ namespace ARSPlatform.API.CONTROLLER
             [FromQuery] PaginationParams paginationParams,
             [FromQuery] int? postId = null)
         {
-            var result = await _service.GetPagedAsync(paginationParams, postId);
+            var currentUserId = GetCurrentUserId();
+            var result = await _service.GetPagedAsync(paginationParams, postId, currentUserId);
             return Ok(result);
+        }
+
+        /// <summary>
+        /// Lấy danh sách ID các bình luận mà người dùng hiện tại đã Upvote
+        /// </summary>
+        /// <returns>Mảng số nguyên ID bình luận [1, 5, 12, 18]</returns>
+        [HttpGet("my-votes")]
+        [Authorize]
+        public async Task<ActionResult<List<int>>> GetMyVotes()
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            var votedIds = await _service.GetMyVotedCommentIdsAsync(currentUserId.Value);
+            return Ok(votedIds);
+        }
+
+        /// <summary>
+        /// Bật/Tắt Upvote cho bình luận (Toggle Upvote)
+        /// </summary>
+        /// <param name="id">ID bình luận cần vote hoặc hủy vote</param>
+        /// <returns>Trạng thái vote mới và tổng số lượt upvote</returns>
+        [HttpPost("{id:int}/vote")]
+        [HttpPost("vote/{id:int}")]
+        [Authorize]
+        public async Task<ActionResult<CommentVoteToggleResponse>> ToggleVote(int id)
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized(new { Message = "You must be logged in to vote." });
+            }
+
+            try
+            {
+                var response = await _service.ToggleVoteAsync(id, currentUserId.Value);
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -59,13 +114,13 @@ namespace ARSPlatform.API.CONTROLLER
         [Authorize]
         public async Task<ActionResult<ForumCommentResponse>> Create([FromBody] ForumCommentCreateRequest request)
         {
-            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdValue, out var userId))
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
             {
                 return Unauthorized();
             }
 
-            var response = await _service.CreateAsync(request, userId);
+            var response = await _service.CreateAsync(request, currentUserId.Value);
             return Ok(response);
         }
 
@@ -78,7 +133,8 @@ namespace ARSPlatform.API.CONTROLLER
         [AllowAnonymous]
         public async Task<ActionResult<ForumCommentResponse>> GetById(int id)
         {
-            var item = await _service.GetByIdAsync(id);
+            var currentUserId = GetCurrentUserId();
+            var item = await _service.GetByIdAsync(id, currentUserId);
             if (item == null) return NotFound(new { Message = "Comment not found." });
             return Ok(item);
         }

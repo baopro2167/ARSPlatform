@@ -61,5 +61,21 @@ namespace ARSPlatform.SERVICES
             await _repository.SaveChangesAsync();
             return _mapper.Map<CommentVoteResponse>(item);
         }
+
+        public async Task<CommentVoteToggleResponse> ToggleVoteAsync(int commentId, int userId)
+        {
+            var (isUpvoted, upvoteCount) = await _repository.ToggleVoteAsync(commentId, userId);
+            return new CommentVoteToggleResponse
+            {
+                ForumCommentId = commentId,
+                UpvoteCount = upvoteCount,
+                IsUpvoted = isUpvoted
+            };
+        }
+
+        public async Task<List<int>> GetMyVotedCommentIdsAsync(int userId)
+        {
+            return await _repository.GetAllVotedCommentIdsByUserAsync(userId);
+        }
     }
 }
