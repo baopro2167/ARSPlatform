@@ -8,7 +8,11 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? FullName { get; set; }
         public string? Email { get; set; }
         public string? AvatarUrl { get; set; }
+
         public string? OrcidId { get; set; }
+        public bool? IsOrcidVerified { get; set; }
+        public DateTime? OrcidVerifiedAt { get; set; }
+
         public int? Hindex { get; set; }
         public int? TotalCitations { get; set; }
         public int? PublicationCount { get; set; }

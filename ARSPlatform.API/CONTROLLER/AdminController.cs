@@ -23,11 +23,12 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Tra cứu thông tin tác giả và hồ sơ khoa học thông qua ORCID iD (kết nối OpenAlex)
+        /// Tra cứu hồ sơ khoa học OpenAlex bằng ORCID đã được xác thực
+        /// của User thuộc RoleRequest.
         /// </summary>
-        /// <param name="request">Yêu cầu tra cứu ORCID</param>
+        /// <param name="request">RoleRequest cần kiểm tra ORCID</param>
         /// <param name="cancellationToken">Cancellation token</param>
-        /// <returns>Thông tin hồ sơ khoa học từ ORCID / OpenAlex</returns>
+        /// <returns>Thông tin hồ sơ khoa học từ OpenAlex</returns>
         [HttpPost("orcid-lookup")]
         [ProducesResponseType(typeof(OrcidLookupResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(OrcidLookupResponse), StatusCodes.Status400BadRequest)]

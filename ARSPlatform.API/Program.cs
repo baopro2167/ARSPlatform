@@ -134,6 +134,78 @@ builder.Services.AddHttpClient<IOpenAlexService, OpenAlexService>(
         }
     });
 
+// Register ORCID OAuth Settings
+builder.Services.Configure<OrcidSettings>(options =>
+{
+    var section =
+        builder.Configuration.GetSection("OrcidSettings");
+
+    options.AuthorizationUrl =
+        Environment.GetEnvironmentVariable(
+            "ORCID_AUTHORIZATION_URL")
+        ?? section["AuthorizationUrl"]
+        ?? "https://orcid.org/oauth/authorize";
+
+    options.TokenUrl =
+        Environment.GetEnvironmentVariable(
+            "ORCID_TOKEN_URL")
+        ?? section["TokenUrl"]
+        ?? "https://orcid.org/oauth/token";
+
+    options.ClientId =
+        Environment.GetEnvironmentVariable(
+            "ORCID_CLIENT_ID")
+        ?? section["ClientId"]
+        ?? "";
+
+    options.ClientSecret =
+        Environment.GetEnvironmentVariable(
+            "ORCID_CLIENT_SECRET")
+        ?? section["ClientSecret"]
+        ?? "";
+
+    options.RedirectUri =
+        Environment.GetEnvironmentVariable(
+            "ORCID_REDIRECT_URI")
+        ?? section["RedirectUri"]
+        ?? "";
+
+    options.Scope =
+        Environment.GetEnvironmentVariable(
+            "ORCID_SCOPE")
+        ?? section["Scope"]
+        ?? "/authenticate";
+
+    options.TimeoutSeconds =
+        int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "ORCID_TIMEOUT_SECONDS")
+            ?? section["TimeoutSeconds"],
+            out var orcidTimeoutSeconds)
+            ? orcidTimeoutSeconds
+            : 15;
+});
+
+builder.Services.AddHttpClient(
+    "OrcidOAuth",
+    (serviceProvider, client) =>
+    {
+        var settings = serviceProvider
+            .GetRequiredService<
+                Microsoft.Extensions.Options.IOptions<OrcidSettings>>()
+            .Value;
+
+        client.Timeout =
+            TimeSpan.FromSeconds(
+                Math.Clamp(
+                    settings.TimeoutSeconds,
+                    3,
+                    60));
+
+        client.DefaultRequestHeaders.Accept.ParseAdd(
+            "application/json");
+    });
+
 // Register Audio Summary Service
 // Timeout 15 phút để xử lý audio lớn
 builder.Services.AddHttpClient<IAudioSummaryService, AudioSummaryService>(client =>
@@ -151,7 +223,9 @@ var serviceAssembly = typeof(AuthService).Assembly;
 foreach (var type in serviceAssembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("Service") && !t.Name.EndsWith("HostedService")))
 {
     var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.Name == $"I{type.Name}");
-    if (interfaceType != null)
+    if (interfaceType != null &&
+        !builder.Services.Any(descriptor =>
+            descriptor.ServiceType == interfaceType))
     {
         builder.Services.AddScoped(interfaceType, type);
     }
@@ -176,7 +250,7 @@ builder.Services.AddHttpClient();
 builder.Services.Configure<EmailSettings>(options =>
 {
     var section = builder.Configuration.GetSection("EmailSettings");
-    
+
     var senderEmail = Environment.GetEnvironmentVariable("EmailSender")
                       ?? Environment.GetEnvironmentVariable("EMAIL_SENDER")
                       ?? Environment.GetEnvironmentVariable("EMAIL_SENDER_EMAIL")
@@ -278,6 +352,11 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("AuthenticatedUser", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+    });
+
     var approvedUserPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .RequireRole(
@@ -396,6 +475,7 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"Error updating GoogleId unique index: {ex.Message}");
     }
 }
+
 
 
 app.UseCors("AllowAll");

@@ -36,5 +36,12 @@ namespace ARSPlatform.REPOSITORIES
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.UserId == id);
         }
+
+        public async Task<User?> GetByOrcidAsync(string orcidId)
+        {
+            return await _dbSet
+                .FirstOrDefaultAsync(u =>
+                    u.OrcidId == orcidId);
+        }
     }
 }

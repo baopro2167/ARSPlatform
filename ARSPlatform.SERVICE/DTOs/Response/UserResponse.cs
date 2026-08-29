@@ -14,6 +14,10 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int? AccountTier { get; set; }
         public string? VerificationStatus { get; set; }
         public string? ProofDocumentUrl { get; set; }
+
+        public string? OrcidId { get; set; }
+        public bool IsOrcidVerified { get; set; }
+        public DateTime? OrcidVerifiedAt { get; set; }
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public string RoleName { get; set; } = string.Empty;

@@ -35,68 +35,110 @@ namespace ARSPlatform.SERVICES
             string correlationId,
             CancellationToken cancellationToken)
         {
-            if (!OrcidIdUtility.TryNormalizeAndValidate(request.OrcidId, out var normalizedOrcidId))
-            {
-                var invalidResult = await _openAlexService.LookupByOrcidAsync(request.OrcidId, cancellationToken);
+            var roleRequest = await _roleRequestRepository
+                .GetQueryable()
+                .AsNoTracking()
+                .Include(x => x.RequestedRole)
+                .Include(x => x.User)
+                .FirstOrDefaultAsync(
+                    x => x.RoleRequestId == request.RoleRequestId,
+                    cancellationToken);
 
+            if (roleRequest == null)
+            {
                 await WriteAuditAsync(
                     adminId,
                     adminName,
                     request.RoleRequestId,
                     null,
-                    request.OrcidId?.Trim() ?? string.Empty,
-                    invalidResult.LookupStatus,
+                    string.Empty,
+                    "RoleRequestNotFound",
                     "NotCalled",
                     correlationId);
 
-                return (invalidResult, 400);
+                return (
+                    new OrcidLookupResponse
+                    {
+                        LookupStatus = "RoleRequestNotFound",
+                        Message = "Role request not found."
+                    },
+                    404);
             }
 
-            int? targetUserId = null;
+            var targetUserId = roleRequest.UserId;
+            var storedOrcid = roleRequest.User.OrcidId;
 
-            if (request.RoleRequestId.HasValue)
+            if (string.IsNullOrWhiteSpace(storedOrcid))
             {
-                var roleRequest = await _roleRequestRepository
-                    .GetQueryable()
-                    .AsNoTracking()
-                    .Include(x => x.RequestedRole)
-                    .Include(x => x.User)
-                    .FirstOrDefaultAsync(x => x.RoleRequestId == request.RoleRequestId.Value, cancellationToken);
+                await WriteAuditAsync(
+                    adminId,
+                    adminName,
+                    request.RoleRequestId,
+                    targetUserId,
+                    string.Empty,
+                    "OrcidNotConnected",
+                    "NotCalled",
+                    correlationId);
 
-                if (roleRequest == null)
-                {
-                    await WriteAuditAsync(adminId, adminName, request.RoleRequestId, null, normalizedOrcidId, "RoleRequestNotFound", "NotCalled", correlationId);
-                    return (new OrcidLookupResponse { LookupStatus = "RoleRequestNotFound", Message = "Role request not found." }, 404);
-                }
-
-                targetUserId = roleRequest.UserId;
-
-                if (!string.Equals(roleRequest.RequestedRole.Name, "Reviewer", StringComparison.OrdinalIgnoreCase))
-                {
-                    await WriteAuditAsync(adminId, adminName, request.RoleRequestId, targetUserId, normalizedOrcidId, "RoleRequestIsNotReviewer", "NotCalled", correlationId);
-                    return (new OrcidLookupResponse { LookupStatus = "RoleRequestIsNotReviewer", Message = "ORCID lookup is only available for Reviewer role requests." }, 400);
-                }
-
-                if (string.IsNullOrWhiteSpace(roleRequest.User.OrcidId))
-                {
-                    await WriteAuditAsync(adminId, adminName, request.RoleRequestId, targetUserId, normalizedOrcidId, "StoredOrcidMissing", "NotCalled", correlationId);
-                    return (new OrcidLookupResponse { LookupStatus = "StoredOrcidMissing", Message = "The Reviewer account does not contain an ORCID iD." }, 409);
-                }
-
-                if (!OrcidIdUtility.TryNormalizeAndValidate(roleRequest.User.OrcidId, out var storedOrcidId))
-                {
-                    await WriteAuditAsync(adminId, adminName, request.RoleRequestId, targetUserId, normalizedOrcidId, "StoredOrcidInvalid", "NotCalled", correlationId);
-                    return (new OrcidLookupResponse { LookupStatus = "StoredOrcidInvalid", Message = "The Reviewer account contains an invalid ORCID iD." }, 409);
-                }
-
-                if (!string.Equals(storedOrcidId, normalizedOrcidId, StringComparison.Ordinal))
-                {
-                    await WriteAuditAsync(adminId, adminName, request.RoleRequestId, targetUserId, normalizedOrcidId, "OrcidMismatch", "NotCalled", correlationId);
-                    return (new OrcidLookupResponse { LookupStatus = "OrcidMismatch", Message = "The supplied ORCID iD does not match the ORCID stored for this Reviewer role request." }, 409);
-                }
+                return (
+                    new OrcidLookupResponse
+                    {
+                        LookupStatus = "OrcidNotConnected",
+                        Message = "This ARS account has not connected an ORCID iD."
+                    },
+                    409);
             }
 
-            var lookupResult = await _openAlexService.LookupByOrcidAsync(normalizedOrcidId, cancellationToken);
+            if (!OrcidIdUtility.TryNormalizeAndValidate(
+                    storedOrcid,
+                    out var normalizedOrcidId))
+            {
+                await WriteAuditAsync(
+                    adminId,
+                    adminName,
+                    request.RoleRequestId,
+                    targetUserId,
+                    storedOrcid.Trim(),
+                    "StoredOrcidInvalid",
+                    "NotCalled",
+                    correlationId);
+
+                return (
+                    new OrcidLookupResponse
+                    {
+                        OrcidId = storedOrcid.Trim(),
+                        LookupStatus = "StoredOrcidInvalid",
+                        Message = "The ARS account contains an invalid ORCID iD."
+                    },
+                    409);
+            }
+
+            if (!roleRequest.User.IsOrcidVerified)
+            {
+                await WriteAuditAsync(
+                    adminId,
+                    adminName,
+                    request.RoleRequestId,
+                    targetUserId,
+                    normalizedOrcidId,
+                    "OrcidNotVerified",
+                    "NotCalled",
+                    correlationId);
+
+                return (
+                    new OrcidLookupResponse
+                    {
+                        OrcidId = normalizedOrcidId,
+                        LookupStatus = "OrcidNotVerified",
+                        Message = "The ORCID iD connected to this ARS account has not been verified through ORCID OAuth."
+                    },
+                    409);
+            }
+
+            var lookupResult =
+                await _openAlexService.LookupByOrcidAsync(
+                    normalizedOrcidId,
+                    cancellationToken);
 
             await WriteAuditAsync(
                 adminId,
@@ -105,7 +147,8 @@ namespace ARSPlatform.SERVICES
                 targetUserId,
                 normalizedOrcidId,
                 lookupResult.LookupStatus,
-                GetProviderStatus(lookupResult.LookupStatus),
+                GetProviderStatus(
+                    lookupResult.LookupStatus),
                 correlationId);
 
             var statusCode = lookupResult.LookupStatus switch
@@ -119,7 +162,9 @@ namespace ARSPlatform.SERVICES
                 _ => 502
             };
 
-            return (lookupResult, statusCode);
+            return (
+                lookupResult,
+                statusCode);
         }
 
         private async Task WriteAuditAsync(

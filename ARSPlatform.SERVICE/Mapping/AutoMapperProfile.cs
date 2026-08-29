@@ -197,6 +197,14 @@ namespace ARSPlatform.SERVICE.Mapping
                     src.User != null ? src.User.Email : null))
                 .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.AvatarUrl : null))
+                .ForMember(dest => dest.OrcidId, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.OrcidId : null))
+                .ForMember(dest => dest.IsOrcidVerified, opt => opt.MapFrom(src =>
+                    src.User != null
+                        ? (bool?)src.User.IsOrcidVerified
+                        : null))
+                .ForMember(dest => dest.OrcidVerifiedAt, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.OrcidVerifiedAt : null))
                 .ForMember(dest => dest.IsAvailable, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.IsAvailableForReview : null))
                 .ForMember(dest => dest.SubFieldName, opt => opt.MapFrom(src =>
@@ -216,6 +224,14 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<ARSPlatform.MODEL.Entities.Profile, ProfileResponse>()
                 .ForMember(dest => dest.Email, opt => opt.MapFrom(src =>
                     src.User != null ? src.User.Email : null))
+                .ForMember(dest => dest.OrcidId, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.OrcidId : null))
+                .ForMember(dest => dest.IsOrcidVerified, opt => opt.MapFrom(src =>
+                    src.User != null
+                        ? (bool?)src.User.IsOrcidVerified
+                        : null))
+                .ForMember(dest => dest.OrcidVerifiedAt, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.OrcidVerifiedAt : null))
                 .ForMember(dest => dest.Keywords, opt => opt.MapFrom(src =>
                     string.IsNullOrWhiteSpace(src.Keywords)
                         ? Array.Empty<string>()

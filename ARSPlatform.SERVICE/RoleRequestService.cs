@@ -3,7 +3,6 @@ using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using ARSPlatform.SERVICE.ExternalServices;
 using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -133,22 +132,6 @@ namespace ARSPlatform.SERVICES
             var requestedRole = roleRequest.RequestedRole;
             var now = DateTime.UtcNow;
 
-            if (string.Equals(
-        requestedRole.Name,
-        "Reviewer",
-        StringComparison.OrdinalIgnoreCase))
-            {
-                if (!OrcidIdUtility.TryNormalizeAndValidate(
-                        user.OrcidId,
-                        out var normalizedOrcidId))
-                {
-                    throw new InvalidOperationException(
-                        "Reviewer role requests cannot be approved because the user does not have a valid ORCID iD.");
-                }
-
-                user.OrcidId = normalizedOrcidId;
-            }
-
             var roleAlreadyAssigned = user.UserRoles.Any(
                 x => x.RoleId == requestedRole.RoleId);
 
@@ -176,7 +159,6 @@ namespace ARSPlatform.SERVICES
                 {
                     UserId = user.UserId,
                     User = user,
-                    OrcidId = user.OrcidId,
                     Hindex = 0,
                     TotalCitations = 0,
                     PublicationCount = 0,
@@ -189,12 +171,6 @@ namespace ARSPlatform.SERVICES
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(professionalProfile.OrcidId)
-                    && !string.IsNullOrWhiteSpace(user.OrcidId))
-                {
-                    professionalProfile.OrcidId = user.OrcidId;
-                }
-
                 professionalProfile.UpdatedAt = now;
             }
 
@@ -375,6 +351,9 @@ namespace ARSPlatform.SERVICES
                     string.IsNullOrWhiteSpace(requestedRoleName)
                         ? new List<string>()
                         : new List<string> { requestedRoleName },
+                OrcidId = roleRequest.User.OrcidId,
+                IsOrcidVerified = roleRequest.User.IsOrcidVerified,
+                OrcidVerifiedAt = roleRequest.User.OrcidVerifiedAt,
                 ProofDocumentUrl = roleRequest.ProofDocumentUrl,
                 IsEmailVerified = roleRequest.User.IsEmailVerified,
                 SubmissionDate = roleRequest.CreatedAt,
