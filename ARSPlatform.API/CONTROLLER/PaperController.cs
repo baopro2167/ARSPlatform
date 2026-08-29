@@ -1,11 +1,12 @@
-using ARSPlatform.REPO.PAGINATION;
-using ARSPlatform.SERVICE.DTOs.Request;
-using ARSPlatform.SERVICE.Interfaces;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ARSPlatform.REPO.PAGINATION;
+using ARSPlatform.SERVICE.DTOs.Request;
+using ARSPlatform.SERVICE.DTOs.Response;
+using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ARSPlatform.API.CONTROLLER
 {
@@ -15,93 +16,334 @@ namespace ARSPlatform.API.CONTROLLER
     {
         private readonly IPaperService _paperService;
 
-        public PaperController(IPaperService paperService)
+        public PaperController(
+            IPaperService paperService)
         {
-            _paperService = paperService;
+            _paperService =
+                paperService;
         }
 
+        /// <summary>
+        /// Lấy danh sách bài báo nghiên cứu phân trang
+        /// </summary>
+        /// <param name="paginationParams">
+        /// Tham số phân trang (PageNumber, PageSize)
+        /// </param>
+        /// <returns>Danh sách bài báo</returns>
         [HttpGet]
-        public async Task<IActionResult> GetPapers([FromQuery] PaginationParams paginationParams)
+        public async Task<ActionResult<PagedResult<PaperResponse>>> GetPapers(
+            [FromQuery] PaginationParams paginationParams)
         {
-            var result = await _paperService.GetPapersAsync(paginationParams);
+            var result =
+                await _paperService
+                    .GetPapersAsync(
+                        paginationParams);
+
             return Ok(result);
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetPaperById(Guid id)
+        /// <summary>
+        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER ,
+        /// TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST
+        /// LÊN DANH SÁCH CÓ PHÂN TRANG
+        /// </summary>
+        /// <param name="paginationParams">
+        /// Tham số phân trang (PageNumber, PageSize)
+        /// </param>
+        /// <returns>
+        /// Danh sách bài báo có phân trang
+        /// </returns>
+        [HttpGet("paged")]
+        public async Task<ActionResult<PagedResult<PaperResponse>>> GetPaged(
+            [FromQuery] PaginationParams paginationParams)
         {
-            var paper = await _paperService.GetPaperByIdAsync(id);
+            var result =
+                await _paperService
+                    .GetPapersAsync(
+                        paginationParams);
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Lấy chi tiết bài báo nghiên cứu theo ID
+        /// </summary>
+        /// <param name="id">ID bài báo</param>
+        /// <returns>Chi tiết bài báo</returns>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<PaperResponse>> GetPaperById(
+            int id)
+        {
+            var paper =
+                await _paperService
+                    .GetPaperByIdAsync(id);
+
             if (paper == null)
                 return NotFound();
 
             return Ok(paper);
         }
 
+        /// <summary>
+        /// Tải lên / Tạo mới một bài báo nghiên cứu khoa học
+        /// </summary>
+        /// <param name="request">
+        /// Thông tin bài báo
+        /// </param>
+        /// <returns>Bài báo vừa tạo</returns>
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreatePaper([FromBody] PaperCreateRequest request)
+        public async Task<ActionResult<PaperResponse>> CreatePaper(
+            [FromBody] PaperCreateRequest request)
         {
-            var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(currentUserIdStr))
+            var currentUserIdStr =
+                User.FindFirst(
+                    ClaimTypes.NameIdentifier)
+                    ?.Value;
+
+            if (string.IsNullOrEmpty(
+                    currentUserIdStr))
+            {
                 return Unauthorized();
+            }
 
             try
             {
-                var authorId = Guid.Parse(currentUserIdStr);
-                var createdPaper = await _paperService.CreatePaperAsync(request, authorId);
-                return CreatedAtAction(nameof(GetPaperById), new { id = createdPaper.Id }, createdPaper);
+                var authorId =
+                    int.Parse(
+                        currentUserIdStr);
+
+                var createdPaper =
+                    await _paperService
+                        .CreatePaperAsync(
+                            request,
+                            authorId);
+
+                return CreatedAtAction(
+                    nameof(GetPaperById),
+                    new
+                    {
+                        id = createdPaper.Id
+                    },
+                    createdPaper);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                return BadRequest(new { Message = ex.Message });
+                return BadRequest(
+                    new
+                    {
+                        Message = ex.Message
+                    });
             }
         }
 
-        [HttpPut("{id}")]
-        [Authorize]
-        public async Task<IActionResult> UpdatePaper(Guid id, [FromBody] PaperUpdateRequest request)
+        /// <summary>
+        /// Admin đối chiếu tác giả OpenAlex với ORCID đã xác thực của Researcher.
+        /// Kết quả chỉ cập nhật AuthorshipVerificationStatus; không tự approve/reject Paper.
+        /// </summary>
+        /// <param name="id">Paper ID</param>
+        /// <param name="request">
+        /// Có thể bỏ trống OpenAlexWorkId để dùng OpenAlexWorkId đã lưu trên Paper.
+        /// </param>
+        [HttpPost("{id:int}/verify-authorship")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<PaperAuthorshipVerificationResponse>>
+            VerifyAuthorship(
+                int id,
+                [FromBody] PaperAuthorshipVerifyRequest? request)
         {
-            var paper = await _paperService.GetPaperByIdAsync(id);
+            try
+            {
+                var result =
+                    await _paperService
+                        .VerifyAuthorshipAsync(
+                            id,
+                            request ?? new PaperAuthorshipVerifyRequest());
+
+                if (result == null)
+                {
+                    return NotFound(
+                        new
+                        {
+                            Message =
+                                "Paper not found."
+                        });
+                }
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(
+                    new
+                    {
+                        Message = ex.Message
+                    });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        Message = ex.Message
+                    });
+            }
+        }
+
+        /// <summary>
+        /// Cập nhật thông tin bài báo nghiên cứu
+        /// </summary>
+        /// <param name="id">
+        /// ID bài báo cần cập nhật
+        /// </param>
+        /// <param name="request">
+        /// Dữ liệu cập nhật
+        /// </param>
+        /// <returns>
+        /// Bài báo sau khi cập nhật
+        /// </returns>
+        [HttpPut("{id:int}")]
+        [Authorize]
+        public async Task<ActionResult<PaperResponse>> UpdatePaper(
+            int id,
+            [FromBody] PaperUpdateRequest request)
+        {
+            var paper =
+                await _paperService
+                    .GetPaperByIdAsync(id);
+
             if (paper == null)
                 return NotFound();
 
-            var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var currentUserIdStr =
+                User.FindFirst(
+                    ClaimTypes.NameIdentifier)
+                    ?.Value;
 
-            if (currentUserRole != "Admin" && paper.AuthorId.ToString() != currentUserIdStr)
+            var currentUserRole =
+                User.FindFirst(
+                    ClaimTypes.Role)
+                    ?.Value;
+
+            if (currentUserRole != "Admin" &&
+                paper.AuthorId?.ToString() !=
+                    currentUserIdStr)
             {
                 return Forbid();
             }
 
             try
             {
-                var updatedPaper = await _paperService.UpdatePaperAsync(id, request);
+                /*
+                    Admin remains the final approver/rejector.
+                    Normal Paper owners cannot update Status.
+                */
+                var updatedPaper =
+                    await _paperService
+                        .UpdatePaperAsync(
+                            id,
+                            request,
+                            allowStatusUpdate:
+                                currentUserRole == "Admin");
+
                 return Ok(updatedPaper);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                return BadRequest(new { Message = ex.Message });
+                return BadRequest(
+                    new
+                    {
+                        Message = ex.Message
+                    });
             }
         }
 
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Xóa bài báo nghiên cứu
+        /// </summary>
+        /// <param name="id">
+        /// ID bài báo cần xóa
+        /// </param>
+        /// <returns>Thông báo kết quả</returns>
+        [HttpDelete("{id:int}")]
         [Authorize]
-        public async Task<IActionResult> DeletePaper(Guid id)
+        public async Task<IActionResult> DeletePaper(
+            int id)
         {
-            var paper = await _paperService.GetPaperByIdAsync(id);
+            var paper =
+                await _paperService
+                    .GetPaperByIdAsync(id);
+
             if (paper == null)
                 return NotFound();
 
-            var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var currentUserIdStr =
+                User.FindFirst(
+                    ClaimTypes.NameIdentifier)
+                    ?.Value;
 
-            if (currentUserRole != "Admin" && paper.AuthorId.ToString() != currentUserIdStr)
+            var currentUserRole =
+                User.FindFirst(
+                    ClaimTypes.Role)
+                    ?.Value;
+
+            if (currentUserRole != "Admin" &&
+                paper.AuthorId?.ToString() !=
+                    currentUserIdStr)
             {
                 return Forbid();
             }
 
-            await _paperService.DeletePaperAsync(id);
-            return Ok(new { Message = "Paper deleted successfully." });
+            await _paperService
+                .DeletePaperAsync(id);
+
+            return Ok(
+                new
+                {
+                    Message =
+                        "Paper deleted successfully."
+                });
+        }
+
+        /// <summary>
+        /// Tự động tìm và phân công phản biện viên cho bài báo theo ID
+        /// </summary>
+        /// <param name="id">ID bài báo</param>
+        /// <param name="reviewerCount">Số lượng phản biện viên cần phân công (mặc định 3)</param>
+        /// <param name="reviewRequestService">Service xử lý phân công phản biện</param>
+        /// <returns>Kết quả phân công phản biện viên</returns>
+        [HttpPost("{id:int}/assign-reviewers")]
+        [Authorize]
+        public async Task<ActionResult<AutoAssignReviewersResponse>> AssignReviewers(
+            int id,
+            [FromQuery] int reviewerCount = 3,
+            [FromServices] IReviewRequestService reviewRequestService = null!)
+        {
+            try
+            {
+                var result = await reviewRequestService.AutoAssignReviewersAsync(new AutoAssignReviewersRequest
+                {
+                    PaperId = id,
+                    ReviewerCount = reviewerCount
+                });
+                return Ok(result);
+            }
+            catch (System.Collections.Generic.KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (System.ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
     }
 }

@@ -8,6 +8,8 @@ namespace ARSPlatform.REPO.Interfaces
     {
         Task<User?> GetByUsernameAsync(string username);
         Task<User?> GetByEmailAsync(string email);
-        Task<User?> GetWithRoleByIdAsync(Guid id);
+        Task<User?> GetByOrcidAsync(string orcidId);
+
+        Task<User?> GetWithRoleByIdAsync(int id);
     }
 }

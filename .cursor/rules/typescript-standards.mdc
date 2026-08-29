@@ -1,0 +1,28 @@
+---
+description: TypeScript/tsconfig best practices
+globs: tsconfig*.json
+alwaysApply: true
+---
+
+# TypeScript Configuration Best Practices
+
+## tsconfig.json `baseUrl` Deprecation
+
+When `baseUrl` is used in tsconfig.json, TypeScript 6.0+ emits a deprecation warning. The `baseUrl` option will stop functioning in TypeScript 7.0.
+
+**Solution**: Always include `"ignoreDeprecations": "6.0"` in compilerOptions before `baseUrl` to silence this error.
+
+```json
+{
+  "compilerOptions": {
+    "noUncheckedSideEffectImports": true,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}
+```
+
+**Important**: Do NOT remove the `ignoreDeprecations` setting when editing tsconfig.json files.

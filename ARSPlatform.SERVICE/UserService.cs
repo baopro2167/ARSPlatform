@@ -30,7 +30,8 @@ namespace ARSPlatform.SERVICES
         public async Task<PagedResult<UserResponse>> GetUsersAsync(PaginationParams paginationParams)
         {
             var query = _userRepository.GetQueryable()
-                .Include(u => u.Role)
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
                 .AsNoTracking();
 
             var totalCount = await query.CountAsync();
@@ -45,33 +46,26 @@ namespace ARSPlatform.SERVICES
             return new PagedResult<UserResponse>(dtos, totalCount, paginationParams.PageNumber, paginationParams.PageSize);
         }
 
-        public async Task<UserResponse?> GetUserByIdAsync(Guid id)
+        public async Task<PagedResult<UserResponse>> GetAllAsync(int pageNumber, int pageSize)
+        {
+            return await GetUsersAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+
+        public async Task<UserResponse?> GetUserByIdAsync(int id)
         {
             var user = await _userRepository.GetWithRoleByIdAsync(id);
             return user != null ? _mapper.Map<UserResponse>(user) : null;
         }
 
-        public async Task<UserResponse?> UpdateUserAsync(Guid id, UserUpdateRequest request)
+        public async Task<UserResponse?> UpdateUserAsync(int id, UserUpdateRequest request)
         {
             var user = await _userRepository.GetWithRoleByIdAsync(id);
             if (user == null)
                 return null;
 
-            if (!string.IsNullOrWhiteSpace(request.OrcidId))
-            {
-                var isValidOrcid = await _externalApiService.ValidateOrcidIdAsync(request.OrcidId);
-                if (!isValidOrcid)
-                {
-                    throw new ArgumentException("Invalid ORCID ID format. Must match 0000-0000-0000-0000.");
-                }
-                user.OrcidId = request.OrcidId;
-            }
-            else
-            {
-                user.OrcidId = null;
-            }
-
             user.FullName = request.FullName;
+            user.AvatarUrl = request.AvatarUrl;
+            user.IsActive = request.IsActive;
 
             _userRepository.Update(user);
             await _userRepository.SaveChangesAsync();
@@ -79,7 +73,7 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<UserResponse>(user);
         }
 
-        public async Task<bool> DeleteUserAsync(Guid id)
+        public async Task<bool> DeleteUserAsync(int id)
         {
             var user = await _userRepository.GetByIdAsync(id);
             if (user == null)

@@ -1,0 +1,19 @@
+﻿using System;
+
+namespace ARSPlatform.SERVICE.DTOs.Request
+{
+    public class MembershipPurchaseCreateRequest
+    {
+        public int PurchasesId { get; set; }
+
+        public int? UserId { get; set; }
+
+        public int? PackageId { get; set; }
+
+        public decimal PricePaid { get; set; }
+
+        public DateTime? PurchasedAt { get; set; }
+
+        public DateTime ExpiresAt { get; set; }
+    }
+}

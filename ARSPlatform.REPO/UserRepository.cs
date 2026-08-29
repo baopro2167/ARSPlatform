@@ -16,22 +16,32 @@ namespace ARSPlatform.REPOSITORIES
         public async Task<User?> GetByUsernameAsync(string username)
         {
             return await _dbSet
-                .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Username == username);
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Email == username);
         }
 
         public async Task<User?> GetByEmailAsync(string email)
         {
             return await _dbSet
-                .Include(u => u.Role)
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
-        public async Task<User?> GetWithRoleByIdAsync(Guid id)
+        public async Task<User?> GetWithRoleByIdAsync(int id)
         {
             return await _dbSet
-                .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Id == id);
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.UserId == id);
+        }
+
+        public async Task<User?> GetByOrcidAsync(string orcidId)
+        {
+            return await _dbSet
+                .FirstOrDefaultAsync(u =>
+                    u.OrcidId == orcidId);
         }
     }
 }

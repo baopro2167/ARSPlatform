@@ -1,13 +1,20 @@
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
-namespace ARSPlatform.MODEL.Entities
+namespace ARSPlatform.MODEL.Entities;
+
+public partial class Role
 {
-    public class Role
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
+    public int RoleId { get; set; }
 
-        // Navigation properties
-        public virtual ICollection<User> Users { get; set; } = new List<User>();
-    }
+    public string Name { get; set; } = null!;
+
+    public DateTime? CreatedAt { get; set; }
+
+    [JsonIgnore]
+    public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+
+    [JsonIgnore]
+    public virtual ICollection<RoleRequest> RoleRequests { get; set; } = new List<RoleRequest>();
 }

@@ -5,15 +5,13 @@ namespace ARSPlatform.SERVICE.ExternalServices
 {
     public class ExternalApiService : IExternalApiService
     {
-        public async Task<bool> ValidateOrcidIdAsync(string orcidId)
+        public Task<bool> ValidateOrcidIdAsync(string orcidId)
         {
-            await Task.Delay(50); // Mock delay
+            var isValid = OrcidIdUtility.TryNormalizeAndValidate(
+                orcidId,
+                out _);
 
-            if (string.IsNullOrWhiteSpace(orcidId))
-                return false;
-
-            var regex = new Regex(@"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$");
-            return regex.IsMatch(orcidId);
+            return Task.FromResult(isValid);
         }
 
         public async Task<bool> ValidateDoiAsync(string doi)
