@@ -44,6 +44,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Paper> Papers { get; set; }
 
+    public virtual DbSet<PaperAuthor> PaperAuthors { get; set; }
+
     public virtual DbSet<PhasedReport> PhasedReports { get; set; }
 
     public virtual DbSet<ProfessionalProfile> ProfessionalProfiles { get; set; }
@@ -410,14 +412,23 @@ public partial class AppDbContext : DbContext
                 .IsUnicode(false)
                 .HasDefaultValue("NOT_CHECKED");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Doi)
+                .HasMaxLength(255)
+                .IsUnicode(false);
             entity.Property(e => e.IsOpenAccess).HasDefaultValue(false);
             entity.Property(e => e.Issn).HasDefaultValue(false);
+            entity.Property(e => e.IssnValue)
+                .HasMaxLength(50)
+                .IsUnicode(false);
             entity.Property(e => e.OpenAlexWorkId)
                 .HasMaxLength(50)
                 .IsUnicode(false);
+            entity.Property(e => e.PublicationDate)
+                .HasColumnType("datetime2(7)");
             entity.Property(e => e.Quartile)
                 .HasMaxLength(10)
                 .IsUnicode(false);
+            entity.Property(e => e.SourceName).HasMaxLength(255);
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .IsUnicode(false);
@@ -433,6 +444,44 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.SubFieldId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("FK__Papers__SubField__5441852A");
+        });
+
+        modelBuilder.Entity<PaperAuthor>(entity =>
+        {
+            entity.ToTable("PaperAuthors", tb =>
+            {
+                tb.HasCheckConstraint(
+                    "CK_PaperAuthors_Source",
+                    "[Source]='MANUAL' OR [Source]='OPENALEX'");
+                tb.HasCheckConstraint(
+                    "CK_PaperAuthors_AuthorOrder",
+                    "[AuthorOrder]>(0)");
+            });
+
+            entity.HasKey(e => e.PaperAuthorId);
+
+            entity.HasIndex(e => e.PaperId, "IX_PaperAuthors_PaperId");
+
+            entity.HasIndex(e => e.OrcidId, "IX_PaperAuthors_OrcidId")
+                .HasFilter("[OrcidId] IS NOT NULL");
+
+            entity.Property(e => e.AuthorName).HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.OpenAlexAuthorId)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.OrcidId)
+                .HasMaxLength(19)
+                .IsUnicode(false);
+            entity.Property(e => e.RawAuthorName).HasMaxLength(255);
+            entity.Property(e => e.Source)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.Paper).WithMany(p => p.PaperAuthors)
+                .HasForeignKey(d => d.PaperId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PaperAuthors_Papers");
         });
 
         modelBuilder.Entity<PhasedReport>(entity =>
@@ -711,6 +760,8 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.OrcidId)
                 .HasMaxLength(19)
                 .IsUnicode(false);
+            entity.Property(e => e.OrcidDisplayName)
+                 .HasMaxLength(255);
             entity.Property(e => e.OrcidVerifiedAt)
                 .HasColumnType("datetime2(7)");
             entity.Property(e => e.PasswordHash)

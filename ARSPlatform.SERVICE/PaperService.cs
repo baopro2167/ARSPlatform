@@ -9,7 +9,9 @@ using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace ARSPlatform.SERVICES
@@ -66,18 +68,27 @@ namespace ARSPlatform.SERVICES
             var query = _paperRepository
                 .GetQueryable()
                 .Include(p => p.Creator)
+                .Include(p => p.PaperAuthors)
                 .AsNoTracking();
 
             var totalCount =
                 await query.CountAsync();
 
+            var pageNumber =
+                paginationParams.PageNumber < 1
+                    ? 1
+                    : paginationParams.PageNumber;
+
+            var pageSize =
+                paginationParams.PageSize < 1
+                    ? 10
+                    : paginationParams.PageSize;
+
             var items =
                 await query
-                    .Skip(
-                        (paginationParams.PageNumber - 1) *
-                        paginationParams.PageSize)
-                    .Take(
-                        paginationParams.PageSize)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
                     .ToListAsync();
 
             var dtos =
@@ -86,8 +97,8 @@ namespace ARSPlatform.SERVICES
             return new PagedResult<PaperResponse>(
                 dtos,
                 totalCount,
-                paginationParams.PageNumber,
-                paginationParams.PageSize);
+                pageNumber,
+                pageSize);
         }
 
         public async Task<PagedResult<PaperResponse>> GetByAuthorIdAsync(
@@ -164,17 +175,64 @@ namespace ARSPlatform.SERVICES
             PaperCreateRequest request,
             int authorId)
         {
+            if (request.Authors == null ||
+                request.Authors.Count == 0)
+            {
+                throw new ArgumentException(
+                    "At least one paper author is required.");
+            }
+
+            var normalizedWorkId =
+                NormalizeCanonicalWorkIdOrNull(
+                    request.OpenAlexWorkId);
+
             var paper =
                 _mapper.Map<Paper>(request);
 
             paper.CreatorId =
                 authorId;
 
+            paper.OpenAlexWorkId =
+                normalizedWorkId;
+
             paper.Status =
                 "Submitted";
 
             paper.CreatedAt =
                 DateTime.UtcNow;
+
+            paper.UpdatedAt =
+                DateTime.UtcNow;
+
+            if (normalizedWorkId != null)
+            {
+                paper.AuthorshipVerificationStatus =
+                    VerificationPendingAdminReview;
+
+                paper.AuthorshipVerifiedAt =
+                    null;
+
+                paper.AuthorshipVerificationReason =
+                    "AWAITING_ADMIN_VERIFICATION";
+            }
+            else
+            {
+                paper.AuthorshipVerificationStatus =
+                    VerificationNotChecked;
+
+                paper.AuthorshipVerifiedAt =
+                    null;
+
+                paper.AuthorshipVerificationReason =
+                    null;
+            }
+
+            ReplaceAuthors(
+                paper,
+                request.Authors,
+                normalizedWorkId != null
+                    ? "OPENALEX"
+                    : "MANUAL");
 
             await _paperRepository
                 .AddAsync(paper);
@@ -203,61 +261,75 @@ namespace ARSPlatform.SERVICES
             if (paper == null)
                 return null;
 
-            /*
-                Verification is tied to the Paper metadata
-                that was verified.
+            var normalizedWorkId =
+                request.OpenAlexWorkId == null
+                    ? paper.OpenAlexWorkId
+                    : NormalizeCanonicalWorkIdOrNull(
+                        request.OpenAlexWorkId);
 
-                If meaningful Paper data changes afterward,
-                the old OpenAlex verification becomes stale.
-            */
+            var updatedDoi =
+                request.Doi == null
+                    ? paper.Doi
+                    : NormalizeOptionalText(request.Doi);
+
+            var updatedPublicationDate =
+                request.PublicationDate
+                ?? paper.PublicationDate;
+
+            var updatedSourceName =
+                request.SourceName == null
+                    ? paper.SourceName
+                    : NormalizeOptionalText(request.SourceName);
+
+            var updatedIssnValue =
+                request.IssnValue == null
+                    ? paper.IssnValue
+                    : NormalizeOptionalText(request.IssnValue);
+
+            var authorsChanged =
+                request.Authors != null &&
+                AuthorsChanged(
+                    paper.PaperAuthors,
+                    request.Authors);
+
             var verificationRelevantChanged =
                 !string.Equals(
                     paper.Title,
                     request.Title,
                     StringComparison.Ordinal) ||
-
                 !string.Equals(
                     paper.Abstract,
                     request.Abstract,
                     StringComparison.Ordinal) ||
-
                 !string.Equals(
                     paper.FileUrl,
                     request.FileUrl,
                     StringComparison.Ordinal) ||
-
                 paper.Issn != request.Issn ||
-
-                paper.IsOpenAccess !=
-                    request.IsOpenAccess ||
-
+                paper.IsOpenAccess != request.IsOpenAccess ||
                 !string.Equals(
                     paper.Quartile,
                     request.Quartile,
                     StringComparison.Ordinal) ||
-
-                paper.SubFieldId !=
-                    request.SubFieldId;
-
-            /*
-                Remember if the current Approved state was
-                produced by successful OpenAlex verification.
-
-                Only this automatic approval is reverted
-                when the Paper is edited.
-            */
-            var wasAutoVerified =
-                string.Equals(
-                    paper.AuthorshipVerificationStatus,
-                    VerificationVerified,
-                    StringComparison.OrdinalIgnoreCase);
-
-            var wasAutoApproved =
-                wasAutoVerified &&
-                string.Equals(
-                    paper.Status,
-                    "Approved",
-                    StringComparison.OrdinalIgnoreCase);
+                paper.SubFieldId != request.SubFieldId ||
+                !string.Equals(
+                    paper.OpenAlexWorkId,
+                    normalizedWorkId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    paper.Doi,
+                    updatedDoi,
+                    StringComparison.Ordinal) ||
+                paper.PublicationDate != updatedPublicationDate ||
+                !string.Equals(
+                    paper.SourceName,
+                    updatedSourceName,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    paper.IssnValue,
+                    updatedIssnValue,
+                    StringComparison.Ordinal) ||
+                authorsChanged;
 
             paper.Title =
                 request.Title;
@@ -280,58 +352,84 @@ namespace ARSPlatform.SERVICES
             paper.SubFieldId =
                 request.SubFieldId;
 
-            /*
-                Clear stale OpenAlex verification if the
-                Paper metadata changes.
+            paper.OpenAlexWorkId =
+                normalizedWorkId;
 
-                This applies to VERIFIED and
-                PENDING_ADMIN_REVIEW evidence.
-            */
-            if (verificationRelevantChanged &&
-                !string.Equals(
-                    paper.AuthorshipVerificationStatus,
-                    VerificationNotChecked,
-                    StringComparison.OrdinalIgnoreCase))
+            paper.Doi =
+                updatedDoi;
+
+            paper.PublicationDate =
+                updatedPublicationDate;
+
+            paper.SourceName =
+                updatedSourceName;
+
+            paper.IssnValue =
+                updatedIssnValue;
+
+            if (request.Authors != null)
             {
-                paper.OpenAlexWorkId =
-                    null;
+                if (request.Authors.Count == 0)
+                {
+                    throw new ArgumentException(
+                        "At least one paper author is required when Authors is supplied.");
+                }
 
-                paper.AuthorshipVerificationStatus =
-                    VerificationNotChecked;
+                ReplaceAuthors(
+                    paper,
+                    request.Authors,
+                    normalizedWorkId != null
+                        ? "OPENALEX"
+                        : "MANUAL");
+            }
 
+            if (verificationRelevantChanged)
+            {
                 paper.AuthorshipVerifiedAt =
                     null;
 
-                paper.AuthorshipVerificationReason =
-                    "PAPER_UPDATED_AFTER_VERIFICATION";
-
-                /*
-                    Revert only an automatic approval
-                    generated from VERIFIED authorship.
-
-                    Do not overwrite unrelated status values.
-                */
-                if (wasAutoApproved)
+                if (normalizedWorkId != null)
                 {
-                    paper.Status =
-                        "Submitted";
+                    paper.AuthorshipVerificationStatus =
+                        VerificationPendingAdminReview;
+
+                    paper.AuthorshipVerificationReason =
+                        "PAPER_UPDATED_REQUIRES_REVIEW";
+                }
+                else
+                {
+                    paper.AuthorshipVerificationStatus =
+                        VerificationNotChecked;
+
+                    paper.AuthorshipVerificationReason =
+                        null;
                 }
             }
 
-            /*
-                PaperUpdateRequest already contains Status
-                in the old system.
-
-                Preserve Admin's ability to update it,
-                but prevent a normal Paper owner from
-                submitting Status = Approved manually.
-            */
             if (allowStatusUpdate &&
                 !string.IsNullOrWhiteSpace(
                     request.Status))
             {
-                paper.Status =
+                var requestedStatus =
                     request.Status.Trim();
+
+                if (string.Equals(
+                        requestedStatus,
+                        "Approved",
+                        StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(
+                        paper.OpenAlexWorkId) &&
+                    !string.Equals(
+                        paper.AuthorshipVerificationStatus,
+                        VerificationVerified,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "An OpenAlex-linked paper can only be approved after ORCID and author-name verification succeeds.");
+                }
+
+                paper.Status =
+                    requestedStatus;
             }
 
             paper.UpdatedAt =
@@ -343,8 +441,13 @@ namespace ARSPlatform.SERVICES
             await _paperRepository
                 .SaveChangesAsync();
 
-            return _mapper.Map<PaperResponse>(
-                paper);
+            var updatedPaper =
+                await _paperRepository
+                    .GetWithAuthorByIdAsync(id);
+
+            return updatedPaper == null
+                ? null
+                : _mapper.Map<PaperResponse>(updatedPaper);
         }
 
         public async Task<bool> DeletePaperAsync(
@@ -381,33 +484,22 @@ namespace ARSPlatform.SERVICES
                 return null;
             }
 
-            /*
-                Do not silently replace evidence after
-                successful verification.
+            var requestedWorkId =
+                !string.IsNullOrWhiteSpace(request.OpenAlexWorkId)
+                    ? request.OpenAlexWorkId
+                    : paper.OpenAlexWorkId;
 
-                If Paper content changes, UpdatePaperAsync
-                resets verification first.
-            */
-            if (string.Equals(
-                    paper.AuthorshipVerificationStatus,
-                    VerificationVerified,
-                    StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(requestedWorkId))
             {
                 throw new InvalidOperationException(
-                    "This paper's authorship has already been verified.");
+                    "This paper does not have an OpenAlex Work ID. Manual papers must be reviewed manually by Admin.");
             }
 
             var lookup =
                 await _openAlexService
                     .LookupWorkByIdAsync(
-                        request.OpenAlexWorkId);
+                        requestedWorkId);
 
-            /*
-                OpenAlexService returns a canonical W...
-                Work ID whenever input has been normalized.
-
-                Invalid raw input is never persisted.
-            */
             if (!string.Equals(
                     lookup.LookupStatus,
                     OpenAlexInvalidWorkId,
@@ -419,17 +511,7 @@ namespace ARSPlatform.SERVICES
                 paper.OpenAlexWorkId =
                     lookup.OpenAlexWorkId;
             }
-            else
-            {
-                paper.OpenAlexWorkId =
-                    null;
-            }
 
-            /*
-                Provider/input failures never reject Paper.
-
-                They are routed to manual review.
-            */
             if (!string.Equals(
                     lookup.LookupStatus,
                     OpenAlexFound,
@@ -446,17 +528,18 @@ namespace ARSPlatform.SERVICES
                 return BuildVerificationResponse(
                     paper,
                     lookup,
-                    verifiedOrcidId: null,
+                    verifiedOrcidId: paper.Creator?.OrcidId,
+                    orcidDisplayName: paper.Creator?.OrcidDisplayName,
+                    isOrcidMatch: false,
+                    isNameMatch: null,
                     matchSource: null,
                     matchedAuthorName: null);
             }
 
-            /*
-                Creator navigation should normally exist
-                because repository includes Creator.
+            SyncAuthorsFromOpenAlex(
+                paper,
+                lookup.Authorships);
 
-                If not, do not auto reject.
-            */
             if (paper.Creator == null)
             {
                 SetPendingVerification(
@@ -470,16 +553,13 @@ namespace ARSPlatform.SERVICES
                     paper,
                     lookup,
                     verifiedOrcidId: null,
+                    orcidDisplayName: null,
+                    isOrcidMatch: false,
+                    isNameMatch: null,
                     matchSource: null,
                     matchedAuthorName: null);
             }
 
-            /*
-                ORCID is optional.
-
-                A Paper without verified ORCID remains
-                eligible for manual Admin review.
-            */
             if (!paper.Creator.IsOrcidVerified ||
                 string.IsNullOrWhiteSpace(
                     paper.Creator.OrcidId))
@@ -494,8 +574,10 @@ namespace ARSPlatform.SERVICES
                 return BuildVerificationResponse(
                     paper,
                     lookup,
-                    verifiedOrcidId:
-                        paper.Creator.OrcidId,
+                    verifiedOrcidId: paper.Creator.OrcidId,
+                    orcidDisplayName: paper.Creator.OrcidDisplayName,
+                    isOrcidMatch: false,
+                    isNameMatch: null,
                     matchSource: null,
                     matchedAuthorName: null);
             }
@@ -515,19 +597,14 @@ namespace ARSPlatform.SERVICES
                 return BuildVerificationResponse(
                     paper,
                     lookup,
-                    verifiedOrcidId:
-                        paper.Creator.OrcidId,
+                    verifiedOrcidId: paper.Creator.OrcidId,
+                    orcidDisplayName: paper.Creator.OrcidDisplayName,
+                    isOrcidMatch: false,
+                    isNameMatch: null,
                     matchSource: null,
                     matchedAuthorName: null);
             }
 
-            /*
-                PRIORITY 1:
-                authorship.raw_orcid
-
-                This is ORCID attached directly to the
-                Work authorship metadata.
-            */
             var rawMatch =
                 lookup.Authorships
                     .FirstOrDefault(
@@ -536,41 +613,26 @@ namespace ARSPlatform.SERVICES
                                 authorship.RawOrcid,
                                 normalizedCreatorOrcid));
 
-            if (rawMatch != null)
-            {
-                SetVerified(
-                    paper);
-
-                await SaveVerificationAsync(
-                    paper);
-
-                return BuildVerificationResponse(
-                    paper,
-                    lookup,
-                    normalizedCreatorOrcid,
-                    "RAW_ORCID",
-                    rawMatch.RawAuthorName
-                        ?? rawMatch.AuthorDisplayName);
-            }
-
-            /*
-                PRIORITY 2:
-                resolved author.orcid
-
-                Only used if raw_orcid did not match.
-            */
             var resolvedMatch =
-                lookup.Authorships
-                    .FirstOrDefault(
-                        authorship =>
-                            OrcidMatches(
-                                authorship.AuthorOrcid,
-                                normalizedCreatorOrcid));
+                rawMatch == null
+                    ? lookup.Authorships
+                        .FirstOrDefault(
+                            authorship =>
+                                OrcidMatches(
+                                    authorship.AuthorOrcid,
+                                    normalizedCreatorOrcid))
+                    : null;
 
-            if (resolvedMatch != null)
+            var matchedAuthorship =
+                rawMatch ?? resolvedMatch;
+
+            if (matchedAuthorship == null)
             {
-                SetVerified(
-                    paper);
+                SetPendingVerification(
+                    paper,
+                    lookup.Authorships.Count == 0
+                        ? "AUTHORSHIP_DATA_UNAVAILABLE"
+                        : "ORCID_NOT_IN_AUTHORSHIP");
 
                 await SaveVerificationAsync(
                     paper);
@@ -579,27 +641,69 @@ namespace ARSPlatform.SERVICES
                     paper,
                     lookup,
                     normalizedCreatorOrcid,
-                    "AUTHOR_ORCID",
-                    resolvedMatch.AuthorDisplayName
-                        ?? resolvedMatch.RawAuthorName);
+                    paper.Creator.OrcidDisplayName,
+                    isOrcidMatch: false,
+                    isNameMatch: null,
+                    matchSource: null,
+                    matchedAuthorName: null);
             }
 
-            /*
-                Distinguish missing authorship metadata
-                from an explicit ORCID non-match.
-            */
-            if (lookup.Authorships.Count == 0)
+            var matchedAuthorName =
+                matchedAuthorship.RawAuthorName
+                ?? matchedAuthorship.AuthorDisplayName;
+
+            var matchSource =
+                rawMatch != null
+                    ? "RAW_ORCID"
+                    : "AUTHOR_ORCID";
+
+            if (string.IsNullOrWhiteSpace(
+                    paper.Creator.OrcidDisplayName))
             {
                 SetPendingVerification(
                     paper,
-                    "AUTHORSHIP_DATA_UNAVAILABLE");
+                    "ORCID_DISPLAY_NAME_UNAVAILABLE");
+
+                await SaveVerificationAsync(
+                    paper);
+
+                return BuildVerificationResponse(
+                    paper,
+                    lookup,
+                    normalizedCreatorOrcid,
+                    paper.Creator.OrcidDisplayName,
+                    isOrcidMatch: true,
+                    isNameMatch: null,
+                    matchSource,
+                    matchedAuthorName);
             }
-            else
+
+            var isNameMatch =
+                NamesMatch(
+                    paper.Creator.OrcidDisplayName,
+                    matchedAuthorName);
+
+            if (!isNameMatch)
             {
                 SetPendingVerification(
                     paper,
-                    "ORCID_NOT_IN_AUTHORSHIP");
+                    "ORCID_NAME_MISMATCH");
+
+                await SaveVerificationAsync(
+                    paper);
+
+                return BuildVerificationResponse(
+                    paper,
+                    lookup,
+                    normalizedCreatorOrcid,
+                    paper.Creator.OrcidDisplayName,
+                    isOrcidMatch: true,
+                    isNameMatch: false,
+                    matchSource,
+                    matchedAuthorName);
             }
+
+            SetVerified(paper);
 
             await SaveVerificationAsync(
                 paper);
@@ -608,8 +712,11 @@ namespace ARSPlatform.SERVICES
                 paper,
                 lookup,
                 normalizedCreatorOrcid,
-                matchSource: null,
-                matchedAuthorName: null);
+                paper.Creator.OrcidDisplayName,
+                isOrcidMatch: true,
+                isNameMatch: true,
+                matchSource,
+                matchedAuthorName);
         }
 
         private async Task SaveVerificationAsync(
@@ -635,21 +742,10 @@ namespace ARSPlatform.SERVICES
                 DateTime.UtcNow;
 
             paper.AuthorshipVerificationReason =
-                null;
+                "ORCID_AND_NAME_MATCH";
 
-            /*
-                Auto approve only a normally Submitted Paper.
-
-                Do not overwrite unrelated workflow states.
-            */
-            if (string.Equals(
-                    paper.Status,
-                    "Submitted",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                paper.Status =
-                    "Approved";
-            }
+            // Paper.Status is intentionally NOT changed here.
+            // Admin remains the final approver/rejector.
         }
 
         private static void SetPendingVerification(
@@ -665,12 +761,7 @@ namespace ARSPlatform.SERVICES
             paper.AuthorshipVerificationReason =
                 reason;
 
-            /*
-                Deliberately DO NOT change Paper.Status here.
-
-                No ORCID / mismatch / provider error
-                must never automatically reject Paper.
-            */
+            // Do not auto-reject or auto-approve the Paper.
         }
 
         private static bool OrcidMatches(
@@ -689,6 +780,73 @@ namespace ARSPlatform.SERVICES
                 normalizedCandidate,
                 normalizedCreatorOrcid,
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool NamesMatch(
+            string? orcidDisplayName,
+            string? paperAuthorName)
+        {
+            var left = NormalizePersonName(
+                orcidDisplayName);
+
+            var right = NormalizePersonName(
+                paperAuthorName);
+
+            return left.Length > 0 &&
+                   right.Length > 0 &&
+                   string.Equals(
+                       left,
+                       right,
+                       StringComparison.Ordinal);
+        }
+
+        private static string NormalizePersonName(
+            string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized =
+                value.Trim()
+                    .Normalize(
+                        NormalizationForm.FormD);
+
+            var builder =
+                new StringBuilder();
+
+            foreach (var character in normalized)
+            {
+                var category =
+                    CharUnicodeInfo.GetUnicodeCategory(
+                        character);
+
+                if (category ==
+                    UnicodeCategory.NonSpacingMark)
+                {
+                    continue;
+                }
+
+                if (char.IsLetterOrDigit(character))
+                {
+                    builder.Append(
+                        char.ToLowerInvariant(
+                            character));
+                }
+                else
+                {
+                    builder.Append(' ');
+                }
+            }
+
+            return string.Join(
+                " ",
+                builder
+                    .ToString()
+                    .Split(
+                        ' ',
+                        StringSplitOptions.RemoveEmptyEntries));
         }
 
         private static string MapOpenAlexFailureReason(
@@ -737,11 +895,247 @@ namespace ARSPlatform.SERVICES
             return "OPENALEX_LOOKUP_FAILED";
         }
 
+        private static string? NormalizeOptionalText(
+            string? value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? null
+                : value.Trim();
+        }
+
+        private static string? NormalizeCanonicalWorkIdOrNull(
+            string? workId)
+        {
+            if (string.IsNullOrWhiteSpace(workId))
+            {
+                return null;
+            }
+
+            var value = workId.Trim();
+
+            if (value.Length < 2 ||
+                value[0] != 'W')
+            {
+                throw new ArgumentException(
+                    "OpenAlexWorkId must be a canonical W-prefixed OpenAlex Work ID.");
+            }
+
+            for (var index = 1; index < value.Length; index++)
+            {
+                if (!char.IsDigit(value[index]))
+                {
+                    throw new ArgumentException(
+                        "OpenAlexWorkId must be a canonical W-prefixed OpenAlex Work ID.");
+                }
+            }
+
+            return value;
+        }
+
+        private static void ReplaceAuthors(
+            Paper paper,
+            IReadOnlyList<PaperAuthorRequest> authors,
+            string source)
+        {
+            paper.PaperAuthors.Clear();
+
+            var now =
+                DateTime.UtcNow;
+
+            for (var index = 0; index < authors.Count; index++)
+            {
+                var author =
+                    authors[index];
+
+                if (string.IsNullOrWhiteSpace(
+                        author.AuthorName))
+                {
+                    throw new ArgumentException(
+                        "AuthorName is required for every paper author.");
+                }
+
+                string? normalizedOrcid = null;
+
+                if (!string.IsNullOrWhiteSpace(
+                        author.OrcidId))
+                {
+                    if (!OrcidIdUtility
+                            .TryNormalizeAndValidate(
+                                author.OrcidId,
+                                out normalizedOrcid))
+                    {
+                        throw new ArgumentException(
+                            $"Author ORCID '{author.OrcidId}' is invalid.");
+                    }
+                }
+
+                paper.PaperAuthors.Add(
+                    new PaperAuthor
+                    {
+                        AuthorOrder = index + 1,
+                        AuthorName = author.AuthorName.Trim(),
+                        RawAuthorName =
+                            string.IsNullOrWhiteSpace(author.RawAuthorName)
+                                ? null
+                                : author.RawAuthorName.Trim(),
+                        OrcidId = normalizedOrcid,
+                        OpenAlexAuthorId =
+                            string.IsNullOrWhiteSpace(author.OpenAlexAuthorId)
+                                ? null
+                                : author.OpenAlexAuthorId.Trim(),
+                        IsCorresponding = author.IsCorresponding,
+                        Source = source,
+                        CreatedAt = now
+                    });
+            }
+        }
+
+        private static bool AuthorsChanged(
+            ICollection<PaperAuthor> existingAuthors,
+            IReadOnlyList<PaperAuthorRequest> requestedAuthors)
+        {
+            var existing =
+                existingAuthors
+                    .OrderBy(author => author.AuthorOrder)
+                    .ToList();
+
+            if (existing.Count !=
+                requestedAuthors.Count)
+            {
+                return true;
+            }
+
+            for (var index = 0;
+                 index < existing.Count;
+                 index++)
+            {
+                var current =
+                    existing[index];
+
+                var requested =
+                    requestedAuthors[index];
+
+                if (!string.Equals(
+                        current.AuthorName?.Trim(),
+                        requested.AuthorName?.Trim(),
+                        StringComparison.Ordinal) ||
+                    !string.Equals(
+                        current.RawAuthorName?.Trim(),
+                        requested.RawAuthorName?.Trim(),
+                        StringComparison.Ordinal) ||
+                    !OrcidEquivalent(
+                        current.OrcidId,
+                        requested.OrcidId) ||
+                    !string.Equals(
+                        current.OpenAlexAuthorId?.Trim(),
+                        requested.OpenAlexAuthorId?.Trim(),
+                        StringComparison.OrdinalIgnoreCase) ||
+                    current.IsCorresponding !=
+                        requested.IsCorresponding)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool OrcidEquivalent(
+            string? left,
+            string? right)
+        {
+            if (string.IsNullOrWhiteSpace(left) &&
+                string.IsNullOrWhiteSpace(right))
+            {
+                return true;
+            }
+
+            if (!OrcidIdUtility.TryNormalizeAndValidate(
+                    left,
+                    out var normalizedLeft) ||
+                !OrcidIdUtility.TryNormalizeAndValidate(
+                    right,
+                    out var normalizedRight))
+            {
+                return string.Equals(
+                    left?.Trim(),
+                    right?.Trim(),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            return string.Equals(
+                normalizedLeft,
+                normalizedRight,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void SyncAuthorsFromOpenAlex(
+            Paper paper,
+            IReadOnlyList<OpenAlexWorkAuthorshipResponse> authorships)
+        {
+            if (authorships.Count == 0)
+            {
+                return;
+            }
+
+            paper.PaperAuthors.Clear();
+
+            var now =
+                DateTime.UtcNow;
+
+            for (var index = 0;
+                 index < authorships.Count;
+                 index++)
+            {
+                var authorship =
+                    authorships[index];
+
+                var authorName =
+                    authorship.RawAuthorName
+                    ?? authorship.AuthorDisplayName;
+
+                if (string.IsNullOrWhiteSpace(authorName))
+                {
+                    continue;
+                }
+
+                var candidateOrcid =
+                    !string.IsNullOrWhiteSpace(authorship.RawOrcid)
+                        ? authorship.RawOrcid
+                        : authorship.AuthorOrcid;
+
+                string? normalizedOrcid = null;
+
+                if (!string.IsNullOrWhiteSpace(candidateOrcid))
+                {
+                    OrcidIdUtility.TryNormalizeAndValidate(
+                        candidateOrcid,
+                        out normalizedOrcid);
+                }
+
+                paper.PaperAuthors.Add(
+                    new PaperAuthor
+                    {
+                        AuthorOrder = index + 1,
+                        AuthorName = authorName.Trim(),
+                        RawAuthorName = authorship.RawAuthorName,
+                        OrcidId = normalizedOrcid,
+                        OpenAlexAuthorId = authorship.AuthorOpenAlexId,
+                        IsCorresponding = authorship.IsCorresponding,
+                        Source = "OPENALEX",
+                        CreatedAt = now
+                    });
+            }
+        }
+
         private static PaperAuthorshipVerificationResponse
             BuildVerificationResponse(
                 Paper paper,
                 OpenAlexWorkLookupResponse lookup,
                 string? verifiedOrcidId,
+                string? orcidDisplayName,
+                bool isOrcidMatch,
+                bool? isNameMatch,
                 string? matchSource,
                 string? matchedAuthorName)
         {
@@ -767,6 +1161,15 @@ namespace ARSPlatform.SERVICES
 
                 VerifiedOrcidId =
                     verifiedOrcidId,
+
+                OrcidDisplayName =
+                    orcidDisplayName,
+
+                IsOrcidMatch =
+                    isOrcidMatch,
+
+                IsNameMatch =
+                    isNameMatch,
 
                 MatchSource =
                     matchSource,

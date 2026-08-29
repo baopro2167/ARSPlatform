@@ -19,6 +19,8 @@ public partial class User
 
     public string? OrcidId { get; set; }
 
+    public string? OrcidDisplayName { get; set; }
+
     public bool IsOrcidVerified { get; set; }
 
     public DateTime? OrcidVerifiedAt { get; set; }

@@ -138,80 +138,27 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Xác minh tác giả Paper bằng OpenAlex Work ID
-        /// và ORCID đã được xác minh của Creator.
+        /// Admin đối chiếu tác giả OpenAlex với ORCID đã xác thực của Researcher.
+        /// Kết quả chỉ cập nhật AuthorshipVerificationStatus; không tự approve/reject Paper.
         /// </summary>
         /// <param name="id">Paper ID</param>
         /// <param name="request">
-        /// OpenAlex Work ID dùng để kiểm tra authorship
+        /// Có thể bỏ trống OpenAlexWorkId để dùng OpenAlexWorkId đã lưu trên Paper.
         /// </param>
-        /// <returns>
-        /// Kết quả xác minh authorship
-        /// </returns>
         [HttpPost("{id:int}/verify-authorship")]
-        [Authorize]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<PaperAuthorshipVerificationResponse>>
             VerifyAuthorship(
                 int id,
-                [FromBody] PaperAuthorshipVerifyRequest request)
+                [FromBody] PaperAuthorshipVerifyRequest? request)
         {
-            /*
-                Read Paper first to enforce ownership
-                before triggering OpenAlex verification.
-            */
-            var paper =
-                await _paperService
-                    .GetPaperByIdAsync(id);
-
-            if (paper == null)
-            {
-                return NotFound(
-                    new
-                    {
-                        Message =
-                            "Paper not found."
-                    });
-            }
-
-            var currentUserIdStr =
-                User.FindFirst(
-                    ClaimTypes.NameIdentifier)
-                    ?.Value;
-
-            if (string.IsNullOrWhiteSpace(
-                    currentUserIdStr))
-            {
-                return Unauthorized();
-            }
-
-            var currentUserRole =
-                User.FindFirst(
-                    ClaimTypes.Role)
-                    ?.Value;
-
-            /*
-                Preserve existing Paper ownership model:
-
-                - Admin may operate on any Paper.
-                - Normal user may operate only on own Paper.
-
-                Actual verification always uses the
-                Paper Creator's ORCID, not caller ORCID.
-            */
-            if (currentUserRole != "Admin" &&
-                paper.AuthorId?.ToString() !=
-                    currentUserIdStr)
-            {
-                return Forbid();
-            }
-
             try
             {
                 var result =
                     await _paperService
                         .VerifyAuthorshipAsync(
                             id,
-                            request);
+                            request ?? new PaperAuthorshipVerifyRequest());
 
                 if (result == null)
                 {
@@ -288,11 +235,8 @@ namespace ARSPlatform.API.CONTROLLER
             try
             {
                 /*
-                    Existing Admin status-management behavior
-                    is preserved.
-
-                    Normal owner cannot send Status=Approved
-                    and bypass OpenAlex verification.
+                    Admin remains the final approver/rejector.
+                    Normal Paper owners cannot update Status.
                 */
                 var updatedPaper =
                     await _paperService

@@ -12,6 +12,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string? OrcidId { get; set; }
 
+        public string? DisplayName { get; set; }
+
         public DateTime? VerifiedAt { get; set; }
 
         public bool CanConnect { get; set; }

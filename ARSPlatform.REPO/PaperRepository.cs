@@ -19,10 +19,13 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await _dbSet
                 .Include(p => p.Creator)
+                .Include(p => p.PaperAuthors)
                 .FirstOrDefaultAsync(p => p.PaperId == id);
         }
 
-        public async Task<PagedResult<Paper>> GetByAuthorIdPagedAsync(int authorId, PaginationParams paginationParams)
+        public async Task<PagedResult<Paper>> GetByAuthorIdPagedAsync(
+            int authorId,
+            PaginationParams paginationParams)
         {
             return await GetPagedAsync(
                 paginationParams,
@@ -31,16 +34,28 @@ namespace ARSPlatform.REPOSITORIES
                 includes: new System.Linq.Expressions.Expression<System.Func<Paper, object>>[]
                 {
                     x => x.Creator!,
-                    x => x.SubField!
+                    x => x.SubField!,
+                    x => x.PaperAuthors
                 });
         }
 
-        public async Task<PagedResult<Paper>> GetByAuthorIdPagedAsync(int authorId, int pageNumber, int pageSize)
+        public async Task<PagedResult<Paper>> GetByAuthorIdPagedAsync(
+            int authorId,
+            int pageNumber,
+            int pageSize)
         {
-            return await GetByAuthorIdPagedAsync(authorId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+            return await GetByAuthorIdPagedAsync(
+                authorId,
+                new PaginationParams
+                {
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                });
         }
 
-        public async Task<PagedResult<Paper>> GetBySubFieldIdPagedAsync(int subFieldId, PaginationParams paginationParams)
+        public async Task<PagedResult<Paper>> GetBySubFieldIdPagedAsync(
+            int subFieldId,
+            PaginationParams paginationParams)
         {
             return await GetPagedAsync(
                 paginationParams,
@@ -49,13 +64,23 @@ namespace ARSPlatform.REPOSITORIES
                 includes: new System.Linq.Expressions.Expression<System.Func<Paper, object>>[]
                 {
                     x => x.Creator!,
-                    x => x.SubField!
+                    x => x.SubField!,
+                    x => x.PaperAuthors
                 });
         }
 
-        public async Task<PagedResult<Paper>> GetBySubFieldIdPagedAsync(int subFieldId, int pageNumber, int pageSize)
+        public async Task<PagedResult<Paper>> GetBySubFieldIdPagedAsync(
+            int subFieldId,
+            int pageNumber,
+            int pageSize)
         {
-            return await GetBySubFieldIdPagedAsync(subFieldId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+            return await GetBySubFieldIdPagedAsync(
+                subFieldId,
+                new PaginationParams
+                {
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                });
         }
     }
 }

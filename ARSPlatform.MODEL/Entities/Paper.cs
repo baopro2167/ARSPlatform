@@ -32,6 +32,14 @@ public partial class Paper
 
     public string? OpenAlexWorkId { get; set; }
 
+    public string? Doi { get; set; }
+
+    public DateTime? PublicationDate { get; set; }
+
+    public string? SourceName { get; set; }
+
+    public string? IssnValue { get; set; }
+
     public string AuthorshipVerificationStatus { get; set; } = "NOT_CHECKED";
 
     public DateTime? AuthorshipVerifiedAt { get; set; }
@@ -42,6 +50,9 @@ public partial class Paper
 
     [JsonIgnore]
     public virtual ICollection<ForumComment> ForumComments { get; set; } = new List<ForumComment>();
+
+    [JsonIgnore]
+    public virtual ICollection<PaperAuthor> PaperAuthors { get; set; } = new List<PaperAuthor>();
 
     [JsonIgnore]
     public virtual ICollection<ReviewRequest> ReviewRequests { get; set; } = new List<ReviewRequest>();

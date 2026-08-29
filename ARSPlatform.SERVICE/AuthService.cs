@@ -1,19 +1,20 @@
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE;
-using System.Net.Http;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
-using ARSPlatform.SERVICE.Interfaces;
 using ARSPlatform.SERVICE.ExternalServices;
+using ARSPlatform.SERVICE.Interfaces;
 using AutoMapper;
 using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -100,6 +101,7 @@ namespace ARSPlatform.SERVICES
             */
             OrcidLinkSession? orcidRegistrationSession = null;
             string? verifiedOrcidId = null;
+            string? verifiedOrcidDisplayName = null;
 
             if (!string.IsNullOrWhiteSpace(request.OrcidTicket))
             {
@@ -182,6 +184,11 @@ namespace ARSPlatform.SERVICES
                         "The authenticated ORCID iD is invalid.");
                 }
 
+                verifiedOrcidDisplayName =
+                    string.IsNullOrWhiteSpace(orcidRegistrationSession.DisplayName)
+                        ? null
+                        : orcidRegistrationSession.DisplayName.Trim();
+
                 /*
                     One ORCID must belong to only one ARS User.
 
@@ -251,6 +258,9 @@ namespace ARSPlatform.SERVICES
                     user.OrcidId =
                         verifiedOrcidId;
 
+                    user.OrcidDisplayName =
+                        verifiedOrcidDisplayName;
+
                     user.IsOrcidVerified =
                         true;
 
@@ -300,6 +310,9 @@ namespace ARSPlatform.SERVICES
                 {
                     user.OrcidId =
                         verifiedOrcidId;
+
+                    user.OrcidDisplayName =
+                        verifiedOrcidDisplayName;
 
                     user.IsOrcidVerified =
                         true;
