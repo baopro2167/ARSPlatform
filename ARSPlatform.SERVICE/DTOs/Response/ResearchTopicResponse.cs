@@ -21,5 +21,9 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int? LecturerId { get; set; }
 
         public string? LecturerName { get; set; }
+
+        public int GroupCount { get; set; }
+
+        public System.Collections.Generic.List<ResearchGroupResponse>? Groups { get; set; }
     }
 }
