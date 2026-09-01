@@ -40,6 +40,30 @@ public partial class DetailedEvaluation
 
     public string SpecializedEvaluation { get; set; } = "[]";
 
+    public string? Recommendation { get; set; }
+
+    public string? OverallSummary { get; set; }
+
+    public string? Strengths { get; set; }
+
+    public string? RequiredImprovements { get; set; }
+
+    public string? RejectionReason { get; set; }
+
+    public string? CommentsForResearcher { get; set; }
+
+    public string? PrivateCommentsForAdmin { get; set; }
+
+    public bool? EthicsOrCopyrightConcern { get; set; }
+
+    public string? ReviewedPaperVersion { get; set; }
+
+    public string? AdminDecision { get; set; }
+
+    public string? AdminDecisionNotes { get; set; }
+
+    public DateTime? AdminDecisionAt { get; set; }
+
     [JsonIgnore]
     public virtual ReviewRequest? ReviewRequest { get; set; }
 

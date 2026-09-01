@@ -401,5 +401,38 @@ namespace ARSPlatform.API.CONTROLLER
                 return StatusCode(500, new { Message = ex.Message });
             }
         }
+
+        /// <summary>
+        /// Lấy kết quả phản hồi phản biện dành cho tác giả bài báo (chỉ hiển thị sau khi Ban biên tập đã có quyết định xuất bản/chỉnh sửa/từ chối)
+        /// </summary>
+        /// <param name="id">ID của bài báo</param>
+        /// <param name="workflowService">Review workflow service</param>
+        /// <returns>Kết quả phản hồi an toàn cho tác giả (đã ẩn các bình luận mật của Admin)</returns>
+        [HttpGet("{id:int}/reviews")]
+        [Authorize]
+        public async Task<ActionResult<AuthorPaperReviewFeedbackResponse>> GetAuthorReviews(
+            int id,
+            [FromServices] IReviewWorkflowService workflowService)
+        {
+            var currentUserIdVal = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(currentUserIdVal, out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                var result = await workflowService.GetAuthorPaperReviewsAsync(id, currentUserId);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+        }
     }
 }
