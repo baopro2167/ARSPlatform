@@ -18,7 +18,7 @@ public partial class ResearchTopic
 
     public DateTime? UpdatedAt { get; set; }
 
-    public string? MaterialsUrl { get; set; }
+    public string? GuidanceProjectsUrl { get; set; }
 
     public int? LecturerId { get; set; }
 

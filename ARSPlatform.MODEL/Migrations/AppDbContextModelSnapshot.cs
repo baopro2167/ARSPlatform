@@ -306,6 +306,26 @@ namespace ARSPlatform.MODELS.Migrations
                     b.ToTable("ForumPosts");
                 });
 
+            modelBuilder.Entity("ARSPlatform.MODEL.Entities.ForumPostLike", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ForumPostId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getutcdate())");
+
+                    b.HasKey("UserId", "ForumPostId");
+
+                    b.HasIndex("ForumPostId");
+
+                    b.ToTable("ForumPostLikes");
+                });
+
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.GroupMember", b =>
                 {
                     b.Property<int>("GroupMemberId")
@@ -323,6 +343,11 @@ namespace ARSPlatform.MODELS.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("(getutcdate())");
+
+                    b.Property<bool?>("LeaderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<int?>("ResearchGroupId")
                         .HasColumnType("int");
@@ -358,6 +383,9 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<int?>("LecturerId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ResearchGroupId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Status")
                         .HasMaxLength(50)
                         .IsUnicode(false)
@@ -374,6 +402,8 @@ namespace ARSPlatform.MODELS.Migrations
                     b.HasKey("GuidanceProjectId");
 
                     b.HasIndex("LecturerId");
+
+                    b.HasIndex("ResearchGroupId");
 
                     b.HasIndex("StudentId");
 
@@ -563,6 +593,98 @@ namespace ARSPlatform.MODELS.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("ARSPlatform.MODEL.Entities.OrcidLinkSession", b =>
+                {
+                    b.Property<int>("OrcidLinkSessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("OrcidLinkSessionId"));
+
+                    b.Property<DateTime?>("AuthenticatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AuthenticatedOrcidId")
+                        .HasMaxLength(19)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(19)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getutcdate())");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("StateHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("PENDING");
+
+                    b.Property<string>("TicketHash")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("OrcidLinkSessionId");
+
+                    b.HasIndex(new[] { "ExpiresAt" }, "IX_OrcidLinkSessions_ExpiresAt");
+
+                    b.HasIndex(new[] { "UserId" }, "IX_OrcidLinkSessions_UserId")
+                        .HasFilter("[UserId] IS NOT NULL");
+
+                    b.HasIndex(new[] { "StateHash" }, "UX_OrcidLinkSessions_StateHash")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "TicketHash" }, "UX_OrcidLinkSessions_TicketHash")
+                        .IsUnique()
+                        .HasFilter("[TicketHash] IS NOT NULL");
+
+                    b.ToTable("OrcidLinkSessions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OrcidLinkSessions_AccountLinkUser", "[Context] <> 'ACCOUNT_LINK' OR [UserId] IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_OrcidLinkSessions_Context", "[Context] IN ('REGISTRATION', 'ACCOUNT_LINK')");
+
+                            t.HasCheckConstraint("CK_OrcidLinkSessions_RegistrationUser", "[Context] <> 'REGISTRATION' OR [UserId] IS NULL");
+
+                            t.HasCheckConstraint("CK_OrcidLinkSessions_Status", "[Status] IN ('PENDING', 'AUTHENTICATED', 'COMPLETED', 'FAILED')");
+                        });
+                });
+
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.Paper", b =>
                 {
                     b.Property<int>("PaperId")
@@ -574,6 +696,22 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<string>("Abstract")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("AuthorshipVerificationReason")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("AuthorshipVerificationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("NOT_CHECKED");
+
+                    b.Property<DateTime?>("AuthorshipVerifiedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
@@ -581,6 +719,11 @@ namespace ARSPlatform.MODELS.Migrations
 
                     b.Property<int?>("CreatorId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Doi")
+                        .HasMaxLength(255)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(255)");
 
                     b.Property<string>("FileUrl")
                         .HasColumnType("nvarchar(max)");
@@ -595,10 +738,27 @@ namespace ARSPlatform.MODELS.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("IssnValue")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("OpenAlexWorkId")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("PublicationDate")
+                        .HasColumnType("datetime2(7)");
+
                     b.Property<string>("Quartile")
                         .HasMaxLength(10)
                         .IsUnicode(false)
                         .HasColumnType("varchar(10)");
+
+                    b.Property<string>("SourceName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<string>("Status")
                         .HasMaxLength(50)
@@ -632,6 +792,68 @@ namespace ARSPlatform.MODELS.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("ARSPlatform.MODEL.Entities.PaperAuthor", b =>
+                {
+                    b.Property<int>("PaperAuthorId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PaperAuthorId"));
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("AuthorOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getutcdate())");
+
+                    b.Property<bool?>("IsCorresponding")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OpenAlexAuthorId")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("OrcidId")
+                        .HasMaxLength(19)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(19)");
+
+                    b.Property<int>("PaperId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RawAuthorName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.HasKey("PaperAuthorId");
+
+                    b.HasIndex(new[] { "OrcidId" }, "IX_PaperAuthors_OrcidId")
+                        .HasFilter("[OrcidId] IS NOT NULL");
+
+                    b.HasIndex(new[] { "PaperId" }, "IX_PaperAuthors_PaperId");
+
+                    b.ToTable("PaperAuthors", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PaperAuthors_AuthorOrder", "[AuthorOrder]>(0)");
+
+                            t.HasCheckConstraint("CK_PaperAuthors_Source", "[Source]='MANUAL' OR [Source]='OPENALEX'");
+                        });
+                });
+
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.PhasedReport", b =>
                 {
                     b.Property<int>("PhasedReportId")
@@ -644,6 +866,14 @@ namespace ARSPlatform.MODELS.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getutcdate())");
+
+                    b.Property<DateTime?>("DeadlineAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("FinalOutcomeEvaluation")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
@@ -654,14 +884,32 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<decimal?>("LectureFeedback")
                         .HasColumnType("decimal(15, 2)");
 
+                    b.Property<string>("LecturerDescription")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MilestoneTitle")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int?>("PhaseNumber")
+                        .HasColumnType("int");
+
                     b.Property<string>("ReportFileUrl")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("ResearchGroupId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Status")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<DateTime?>("SubmittedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("TopicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -673,6 +921,8 @@ namespace ARSPlatform.MODELS.Migrations
                     b.HasIndex("GroupMemberId");
 
                     b.HasIndex("ResearchGroupId");
+
+                    b.HasIndex("TopicId");
 
                     b.ToTable("PhasedReports", t =>
                         {
@@ -859,6 +1109,10 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<int?>("LecturerId")
                         .HasColumnType("int");
 
+                    b.Property<string>("MaterialsUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -892,8 +1146,12 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("MaterialsUrl")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("GuidanceProjectsUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("LecturerId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Status")
                         .HasMaxLength(50)
@@ -911,6 +1169,8 @@ namespace ARSPlatform.MODELS.Migrations
                         .HasDefaultValueSql("(getutcdate())");
 
                     b.HasKey("TopicId");
+
+                    b.HasIndex("LecturerId");
 
                     b.ToTable("ResearchTopics", t =>
                         {
@@ -996,13 +1256,13 @@ namespace ARSPlatform.MODELS.Migrations
                         new
                         {
                             RoleId = 4,
-                            CreatedAt = new DateTime(2026, 8, 27, 8, 56, 12, 556, DateTimeKind.Utc).AddTicks(1610),
+                            CreatedAt = new DateTime(2026, 9, 1, 9, 45, 35, 33, DateTimeKind.Utc).AddTicks(1285),
                             Name = "Lecturer"
                         },
                         new
                         {
                             RoleId = 5,
-                            CreatedAt = new DateTime(2026, 8, 27, 8, 56, 12, 556, DateTimeKind.Utc).AddTicks(1633),
+                            CreatedAt = new DateTime(2026, 9, 1, 9, 45, 35, 33, DateTimeKind.Utc).AddTicks(1289),
                             Name = "Graduate Student"
                         });
                 });
@@ -1348,16 +1608,28 @@ namespace ARSPlatform.MODELS.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsOrcidVerified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool?>("IsOtpUsed")
                         .HasColumnType("bit");
 
                     b.Property<int?>("MaxSimultaneousPapers")
                         .HasColumnType("int");
 
+                    b.Property<string>("OrcidDisplayName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
                     b.Property<string>("OrcidId")
                         .HasMaxLength(19)
                         .IsUnicode(false)
                         .HasColumnType("varchar(19)");
+
+                    b.Property<DateTime?>("OrcidVerifiedAt")
+                        .HasColumnType("datetime2(7)");
 
                     b.Property<string>("OtpCode")
                         .HasColumnType("nvarchar(max)");
@@ -1682,6 +1954,26 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ARSPlatform.MODEL.Entities.ForumPostLike", b =>
+                {
+                    b.HasOne("ARSPlatform.MODEL.Entities.ForumPost", "ForumPost")
+                        .WithMany("ForumPostLikes")
+                        .HasForeignKey("ForumPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ForumPostLikes_ForumPost");
+
+                    b.HasOne("ARSPlatform.MODEL.Entities.User", "User")
+                        .WithMany("ForumPostLikes")
+                        .HasForeignKey("UserId")
+                        .IsRequired()
+                        .HasConstraintName("FK_ForumPostLikes_User");
+
+                    b.Navigation("ForumPost");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.GroupMember", b =>
                 {
                     b.HasOne("ARSPlatform.MODEL.Entities.ResearchGroup", "ResearchGroup")
@@ -1708,12 +2000,19 @@ namespace ARSPlatform.MODELS.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("FK__GuidanceP__Lectu__1DB06A4F");
 
+                    b.HasOne("ARSPlatform.MODEL.Entities.ResearchGroup", "ResearchGroup")
+                        .WithMany("GuidanceProjects")
+                        .HasForeignKey("ResearchGroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ARSPlatform.MODEL.Entities.User", "Student")
                         .WithMany("GuidanceProjectStudents")
                         .HasForeignKey("StudentId")
                         .HasConstraintName("FK__GuidanceP__Stude__1F98B2C1");
 
                     b.Navigation("Lecturer");
+
+                    b.Navigation("ResearchGroup");
 
                     b.Navigation("Student");
                 });
@@ -1766,6 +2065,16 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ARSPlatform.MODEL.Entities.OrcidLinkSession", b =>
+                {
+                    b.HasOne("ARSPlatform.MODEL.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK_OrcidLinkSessions_User");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.Paper", b =>
                 {
                     b.HasOne("ARSPlatform.MODEL.Entities.User", "Creator")
@@ -1785,6 +2094,18 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Navigation("SubField");
                 });
 
+            modelBuilder.Entity("ARSPlatform.MODEL.Entities.PaperAuthor", b =>
+                {
+                    b.HasOne("ARSPlatform.MODEL.Entities.Paper", "Paper")
+                        .WithMany("PaperAuthors")
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_PaperAuthors_Papers");
+
+                    b.Navigation("Paper");
+                });
+
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.PhasedReport", b =>
                 {
                     b.HasOne("ARSPlatform.MODEL.Entities.GroupMember", "GroupMember")
@@ -1798,9 +2119,16 @@ namespace ARSPlatform.MODELS.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .HasConstraintName("FK__PhasedRep__Resea__22751F6C");
 
+                    b.HasOne("ARSPlatform.MODEL.Entities.ResearchTopic", "Topic")
+                        .WithMany("PhasedReports")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("GroupMember");
 
                     b.Navigation("ResearchGroup");
+
+                    b.Navigation("Topic");
                 });
 
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.ProfessionalProfile", b =>
@@ -1860,6 +2188,16 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Navigation("Lecturer");
 
                     b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("ARSPlatform.MODEL.Entities.ResearchTopic", b =>
+                {
+                    b.HasOne("ARSPlatform.MODEL.Entities.User", "Lecturer")
+                        .WithMany("ResearchTopics")
+                        .HasForeignKey("LecturerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Lecturer");
                 });
 
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.ReviewRequest", b =>
@@ -2035,7 +2373,6 @@ namespace ARSPlatform.MODELS.Migrations
                     b.HasOne("ARSPlatform.MODEL.Entities.Wallet", "Wallet")
                         .WithMany("WithdrawalRequests")
                         .HasForeignKey("WalletId")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_WithdrawalRequests_Wallet");
 
@@ -2054,6 +2391,8 @@ namespace ARSPlatform.MODELS.Migrations
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.ForumPost", b =>
                 {
                     b.Navigation("ForumComments");
+
+                    b.Navigation("ForumPostLikes");
                 });
 
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.GroupMember", b =>
@@ -2075,6 +2414,8 @@ namespace ARSPlatform.MODELS.Migrations
                 {
                     b.Navigation("ForumComments");
 
+                    b.Navigation("PaperAuthors");
+
                     b.Navigation("ReviewRequests");
 
                     b.Navigation("SharedMaterials");
@@ -2084,11 +2425,15 @@ namespace ARSPlatform.MODELS.Migrations
                 {
                     b.Navigation("GroupMembers");
 
+                    b.Navigation("GuidanceProjects");
+
                     b.Navigation("PhasedReports");
                 });
 
             modelBuilder.Entity("ARSPlatform.MODEL.Entities.ResearchTopic", b =>
                 {
+                    b.Navigation("PhasedReports");
+
                     b.Navigation("ResearchGroups");
                 });
 
@@ -2130,6 +2475,8 @@ namespace ARSPlatform.MODELS.Migrations
 
                     b.Navigation("ForumComments");
 
+                    b.Navigation("ForumPostLikes");
+
                     b.Navigation("ForumPosts");
 
                     b.Navigation("GroupMembers");
@@ -2153,6 +2500,8 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Navigation("Reports");
 
                     b.Navigation("ResearchGroups");
+
+                    b.Navigation("ResearchTopics");
 
                     b.Navigation("ReviewRequests");
 

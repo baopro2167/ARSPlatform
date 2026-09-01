@@ -15,5 +15,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public DateTime? Deadline { get; set; }
 
         public DateTime? AssignedAt { get; set; }
+
+        public string? MaterialsUrl { get; set; }
     }
 }

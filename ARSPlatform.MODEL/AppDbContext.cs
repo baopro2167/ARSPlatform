@@ -576,6 +576,7 @@ public partial class AppDbContext : DbContext
         {
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Name).HasMaxLength(255);
+            entity.Property(e => e.MaterialsUrl).HasMaxLength(1000);
 
             entity.HasOne(d => d.Lecturer).WithMany(p => p.ResearchGroups)
                 .HasForeignKey(d => d.LecturerId)
@@ -600,6 +601,7 @@ public partial class AppDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.Title).HasMaxLength(255);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.GuidanceProjectsUrl).HasMaxLength(1000);
 
             entity.HasOne(d => d.Lecturer).WithMany(p => p.ResearchTopics)
                 .HasForeignKey(d => d.LecturerId)
