@@ -115,6 +115,14 @@ namespace ARSPlatform.SERVICE.ExternalServices
             string tempInputPath = string.Empty;
             string tempCompressedPath = string.Empty;
             string? resourceName = null;
+            var diagnosticTimer = Stopwatch.StartNew();
+            var currentStage = "START";
+
+            _logger.LogInformation(
+                "AI Summary started. SeminarId={SeminarId}, FileName={FileName}, SizeBytes={SizeBytes}",
+                seminarId,
+                file.FileName,
+                file.Length);
 
             try
             {
@@ -135,11 +143,26 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         cancellationToken);
                 }
 
+                currentStage = "MP4_SAVED";
+
+                _logger.LogInformation(
+                    "AI Summary MP4 saved. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    diagnosticTimer.ElapsedMilliseconds);
+
                 // 2. S7: Kiểm tra duration thật bằng ffprobe.
+                currentStage = "FFPROBE";
+
                 var durationSeconds =
                     await GetVideoDurationSecondsAsync(
                         tempInputPath,
                         cancellationToken);
+
+                _logger.LogInformation(
+                    "AI Summary ffprobe completed. SeminarId={SeminarId}, DurationSeconds={DurationSeconds}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    durationSeconds,
+                    diagnosticTimer.ElapsedMilliseconds);
 
                 // Ticket yêu cầu strictly under 2 hours.
                 if (durationSeconds >= MaxVideoDurationSeconds)
@@ -150,12 +173,22 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 }
 
                 // 3. Tách/nén audio từ MP4 thành MP3 bằng FFmpeg.
+                currentStage = "FFMPEG";
+
                 tempCompressedPath =
                     await CompressAudioAsync(
                         tempInputPath,
                         cancellationToken);
 
+                _logger.LogInformation(
+                    "AI Summary FFmpeg completed. SeminarId={SeminarId}, CompressedSizeBytes={CompressedSizeBytes}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    new FileInfo(tempCompressedPath).Length,
+                    diagnosticTimer.ElapsedMilliseconds);
+
                 // 4. Upload MP3 lên Google Files API.
+                currentStage = "GOOGLE_UPLOAD";
+
                 var (fileUri, uploadedResourceName) =
                     await UploadToGoogleFilesApiAsync(
                         tempCompressedPath,
@@ -164,13 +197,27 @@ namespace ARSPlatform.SERVICE.ExternalServices
 
                 resourceName = uploadedResourceName;
 
+                _logger.LogInformation(
+                    "AI Summary Google upload completed. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    diagnosticTimer.ElapsedMilliseconds);
+
                 // 5. Chờ Google xử lý file.
+                currentStage = "GOOGLE_FILE_PROCESSING";
+
                 await WaitForFileActiveAsync(
                     resourceName,
                     apiKey,
                     cancellationToken);
 
+                _logger.LogInformation(
+                    "AI Summary Google file ACTIVE. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    diagnosticTimer.ElapsedMilliseconds);
+
                 // 6. Phân tích audio bằng Gemini.
+                currentStage = "GEMINI";
+
                 var summaryMarkdown =
                     await GenerateSummaryTextAsync(
                         fileUri,
@@ -178,13 +225,28 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         model,
                         cancellationToken);
 
+                _logger.LogInformation(
+                    "AI Summary Gemini completed. SeminarId={SeminarId}, SummaryLength={SummaryLength}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    summaryMarkdown.Length,
+                    diagnosticTimer.ElapsedMilliseconds);
+
                 // 7. Giữ nguyên flow cũ:
                 // persist AiSummary vào Seminar.
                 seminar.AiSummary = summaryMarkdown;
 
                 _seminarRepository.Update(seminar);
 
+                currentStage = "DATABASE_SAVE";
+
                 await _seminarRepository.SaveChangesAsync();
+
+                currentStage = "COMPLETED";
+
+                _logger.LogInformation(
+                    "AI Summary completed successfully. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    diagnosticTimer.ElapsedMilliseconds);
 
                 return new SeminarAudioSummaryResponse
                 {
@@ -192,6 +254,17 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     AiSummary = seminar.AiSummary ?? string.Empty,
                     UpdatedAt = DateTime.UtcNow
                 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "AI Summary failed. SeminarId={SeminarId}, Stage={Stage}, ElapsedMs={ElapsedMs}",
+                    seminarId,
+                    currentStage,
+                    diagnosticTimer.ElapsedMilliseconds);
+
+                throw;
             }
             finally
             {
