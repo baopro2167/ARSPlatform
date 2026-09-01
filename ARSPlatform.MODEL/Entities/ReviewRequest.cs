@@ -24,24 +24,10 @@ public partial class ReviewRequest
 
     public string? Type { get; set; }
 
-    public DateTime? AcceptedAt { get; set; }
-
-    public DateTime? DeclinedAt { get; set; }
-
-    public DateTime? CompletedAt { get; set; }
-
-    public bool? ConflictOfInterestDeclared { get; set; }
-
-    public string? ConflictOfInterestReason { get; set; }
-
-    public int? AssignedByAdminId { get; set; }
-
     [JsonIgnore]
     public virtual DetailedEvaluation? DetailedEvaluation { get; set; }
 
     public virtual Paper? Paper { get; set; }
 
     public virtual User? Reviewer { get; set; }
-
-    public virtual User? AssignedByAdmin { get; set; }
 }
