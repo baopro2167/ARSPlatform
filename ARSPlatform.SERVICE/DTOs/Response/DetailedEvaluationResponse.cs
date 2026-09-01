@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
@@ -39,5 +39,17 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public List<SpecializedEvaluationItemResponse> SpecializedEvaluation { get; set; }
             = new List<SpecializedEvaluationItemResponse>();
+
+        public string? ExpandedCriteria1 { get; set; }
+        public string? Criteria1 => ExpandedCriteria1;
+        public string? EvaluationCriteria1 => ExpandedCriteria1;
+
+        public string? ExpandedCriteria2 { get; set; }
+        public string? Criteria2 => ExpandedCriteria2;
+        public string? EvaluationCriteria2 => ExpandedCriteria2;
+
+        public string? ExpandedCriteria3 { get; set; }
+        public string? Criteria3 => ExpandedCriteria3;
+        public string? EvaluationCriteria3 => ExpandedCriteria3;
     }
 }

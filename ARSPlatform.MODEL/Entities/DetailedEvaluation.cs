@@ -40,6 +40,12 @@ public partial class DetailedEvaluation
 
     public string SpecializedEvaluation { get; set; } = "[]";
 
+    public string? ExpandedCriteria1 { get; set; }
+
+    public string? ExpandedCriteria2 { get; set; }
+
+    public string? ExpandedCriteria3 { get; set; }
+
     [JsonIgnore]
     public virtual ReviewRequest? ReviewRequest { get; set; }
 
