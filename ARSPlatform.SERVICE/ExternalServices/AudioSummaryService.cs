@@ -91,20 +91,36 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     nameof(file));
             }
 
-            var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? _configuration["GeminiSettings:ApiKey"];
+            var apiKey =
+                Environment.GetEnvironmentVariable(
+                    "GEMINI_API_KEY")
+                ?? _configuration[
+                    "GeminiSettings:ApiKey"];
 
             var model =
-                _configuration["GeminiSettings:Model"]
-                ?? "gemini-1.5-flash";
+                _configuration[
+                    "GeminiSettings:Model"]
+                ?? "gemini-3.7-flash";
 
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (string.IsNullOrWhiteSpace(apiKey)
+                || string.Equals(
+                    apiKey,
+                    "REPLACE_WITH_GEMINI_API_KEY",
+                    StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    "Thiếu GeminiSettings:ApiKey trong appsettings.json.");
+                    "Thiếu GEMINI_API_KEY hợp lệ trong Environment hoặc GeminiSettings:ApiKey.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                throw new InvalidOperationException(
+                    "Thiếu GeminiSettings:Model.");
             }
 
             var seminar =
-                await _seminarRepository.GetByIdAsync(seminarId);
+                await _seminarRepository.GetByIdAsync(
+                    seminarId);
 
             if (seminar == null)
             {
@@ -115,8 +131,12 @@ namespace ARSPlatform.SERVICE.ExternalServices
             string tempInputPath = string.Empty;
             string tempCompressedPath = string.Empty;
             string? resourceName = null;
-            var diagnosticTimer = Stopwatch.StartNew();
-            var currentStage = "START";
+
+            var diagnosticTimer =
+                Stopwatch.StartNew();
+
+            var currentStage =
+                "START";
 
             _logger.LogInformation(
                 "AI Summary started. SeminarId={SeminarId}, FileName={FileName}, SizeBytes={SizeBytes}",
@@ -127,9 +147,10 @@ namespace ARSPlatform.SERVICE.ExternalServices
             try
             {
                 // 1. Lưu file MP4 tạm thời.
-                tempInputPath = Path.Combine(
-                    Path.GetTempPath(),
-                    $"{Guid.NewGuid()}.mp4");
+                tempInputPath =
+                    Path.Combine(
+                        Path.GetTempPath(),
+                        $"{Guid.NewGuid()}.mp4");
 
                 await using (var stream =
                     new FileStream(
@@ -143,7 +164,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         cancellationToken);
                 }
 
-                currentStage = "MP4_SAVED";
+                currentStage =
+                    "MP4_SAVED";
 
                 _logger.LogInformation(
                     "AI Summary MP4 saved. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
@@ -151,7 +173,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     diagnosticTimer.ElapsedMilliseconds);
 
                 // 2. S7: Kiểm tra duration thật bằng ffprobe.
-                currentStage = "FFPROBE";
+                currentStage =
+                    "FFPROBE";
 
                 var durationSeconds =
                     await GetVideoDurationSecondsAsync(
@@ -165,7 +188,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     diagnosticTimer.ElapsedMilliseconds);
 
                 // Ticket yêu cầu strictly under 2 hours.
-                if (durationSeconds >= MaxVideoDurationSeconds)
+                if (durationSeconds >=
+                    MaxVideoDurationSeconds)
                 {
                     throw new ArgumentException(
                         "Video phải có thời lượng dưới 2 giờ.",
@@ -173,7 +197,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 }
 
                 // 3. Tách/nén audio từ MP4 thành MP3 bằng FFmpeg.
-                currentStage = "FFMPEG";
+                currentStage =
+                    "FFMPEG";
 
                 tempCompressedPath =
                     await CompressAudioAsync(
@@ -183,19 +208,24 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 _logger.LogInformation(
                     "AI Summary FFmpeg completed. SeminarId={SeminarId}, CompressedSizeBytes={CompressedSizeBytes}, ElapsedMs={ElapsedMs}",
                     seminarId,
-                    new FileInfo(tempCompressedPath).Length,
+                    new FileInfo(
+                        tempCompressedPath).Length,
                     diagnosticTimer.ElapsedMilliseconds);
 
                 // 4. Upload MP3 lên Google Files API.
-                currentStage = "GOOGLE_UPLOAD";
+                currentStage =
+                    "GOOGLE_UPLOAD";
 
-                var (fileUri, uploadedResourceName) =
+                var (
+                    fileUri,
+                    uploadedResourceName) =
                     await UploadToGoogleFilesApiAsync(
                         tempCompressedPath,
                         apiKey,
                         cancellationToken);
 
-                resourceName = uploadedResourceName;
+                resourceName =
+                    uploadedResourceName;
 
                 _logger.LogInformation(
                     "AI Summary Google upload completed. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
@@ -203,7 +233,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     diagnosticTimer.ElapsedMilliseconds);
 
                 // 5. Chờ Google xử lý file.
-                currentStage = "GOOGLE_FILE_PROCESSING";
+                currentStage =
+                    "GOOGLE_FILE_PROCESSING";
 
                 await WaitForFileActiveAsync(
                     resourceName,
@@ -216,7 +247,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     diagnosticTimer.ElapsedMilliseconds);
 
                 // 6. Phân tích audio bằng Gemini.
-                currentStage = "GEMINI";
+                currentStage =
+                    "GEMINI";
 
                 var summaryMarkdown =
                     await GenerateSummaryTextAsync(
@@ -231,17 +263,21 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     summaryMarkdown.Length,
                     diagnosticTimer.ElapsedMilliseconds);
 
-                // 7. Giữ nguyên flow cũ:
-                // persist AiSummary vào Seminar.
-                seminar.AiSummary = summaryMarkdown;
+                // 7. Persist AiSummary vào Seminar.
+                seminar.AiSummary =
+                    summaryMarkdown;
 
-                _seminarRepository.Update(seminar);
+                _seminarRepository.Update(
+                    seminar);
 
-                currentStage = "DATABASE_SAVE";
+                currentStage =
+                    "DATABASE_SAVE";
 
-                await _seminarRepository.SaveChangesAsync();
+                await _seminarRepository
+                    .SaveChangesAsync();
 
-                currentStage = "COMPLETED";
+                currentStage =
+                    "COMPLETED";
 
                 _logger.LogInformation(
                     "AI Summary completed successfully. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
@@ -250,9 +286,15 @@ namespace ARSPlatform.SERVICE.ExternalServices
 
                 return new SeminarAudioSummaryResponse
                 {
-                    SeminarId = seminar.SeminarId,
-                    AiSummary = seminar.AiSummary ?? string.Empty,
-                    UpdatedAt = DateTime.UtcNow
+                    SeminarId =
+                        seminar.SeminarId,
+
+                    AiSummary =
+                        seminar.AiSummary
+                        ?? string.Empty,
+
+                    UpdatedAt =
+                        DateTime.UtcNow
                 };
             }
             catch (Exception ex)
@@ -269,40 +311,59 @@ namespace ARSPlatform.SERVICE.ExternalServices
             finally
             {
                 // Luôn cleanup local temp files.
-                DeleteLocalFile(tempInputPath);
-                DeleteLocalFile(tempCompressedPath);
+                DeleteLocalFile(
+                    tempInputPath);
+
+                DeleteLocalFile(
+                    tempCompressedPath);
 
                 // Cleanup Google file không chặn response chính.
-                if (!string.IsNullOrWhiteSpace(resourceName))
+                if (!string.IsNullOrWhiteSpace(
+                    resourceName))
                 {
-                    _ = DeleteGoogleFileAsync(
-                        resourceName,
-                        apiKey);
+                    _ =
+                        DeleteGoogleFileAsync(
+                            resourceName,
+                            apiKey);
                 }
             }
         }
 
-        private async Task<double> GetVideoDurationSecondsAsync(
-            string inputPath,
-            CancellationToken cancellationToken)
+        private async Task<double>
+            GetVideoDurationSecondsAsync(
+                string inputPath,
+                CancellationToken cancellationToken)
         {
-            var processInfo = new ProcessStartInfo
-            {
-                FileName = "ffprobe",
-                Arguments =
-                    $"-v error -show_entries format=duration " +
-                    $"-of default=noprint_wrappers=1:nokey=1 " +
-                    $"\"{inputPath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            var processInfo =
+                new ProcessStartInfo
+                {
+                    FileName =
+                        "ffprobe",
+
+                    Arguments =
+                        "-v error " +
+                        "-show_entries format=duration " +
+                        "-of default=noprint_wrappers=1:nokey=1 " +
+                        $"\"{inputPath}\"",
+
+                    RedirectStandardOutput =
+                        true,
+
+                    RedirectStandardError =
+                        true,
+
+                    UseShellExecute =
+                        false,
+
+                    CreateNoWindow =
+                        true
+                };
 
             using var process =
                 new Process
                 {
-                    StartInfo = processInfo
+                    StartInfo =
+                        processInfo
                 };
 
             try
@@ -318,20 +379,31 @@ namespace ARSPlatform.SERVICE.ExternalServices
             }
 
             var outputTask =
-                process.StandardOutput.ReadToEndAsync(cancellationToken);
+                process.StandardOutput
+                    .ReadToEndAsync(
+                        cancellationToken);
 
             var errorTask =
-                process.StandardError.ReadToEndAsync(cancellationToken);
+                process.StandardError
+                    .ReadToEndAsync(
+                        cancellationToken);
 
-            await process.WaitForExitAsync(cancellationToken);
+            await process.WaitForExitAsync(
+                cancellationToken);
 
-            var output = (await outputTask).Trim();
-            var error = (await errorTask).Trim();
+            var output =
+                (await outputTask)
+                    .Trim();
+
+            var error =
+                (await errorTask)
+                    .Trim();
 
             if (process.ExitCode != 0)
             {
                 throw new ArgumentException(
-                    string.IsNullOrWhiteSpace(error)
+                    string.IsNullOrWhiteSpace(
+                        error)
                         ? "Không thể đọc thời lượng file MP4."
                         : $"Không thể đọc thời lượng file MP4: {error}");
             }
@@ -355,9 +427,10 @@ namespace ARSPlatform.SERVICE.ExternalServices
             return durationSeconds;
         }
 
-        private async Task<string> CompressAudioAsync(
-            string inputPath,
-            CancellationToken cancellationToken)
+        private async Task<string>
+            CompressAudioAsync(
+                string inputPath,
+                CancellationToken cancellationToken)
         {
             var outputPath =
                 Path.Combine(
@@ -367,7 +440,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
             var processInfo =
                 new ProcessStartInfo
                 {
-                    FileName = "ffmpeg",
+                    FileName =
+                        "ffmpeg",
 
                     Arguments =
                         $"-i \"{inputPath}\" " +
@@ -378,16 +452,24 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         "-ac 1 " +
                         $"-y \"{outputPath}\"",
 
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
+                    RedirectStandardOutput =
+                        true,
+
+                    RedirectStandardError =
+                        true,
+
+                    UseShellExecute =
+                        false,
+
+                    CreateNoWindow =
+                        true
                 };
 
             using var process =
                 new Process
                 {
-                    StartInfo = processInfo
+                    StartInfo =
+                        processInfo
                 };
 
             try
@@ -403,20 +485,30 @@ namespace ARSPlatform.SERVICE.ExternalServices
             }
 
             var outputTask =
-                process.StandardOutput.ReadToEndAsync(cancellationToken);
+                process.StandardOutput
+                    .ReadToEndAsync(
+                        cancellationToken);
 
             var errorTask =
-                process.StandardError.ReadToEndAsync(cancellationToken);
+                process.StandardError
+                    .ReadToEndAsync(
+                        cancellationToken);
 
-            await process.WaitForExitAsync(cancellationToken);
+            await process.WaitForExitAsync(
+                cancellationToken);
 
-            _ = await outputTask;
-            var error = await errorTask;
+            _ =
+                await outputTask;
+
+            var error =
+                await errorTask;
 
             if (process.ExitCode != 0
-                || !File.Exists(outputPath))
+                || !File.Exists(
+                    outputPath))
             {
-                DeleteLocalFile(outputPath);
+                DeleteLocalFile(
+                    outputPath);
 
                 throw new InvalidOperationException(
                     $"Lỗi nén FFmpeg (Code {process.ExitCode}): {error}");
@@ -425,21 +517,29 @@ namespace ARSPlatform.SERVICE.ExternalServices
             return outputPath;
         }
 
-        private async Task<(string FileUri, string ResourceName)>
+        private async Task<(
+            string FileUri,
+            string ResourceName)>
             UploadToGoogleFilesApiAsync(
                 string filePath,
                 string apiKey,
                 CancellationToken cancellationToken)
         {
-            var fileInfo = new FileInfo(filePath);
+            var fileInfo =
+                new FileInfo(
+                    filePath);
 
-            var initUrl =
-                $"https://generativelanguage.googleapis.com/upload/v1beta/files?key={apiKey}";
+            const string initUrl =
+                "https://generativelanguage.googleapis.com/upload/v1beta/files";
 
             using var initRequest =
                 new HttpRequestMessage(
                     HttpMethod.Post,
                     initUrl);
+
+            AddApiKeyHeader(
+                initRequest,
+                apiKey);
 
             initRequest.Headers.Add(
                 "X-Goog-Upload-Protocol",
@@ -461,11 +561,13 @@ namespace ARSPlatform.SERVICE.ExternalServices
             var metadata =
                 new
                 {
-                    file = new
-                    {
-                        display_name =
-                            Path.GetFileName(filePath)
-                    }
+                    file =
+                        new
+                        {
+                            display_name =
+                                Path.GetFileName(
+                                    filePath)
+                        }
                 };
 
             initRequest.Content =
@@ -481,27 +583,42 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     initRequest,
                     cancellationToken);
 
-            initResponse.EnsureSuccessStatusCode();
+            if (!initResponse.IsSuccessStatusCode)
+            {
+                var errorBody =
+                    await initResponse.Content
+                        .ReadAsStringAsync(
+                            cancellationToken);
 
-            if (!initResponse.Headers.TryGetValues(
-                "X-Goog-Upload-URL",
-                out var uploadUrls))
+                throw new HttpRequestException(
+                    $"Google Files API khởi tạo upload thất bại. " +
+                    $"StatusCode={(int)initResponse.StatusCode}. " +
+                    $"Response={errorBody}");
+            }
+
+            if (!initResponse.Headers
+                .TryGetValues(
+                    "X-Goog-Upload-URL",
+                    out var uploadUrls))
             {
                 throw new HttpRequestException(
                     "Google Files API không trả về X-Goog-Upload-URL.");
             }
 
             var uploadUrl =
-                uploadUrls.FirstOrDefault();
+                uploadUrls
+                    .FirstOrDefault();
 
-            if (string.IsNullOrWhiteSpace(uploadUrl))
+            if (string.IsNullOrWhiteSpace(
+                uploadUrl))
             {
                 throw new HttpRequestException(
                     "Google Files API trả về upload URL không hợp lệ.");
             }
 
             await using var fileStream =
-                File.OpenRead(filePath);
+                File.OpenRead(
+                    filePath);
 
             using var uploadRequest =
                 new HttpRequestMessage(
@@ -517,7 +634,8 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 "0");
 
             uploadRequest.Content =
-                new StreamContent(fileStream);
+                new StreamContent(
+                    fileStream);
 
             uploadRequest.Content.Headers.ContentType =
                 new MediaTypeHeaderValue(
@@ -531,7 +649,18 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     uploadRequest,
                     cancellationToken);
 
-            uploadResponse.EnsureSuccessStatusCode();
+            if (!uploadResponse.IsSuccessStatusCode)
+            {
+                var errorBody =
+                    await uploadResponse.Content
+                        .ReadAsStringAsync(
+                            cancellationToken);
+
+                throw new HttpRequestException(
+                    $"Google Files API upload file thất bại. " +
+                    $"StatusCode={(int)uploadResponse.StatusCode}. " +
+                    $"Response={errorBody}");
+            }
 
             var responseJson =
                 await uploadResponse.Content
@@ -542,17 +671,18 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 JsonDocument.Parse(
                     responseJson);
 
-            if (!document.RootElement.TryGetProperty(
-                "file",
-                out var fileElement))
+            if (!document.RootElement
+                .TryGetProperty(
+                    "file",
+                    out var fileElement))
             {
                 throw new HttpRequestException(
                     "Google Files API response không chứa thông tin file.");
             }
 
             if (!fileElement.TryGetProperty(
-                "uri",
-                out var uriElement)
+                    "uri",
+                    out var uriElement)
                 || !fileElement.TryGetProperty(
                     "name",
                     out var nameElement))
@@ -567,8 +697,10 @@ namespace ARSPlatform.SERVICE.ExternalServices
             var resourceName =
                 nameElement.GetString();
 
-            if (string.IsNullOrWhiteSpace(fileUri)
-                || string.IsNullOrWhiteSpace(resourceName))
+            if (string.IsNullOrWhiteSpace(
+                    fileUri)
+                || string.IsNullOrWhiteSpace(
+                    resourceName))
             {
                 throw new HttpRequestException(
                     "Google Files API trả về thông tin file không hợp lệ.");
@@ -579,21 +711,34 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 resourceName);
         }
 
-        private async Task WaitForFileActiveAsync(
-            string resourceName,
-            string apiKey,
-            CancellationToken cancellationToken)
+        private async Task
+            WaitForFileActiveAsync(
+                string resourceName,
+                string apiKey,
+                CancellationToken cancellationToken)
         {
             var url =
-                $"https://generativelanguage.googleapis.com/v1beta/{resourceName}?key={apiKey}";
+                $"https://generativelanguage.googleapis.com/v1beta/{resourceName}";
 
-            for (var attempt = 0; attempt < 60; attempt++)
+            for (var attempt = 0;
+                attempt < 60;
+                attempt++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                cancellationToken
+                    .ThrowIfCancellationRequested();
+
+                using var request =
+                    new HttpRequestMessage(
+                        HttpMethod.Get,
+                        url);
+
+                AddApiKeyHeader(
+                    request,
+                    apiKey);
 
                 using var response =
-                    await _httpClient.GetAsync(
-                        url,
+                    await _httpClient.SendAsync(
+                        request,
                         cancellationToken);
 
                 if (response.IsSuccessStatusCode)
@@ -607,9 +752,10 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         JsonDocument.Parse(
                             responseJson);
 
-                    if (document.RootElement.TryGetProperty(
-                        "state",
-                        out var stateElement))
+                    if (document.RootElement
+                        .TryGetProperty(
+                            "state",
+                            out var stateElement))
                     {
                         var state =
                             stateElement.GetString();
@@ -632,6 +778,19 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         }
                     }
                 }
+                else
+                {
+                    var errorBody =
+                        await response.Content
+                            .ReadAsStringAsync(
+                                cancellationToken);
+
+                    _logger.LogWarning(
+                        "Google Files API status check failed. ResourceName={ResourceName}, StatusCode={StatusCode}, Response={Response}",
+                        resourceName,
+                        (int)response.StatusCode,
+                        errorBody);
+                }
 
                 await Task.Delay(
                     TimeSpan.FromSeconds(2),
@@ -642,13 +801,13 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 "Hệ thống Google xử lý file âm thanh quá lâu.");
         }
 
-        private async Task<string> GenerateSummaryTextAsync(
-            string fileUri,
-            string apiKey,
-            string model,
-            CancellationToken cancellationToken)
+        private async Task<string>
+            GenerateSummaryTextAsync(
+                string fileUri,
+                string apiKey,
+                string model,
+                CancellationToken cancellationToken)
         {
-            // Giữ nguyên hướng fallback model của flow AI Summary cũ.
             var cleanModel =
                 model.Replace(
                     "models/",
@@ -656,19 +815,12 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     StringComparison.OrdinalIgnoreCase)
                 .Trim();
 
-            var modelsToTry =
-                new[]
-                {
-                    cleanModel,
-                    "gemini-flash-latest",
-                    "gemini-1.5-flash-latest",
-                    "gemini-1.5-pro-latest"
-                }
-                .Where(m =>
-                    !string.IsNullOrWhiteSpace(m))
-                .Distinct(
-                    StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            if (string.IsNullOrWhiteSpace(
+                cleanModel))
+            {
+                throw new InvalidOperationException(
+                    "GeminiSettings:Model không hợp lệ.");
+            }
 
             const string detailedAcademicPrompt = @"
 Bạn là một chuyên gia phân tích dữ liệu âm thanh, tóm tắt hội thảo khoa học và cuộc họp chuyên sâu.
@@ -723,148 +875,223 @@ Chi tiết từng lượt tương tác qua lại:
                                             fileData =
                                                 new
                                                 {
-                                                    mimeType = "audio/mp3",
+                                                    mimeType =
+                                                        "audio/mp3",
+
                                                     fileUri
                                                 }
                                         },
                                         new
                                         {
-                                            text = detailedAcademicPrompt
+                                            text =
+                                                detailedAcademicPrompt
                                         }
                                     }
                             }
                         }
                 };
 
-            foreach (var currentModel in modelsToTry)
+            var url =
+                $"https://generativelanguage.googleapis.com/v1beta/models/{cleanModel}:generateContent";
+
+            for (var attempt = 1;
+                attempt <= 3;
+                attempt++)
             {
-                var url =
-                    $"https://generativelanguage.googleapis.com/v1beta/models/{currentModel}:generateContent?key={apiKey}";
+                cancellationToken
+                    .ThrowIfCancellationRequested();
 
-                for (var attempt = 1; attempt <= 3; attempt++)
+                using var request =
+                    new HttpRequestMessage(
+                        HttpMethod.Post,
+                        url);
+
+                AddApiKeyHeader(
+                    request,
+                    apiKey);
+
+                request.Content =
+                    new StringContent(
+                        JsonSerializer.Serialize(
+                            requestBody,
+                            JsonOptions),
+                        Encoding.UTF8,
+                        "application/json");
+
+                using var response =
+                    await _httpClient.SendAsync(
+                        request,
+                        cancellationToken);
+
+                if (response.IsSuccessStatusCode)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    var responseJson =
+                        await response.Content
+                            .ReadAsStringAsync(
+                                cancellationToken);
 
-                    using var content =
-                        new StringContent(
-                            JsonSerializer.Serialize(
-                                requestBody,
-                                JsonOptions),
-                            Encoding.UTF8,
-                            "application/json");
+                    using var document =
+                        JsonDocument.Parse(
+                            responseJson);
 
-                    using var response =
-                        await _httpClient.PostAsync(
-                            url,
-                            content,
+                    var summaryText =
+                        ExtractGeminiText(
+                            document.RootElement);
+
+                    if (string.IsNullOrWhiteSpace(
+                        summaryText))
+                    {
+                        throw new HttpRequestException(
+                            "Gemini API không trả về nội dung tóm tắt.");
+                    }
+
+                    return summaryText;
+                }
+
+                var statusCode =
+                    (int)response.StatusCode;
+
+                var errorBody =
+                    await response.Content
+                        .ReadAsStringAsync(
                             cancellationToken);
 
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var responseJson =
-                            await response.Content
-                                .ReadAsStringAsync(
-                                    cancellationToken);
-
-                        using var document =
-                            JsonDocument.Parse(
-                                responseJson);
-
-                        if (!document.RootElement.TryGetProperty(
-                            "candidates",
-                            out var candidates)
-                            || candidates.GetArrayLength() == 0)
-                        {
-                            throw new HttpRequestException(
-                                "Gemini API không trả về nội dung tóm tắt.");
-                        }
-
-                        var candidate =
-                            candidates[0];
-
-                        if (!candidate.TryGetProperty(
-                            "content",
-                            out var candidateContent)
-                            || !candidateContent.TryGetProperty(
-                                "parts",
-                                out var parts)
-                            || parts.GetArrayLength() == 0
-                            || !parts[0].TryGetProperty(
-                                "text",
-                                out var textElement))
-                        {
-                            throw new HttpRequestException(
-                                "Gemini API trả về response không hợp lệ.");
-                        }
-
-                        return textElement.GetString()
-                            ?? string.Empty;
-                    }
-
-                    var statusCode =
-                        (int)response.StatusCode;
-
-                    if (statusCode == 404)
-                    {
-                        _logger.LogWarning(
-                            "Model '{Model}' không tồn tại hoặc endpoint không hợp lệ (404). Chuyển model...",
-                            currentModel);
-
-                        break;
-                    }
-
-                    if ((statusCode == 503
-                            || statusCode == 429)
-                        && attempt < 3)
+                if (statusCode == 429
+                    || statusCode == 503)
+                {
+                    if (attempt < 3)
                     {
                         var delaySeconds =
                             attempt * 4;
 
                         _logger.LogWarning(
-                            "Model '{Model}' nghẽn tải ({StatusCode}). " +
-                            "Thử lại lần {Attempt}/3 sau {Delay}s...",
-                            currentModel,
+                            "Gemini model '{Model}' tạm thời không khả dụng ({StatusCode}). Thử lại lần {Attempt}/3 sau {Delay}s.",
+                            cleanModel,
                             statusCode,
                             attempt,
                             delaySeconds);
 
                         await Task.Delay(
-                            TimeSpan.FromSeconds(delaySeconds),
+                            TimeSpan.FromSeconds(
+                                delaySeconds),
                             cancellationToken);
 
                         continue;
                     }
 
-                    var errorBody =
-                        await response.Content
-                            .ReadAsStringAsync(
-                                cancellationToken);
-
                     _logger.LogWarning(
-                        "Gemini model '{Model}' trả lỗi {StatusCode}. Response: {Response}",
-                        currentModel,
+                        "Gemini model '{Model}' vẫn trả lỗi {StatusCode} sau 3 lần thử. Response: {Response}",
+                        cleanModel,
                         statusCode,
                         errorBody);
 
-                    break;
+                    throw new HttpRequestException(
+                        $"Gemini model '{cleanModel}' tạm thời không khả dụng sau 3 lần thử. " +
+                        $"StatusCode={statusCode}.");
                 }
+
+                if (statusCode == 404)
+                {
+                    _logger.LogWarning(
+                        "Gemini model '{Model}' trả 404. Response: {Response}",
+                        cleanModel,
+                        errorBody);
+
+                    throw new HttpRequestException(
+                        $"Gemini model cấu hình '{cleanModel}' không tồn tại hoặc không hỗ trợ endpoint generateContent.");
+                }
+
+                _logger.LogWarning(
+                    "Gemini model '{Model}' trả lỗi {StatusCode}. Response: {Response}",
+                    cleanModel,
+                    statusCode,
+                    errorBody);
+
+                throw new HttpRequestException(
+                    $"Gemini API trả lỗi {statusCode} khi sử dụng model '{cleanModel}'.");
             }
 
             throw new HttpRequestException(
-                "Không thể tạo bản tóm tắt từ Gemini API sau khi đã thử các model khả dụng.");
+                $"Không thể tạo bản tóm tắt bằng Gemini model '{cleanModel}'.");
         }
 
-        private async Task DeleteGoogleFileAsync(
-            string resourceName,
-            string apiKey)
+        private static string?
+            ExtractGeminiText(
+                JsonElement rootElement)
+        {
+            if (!rootElement.TryGetProperty(
+                    "candidates",
+                    out var candidates)
+                || candidates.ValueKind !=
+                    JsonValueKind.Array
+                || candidates.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            foreach (var candidate
+                in candidates.EnumerateArray())
+            {
+                if (!candidate.TryGetProperty(
+                        "content",
+                        out var content)
+                    || !content.TryGetProperty(
+                        "parts",
+                        out var parts)
+                    || parts.ValueKind !=
+                        JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var part
+                    in parts.EnumerateArray())
+                {
+                    if (!part.TryGetProperty(
+                            "text",
+                            out var textElement)
+                        || textElement.ValueKind !=
+                            JsonValueKind.String)
+                    {
+                        continue;
+                    }
+
+                    var text =
+                        textElement.GetString();
+
+                    if (!string.IsNullOrWhiteSpace(
+                        text))
+                    {
+                        return text;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private async Task
+            DeleteGoogleFileAsync(
+                string resourceName,
+                string apiKey)
         {
             try
             {
                 var url =
-                    $"https://generativelanguage.googleapis.com/v1beta/{resourceName}?key={apiKey}";
+                    $"https://generativelanguage.googleapis.com/v1beta/{resourceName}";
+
+                using var request =
+                    new HttpRequestMessage(
+                        HttpMethod.Delete,
+                        url);
+
+                AddApiKeyHeader(
+                    request,
+                    apiKey);
 
                 using var response =
-                    await _httpClient.DeleteAsync(url);
+                    await _httpClient.SendAsync(
+                        request);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -883,18 +1110,30 @@ Chi tiết từng lượt tương tác qua lại:
             }
         }
 
+        private static void AddApiKeyHeader(
+            HttpRequestMessage request,
+            string apiKey)
+        {
+            request.Headers.Add(
+                "x-goog-api-key",
+                apiKey);
+        }
+
         private static void DeleteLocalFile(
             string path)
         {
-            if (string.IsNullOrWhiteSpace(path)
-                || !File.Exists(path))
+            if (string.IsNullOrWhiteSpace(
+                    path)
+                || !File.Exists(
+                    path))
             {
                 return;
             }
 
             try
             {
-                File.Delete(path);
+                File.Delete(
+                    path);
             }
             catch
             {
