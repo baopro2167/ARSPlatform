@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
@@ -35,5 +35,41 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public List<SpecializedEvaluationItemRequest> SpecializedEvaluation { get; set; }
             = new List<SpecializedEvaluationItemRequest>();
+
+        public string? ExpandedCriteria1 { get; set; }
+        public string? Criteria1
+        {
+            get => ExpandedCriteria1;
+            set { if (!string.IsNullOrEmpty(value)) ExpandedCriteria1 = value; }
+        }
+        public string? EvaluationCriteria1
+        {
+            get => ExpandedCriteria1;
+            set { if (!string.IsNullOrEmpty(value)) ExpandedCriteria1 = value; }
+        }
+
+        public string? ExpandedCriteria2 { get; set; }
+        public string? Criteria2
+        {
+            get => ExpandedCriteria2;
+            set { if (!string.IsNullOrEmpty(value)) ExpandedCriteria2 = value; }
+        }
+        public string? EvaluationCriteria2
+        {
+            get => ExpandedCriteria2;
+            set { if (!string.IsNullOrEmpty(value)) ExpandedCriteria2 = value; }
+        }
+
+        public string? ExpandedCriteria3 { get; set; }
+        public string? Criteria3
+        {
+            get => ExpandedCriteria3;
+            set { if (!string.IsNullOrEmpty(value)) ExpandedCriteria3 = value; }
+        }
+        public string? EvaluationCriteria3
+        {
+            get => ExpandedCriteria3;
+            set { if (!string.IsNullOrEmpty(value)) ExpandedCriteria3 = value; }
+        }
     }
 }

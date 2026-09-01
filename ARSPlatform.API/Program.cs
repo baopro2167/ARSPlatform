@@ -448,6 +448,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
         options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+        options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All);
     });
 
 // Configure JWT Authentication
@@ -677,6 +678,27 @@ using (var scope = app.Services.CreateScope())
             BEGIN
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ResearchTopic') AND name = 'LecturerId')
                     ALTER TABLE [ResearchTopic] ADD [LecturerId] int NULL;
+            END
+
+            -- DetailedEvaluations Expanded Criteria
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'DetailedEvaluations')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('DetailedEvaluations') AND name = 'ExpandedCriteria1')
+                    ALTER TABLE [DetailedEvaluations] ADD [ExpandedCriteria1] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('DetailedEvaluations') AND name = 'ExpandedCriteria2')
+                    ALTER TABLE [DetailedEvaluations] ADD [ExpandedCriteria2] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('DetailedEvaluations') AND name = 'ExpandedCriteria3')
+                    ALTER TABLE [DetailedEvaluations] ADD [ExpandedCriteria3] nvarchar(max) NULL;
+            END
+
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'DetailedEvaluation')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('DetailedEvaluation') AND name = 'ExpandedCriteria1')
+                    ALTER TABLE [DetailedEvaluation] ADD [ExpandedCriteria1] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('DetailedEvaluation') AND name = 'ExpandedCriteria2')
+                    ALTER TABLE [DetailedEvaluation] ADD [ExpandedCriteria2] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('DetailedEvaluation') AND name = 'ExpandedCriteria3')
+                    ALTER TABLE [DetailedEvaluation] ADD [ExpandedCriteria3] nvarchar(max) NULL;
             END
         ");
     }
