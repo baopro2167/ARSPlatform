@@ -133,7 +133,29 @@ namespace ARSPlatform.API.CONTROLLER
                 return Ok(new
                 {
                     Message = response.Status == "Overdue" ? "Nộp báo cáo thành công (Trạng thái: Nộp muộn - Overdue)." : "Nộp báo cáo thành công (Trạng thái: Đúng hạn - OnTime).",
-                    Data = response
+                    Data = new
+                    {
+                        response.PhasedReportId,
+                        response.ResearchGroupId,
+                        response.TopicId,
+                        response.TopicTitle,
+                        response.GroupMemberId,
+                        response.ReportFileUrl,
+                        response.CapacityEvaluation,
+                        response.FinalOutcomeEvaluation,
+                        response.LectureFeedback,
+                        response.LecturerDescription,
+                        response.PhaseNumber,
+                        response.MilestoneTitle,
+                        response.Status,
+                        response.CreatedAt,
+                        response.DeadlineAt,
+                        response.SubmittedAt,
+                        response.UpdatedAt,
+                        response.GroupName,
+                        response.StudentName,
+                        response.IsOverdue
+                    }
                 });
             }
             catch (KeyNotFoundException ex)
