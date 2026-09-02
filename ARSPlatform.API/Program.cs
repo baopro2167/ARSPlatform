@@ -675,10 +675,20 @@ using (var scope = app.Services.CreateScope())
                     ALTER TABLE [ResearchTopics] ADD [LecturerId] int NULL;
             END
 
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'ResearchTopics')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ResearchTopics') AND name = 'LecturerId')
+                    ALTER TABLE [ResearchTopics] ADD [LecturerId] int NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ResearchTopics') AND name = 'MaterialsUrl')
+                    ALTER TABLE [ResearchTopics] ADD [MaterialsUrl] nvarchar(max) NULL;
+            END
+
             IF EXISTS (SELECT * FROM sys.tables WHERE name = 'ResearchTopic')
             BEGIN
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ResearchTopic') AND name = 'LecturerId')
                     ALTER TABLE [ResearchTopic] ADD [LecturerId] int NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ResearchTopic') AND name = 'MaterialsUrl')
+                    ALTER TABLE [ResearchTopic] ADD [MaterialsUrl] nvarchar(max) NULL;
             END
 
             -- DetailedEvaluations Expanded Criteria
@@ -700,6 +710,27 @@ using (var scope = app.Services.CreateScope())
                     ALTER TABLE [DetailedEvaluation] ADD [ExpandedCriteria2] nvarchar(max) NULL;
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('DetailedEvaluation') AND name = 'ExpandedCriteria3')
                     ALTER TABLE [DetailedEvaluation] ADD [ExpandedCriteria3] nvarchar(max) NULL;
+            END
+
+            -- PhasedReports Requirements, AssessmentCriteria, StartDate
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'PhasedReports')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReports') AND name = 'Requirements')
+                    ALTER TABLE [PhasedReports] ADD [Requirements] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReports') AND name = 'AssessmentCriteria')
+                    ALTER TABLE [PhasedReports] ADD [AssessmentCriteria] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReports') AND name = 'StartDate')
+                    ALTER TABLE [PhasedReports] ADD [StartDate] datetime2 NULL;
+            END
+
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'PhasedReport')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'Requirements')
+                    ALTER TABLE [PhasedReport] ADD [Requirements] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'AssessmentCriteria')
+                    ALTER TABLE [PhasedReport] ADD [AssessmentCriteria] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'StartDate')
+                    ALTER TABLE [PhasedReport] ADD [StartDate] datetime2 NULL;
             END
         ");
     }

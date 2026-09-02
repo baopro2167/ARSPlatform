@@ -27,6 +27,12 @@ public partial class PhasedReport
 
     public string? MilestoneTitle { get; set; }
 
+    public string? Requirements { get; set; }
+
+    public string? AssessmentCriteria { get; set; }
+
+    public DateTime? StartDate { get; set; }
+
     public string? Status { get; set; }
 
     public string? PhasedMaterialsUrl { get; set; }
