@@ -486,9 +486,13 @@ namespace ARSPlatform.SERVICES
                         (decimal)submitted / participants.Count * 100,
                         2),
 
-                // DB currently has textual ParticipantEvaluation only.
-                // Do not invent a numerical score.
-                AverageScore = null
+                AverageScore = participants.Any(p => p.Rating.HasValue)
+                    ? Math.Round(
+                        participants
+                            .Where(p => p.Rating.HasValue)
+                            .Average(p => (decimal)p.Rating!.Value),
+                        2)
+                    : null
             };
         }
 

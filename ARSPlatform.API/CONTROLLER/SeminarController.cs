@@ -162,6 +162,30 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Lấy danh sách feedback của người tham dự trong Seminar
+        /// </summary>
+        /// <param name="id">ID buổi Seminar</param>
+        /// <returns>Danh sách người tham dự kèm điểm đánh giá và nội dung feedback</returns>
+        [HttpGet("{id:int}/feedback")]
+        [Authorize(Roles = "Lecturer")]
+        [ProducesResponseType(typeof(IEnumerable<SeminarParticipantResponse>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<IEnumerable<SeminarParticipantResponse>>> GetFeedback(int id)
+        {
+            if (!TryGetCurrentUserId(out var organizerId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _participantService.GetFeedbackBySeminarIdAsync(id, organizerId);
+            if (response == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(response);
+        }
+
+        /// <summary>
         /// Nộp form đánh giá / feedback cho buổi Seminar
         /// </summary>
         /// <param name="id">ID buổi Seminar</param>

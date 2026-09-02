@@ -9,6 +9,7 @@ namespace ARSPlatform.SERVICE.Interfaces
     public interface ISeminarParticipantService
     {
         Task<IEnumerable<SeminarParticipantResponse>> GetAllForOrganizerAsync(int organizerId);
+        Task<IEnumerable<SeminarParticipantResponse>?> GetFeedbackBySeminarIdAsync(int seminarId, int organizerId);
         Task<PagedResult<SeminarParticipantResponse>> GetPagedForOrganizerAsync(PaginationParams paginationParams, int organizerId, int? seminarId = null);
         Task<PagedResult<SeminarParticipantResponse>> GetBySeminarIdAsync(int seminarId, int pageNumber, int pageSize);
         Task<PagedResult<SeminarParticipantResponse>> GetByUserIdAsync(int userId, int pageNumber, int pageSize);

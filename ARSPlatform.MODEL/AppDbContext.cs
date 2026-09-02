@@ -683,6 +683,8 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false);
             entity.Property(e => e.ParticipantEvaluation).HasMaxLength(255);
+            entity.Property(e => e.Rating);
+            entity.Property(e => e.FeedbackSubmittedAt).HasColumnType("datetime2(7)");
 
             entity.HasOne(d => d.Seminar).WithMany(p => p.SeminarParticipants)
                 .HasForeignKey(d => d.SeminarId)

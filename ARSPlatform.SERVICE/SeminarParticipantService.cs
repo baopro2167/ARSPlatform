@@ -41,6 +41,18 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<IEnumerable<SeminarParticipantResponse>>(items);
         }
 
+        public async Task<IEnumerable<SeminarParticipantResponse>?> GetFeedbackBySeminarIdAsync(int seminarId, int organizerId)
+        {
+            var seminar = await _seminarRepository.GetByIdAsync(seminarId);
+            if (seminar == null || seminar.OrganizerId != organizerId)
+            {
+                return null;
+            }
+
+            var items = await _repository.GetBySeminarIdWithUserAsync(seminarId);
+            return _mapper.Map<IEnumerable<SeminarParticipantResponse>>(items);
+        }
+
         public async Task<PagedResult<SeminarParticipantResponse>> GetPagedForOrganizerAsync(PaginationParams paginationParams, int organizerId, int? seminarId = null)
         {
             var paged = await _repository.GetPagedAsync(
@@ -266,9 +278,20 @@ namespace ARSPlatform.SERVICES
 
         public async Task<SeminarFeedbackResponse> SubmitFeedbackAsync(int seminarId, SeminarFeedbackRequest request, int currentUserId)
         {
+            if (!request.Rating.HasValue || request.Rating.Value < 1 || request.Rating.Value > 10)
+            {
+                throw new ArgumentException("Rating must be between 1 and 10.");
+            }
+
             if (string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
             {
                 throw new ArgumentException("Participant evaluation is required.");
+            }
+
+            var participantEvaluation = request.ParticipantEvaluation.Trim();
+            if (participantEvaluation.Length > 255)
+            {
+                throw new ArgumentException("Participant evaluation must not exceed 255 characters.");
             }
 
             var currentUser = await _userRepository.GetByIdAsync(currentUserId);
@@ -288,12 +311,15 @@ namespace ARSPlatform.SERVICES
                 throw new InvalidOperationException("You are not registered or invited to this seminar.");
             }
 
-            participant.ParticipantEvaluation = request.ParticipantEvaluation.Trim();
-            participant.InvitationStatus = "SUBMITTED";
             if (participant.UserId == null)
             {
                 participant.UserId = currentUserId;
             }
+
+            participant.Rating = request.Rating.Value;
+            participant.ParticipantEvaluation = participantEvaluation;
+            participant.FeedbackSubmittedAt = DateTime.UtcNow;
+            participant.InvitationStatus = "SUBMITTED";
 
             _repository.Update(participant);
             await _repository.SaveChangesAsync();
@@ -328,8 +354,11 @@ namespace ARSPlatform.SERVICES
             {
                 SeminarId = seminarId,
                 SeminarParticipantId = participant.SeminarParticipantId,
+                UserId = participant.UserId,
+                Rating = participant.Rating.Value,
                 ParticipantEvaluation = participant.ParticipantEvaluation,
-                InvitationStatus = participant.InvitationStatus,
+                FeedbackSubmittedAt = participant.FeedbackSubmittedAt.Value,
+                InvitationStatus = participant.InvitationStatus ?? "SUBMITTED",
                 Message = "Feedback submitted successfully."
             };
         }
@@ -349,7 +378,9 @@ namespace ARSPlatform.SERVICES
                 OnlineLink = p.Seminar?.OnlineLink,
                 OrganizerName = p.Seminar?.Organizer?.FullName ?? "Giảng viên",
                 InvitationStatus = p.InvitationStatus,
-                ParticipantEvaluation = p.ParticipantEvaluation
+                ParticipantEvaluation = p.ParticipantEvaluation,
+                Rating = p.Rating,
+                FeedbackSubmittedAt = p.FeedbackSubmittedAt
             }).ToList();
         }
 

@@ -20,6 +20,10 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string? ParticipantEvaluation { get; set; }
 
+        public int? Rating { get; set; }
+
+        public DateTime? FeedbackSubmittedAt { get; set; }
+
         public DateTime? InvitationSentAt { get; set; }
 
         public DateTime? EventReminderSentAt { get; set; }

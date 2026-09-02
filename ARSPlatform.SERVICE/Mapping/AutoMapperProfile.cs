@@ -345,8 +345,14 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.SeminarId, opt => opt.Ignore());
 
             // SeminarParticipant
-            CreateMap<SeminarParticipant, SeminarParticipantResponse>();
+            CreateMap<SeminarParticipant, SeminarParticipantResponse>()
+                .ForMember(dest => dest.UserFullName, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.FullName : null))
+                .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src =>
+                    src.User != null ? src.User.Email : src.InvitedEmail));
+
             CreateMap<SeminarParticipantCreateRequest, SeminarParticipant>();
+
             CreateMap<SeminarParticipantUpdateRequest, SeminarParticipant>()
                 .ForMember(dest => dest.SeminarParticipantId, opt => opt.Ignore());
 

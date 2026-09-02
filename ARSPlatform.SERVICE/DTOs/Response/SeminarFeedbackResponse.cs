@@ -1,3 +1,5 @@
+using System;
+
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
     public class SeminarFeedbackResponse
@@ -6,7 +8,13 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public int SeminarParticipantId { get; set; }
 
+        public int? UserId { get; set; }
+
+        public int Rating { get; set; }
+
         public string ParticipantEvaluation { get; set; } = string.Empty;
+
+        public DateTime FeedbackSubmittedAt { get; set; }
 
         public string InvitationStatus { get; set; } = "SUBMITTED";
 
