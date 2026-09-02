@@ -32,7 +32,35 @@ namespace ARSPlatform.SERVICE.DTOs.Request
     public class TopicPhaseItem
     {
         public int PhaseNumber { get; set; }
+
         public string MilestoneTitle { get; set; } = string.Empty;
+        public string? PhaseTitle
+        {
+            get => MilestoneTitle;
+            set { if (!string.IsNullOrEmpty(value)) MilestoneTitle = value; }
+        }
+
+        public string? Requirements { get; set; }
+
+        public string? AssessmentCriteria { get; set; }
+        public string? Criteria
+        {
+            get => AssessmentCriteria;
+            set { if (!string.IsNullOrEmpty(value)) AssessmentCriteria = value; }
+        }
+
+        public DateTime? StartDate { get; set; }
+        public DateTime? StartedAt
+        {
+            get => StartDate;
+            set { if (value.HasValue) StartDate = value; }
+        }
+
         public DateTime? DeadlineAt { get; set; }
+        public DateTime? Deadline
+        {
+            get => DeadlineAt;
+            set { if (value.HasValue) DeadlineAt = value; }
+        }
     }
 }

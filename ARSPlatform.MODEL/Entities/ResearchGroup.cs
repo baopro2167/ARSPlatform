@@ -22,6 +22,8 @@ public partial class ResearchGroup
 
     public DateTime? CreatedAt { get; set; }
 
+    public string? MaterialsUrl { get; set; }
+
     [JsonIgnore]
     public virtual ICollection<GroupMember> GroupMembers { get; set; } = new List<GroupMember>();
 

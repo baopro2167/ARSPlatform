@@ -316,7 +316,10 @@ namespace ARSPlatform.SERVICE.Mapping
             // ResearchTopic
             CreateMap<ResearchTopic, ResearchTopicResponse>()
                 .ForMember(dest => dest.LecturerName, opt => opt.MapFrom(src =>
-                    src.Lecturer != null ? src.Lecturer.FullName : null));
+                    src.Lecturer != null ? src.Lecturer.FullName : null))
+                .ForMember(dest => dest.GroupCount, opt => opt.MapFrom(src =>
+                    src.ResearchGroups != null ? src.ResearchGroups.Count : 0))
+                .ForMember(dest => dest.Groups, opt => opt.MapFrom(src => src.ResearchGroups));
             CreateMap<ResearchTopicCreateRequest, ResearchTopic>();
             CreateMap<ResearchTopicUpdateRequest, ResearchTopic>()
                 .ForMember(dest => dest.TopicId, opt => opt.Ignore())

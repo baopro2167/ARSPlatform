@@ -27,12 +27,24 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int? PhaseNumber { get; set; }
 
         public string? MilestoneTitle { get; set; }
+        public string? PhaseTitle => MilestoneTitle;
+
+        public string? Requirements { get; set; }
+
+        public string? AssessmentCriteria { get; set; }
+        public string? Criteria => AssessmentCriteria;
+
+        public DateTime? StartDate { get; set; }
+        public DateTime? StartedAt => StartDate;
 
         public string? Status { get; set; }
+
+        public string? PhasedMaterialsUrl { get; set; }
 
         public DateTime? CreatedAt { get; set; }
 
         public DateTime? DeadlineAt { get; set; }
+        public DateTime? Deadline => DeadlineAt;
 
         public DateTime? SubmittedAt { get; set; }
 

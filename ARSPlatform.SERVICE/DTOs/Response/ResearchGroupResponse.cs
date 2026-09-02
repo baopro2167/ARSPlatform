@@ -20,6 +20,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public DateTime? CreatedAt { get; set; }
 
+        public string? MaterialsUrl { get; set; }
+
         public string? LecturerName { get; set; }
 
         public string? TopicTitle { get; set; }

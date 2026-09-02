@@ -166,6 +166,9 @@ namespace ARSPlatform.SERVICES
                 {
                     existing.MilestoneTitle = phaseItem.MilestoneTitle;
                     existing.DeadlineAt = phaseItem.DeadlineAt;
+                    existing.Requirements = phaseItem.Requirements ?? existing.Requirements;
+                    existing.AssessmentCriteria = phaseItem.AssessmentCriteria ?? existing.AssessmentCriteria;
+                    existing.StartDate = phaseItem.StartDate ?? existing.StartDate;
                     existing.ResearchGroupId = request.ResearchGroupId ?? existing.ResearchGroupId;
                     existing.UpdatedAt = DateTime.UtcNow;
                     _repository.Update(existing);
@@ -179,6 +182,9 @@ namespace ARSPlatform.SERVICES
                         ResearchGroupId = request.ResearchGroupId,
                         PhaseNumber = phaseItem.PhaseNumber,
                         MilestoneTitle = phaseItem.MilestoneTitle,
+                        Requirements = phaseItem.Requirements,
+                        AssessmentCriteria = phaseItem.AssessmentCriteria,
+                        StartDate = phaseItem.StartDate,
                         DeadlineAt = phaseItem.DeadlineAt,
                         Status = "Pending",
                         CreatedAt = DateTime.UtcNow,
