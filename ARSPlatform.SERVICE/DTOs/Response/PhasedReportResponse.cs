@@ -30,6 +30,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string? Status { get; set; }
 
+        public string? PhasedMaterialsUrl { get; set; }
+
         public DateTime? CreatedAt { get; set; }
 
         public DateTime? DeadlineAt { get; set; }

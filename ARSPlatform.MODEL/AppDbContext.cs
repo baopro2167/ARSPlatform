@@ -494,6 +494,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.LectureFeedback).HasColumnType("decimal(15, 2)");
             entity.Property(e => e.Status).HasMaxLength(50).IsUnicode(false);
             entity.Property(e => e.MilestoneTitle).HasMaxLength(255);
+            entity.Property(e => e.PhasedMaterialsUrl).HasMaxLength(1000);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 

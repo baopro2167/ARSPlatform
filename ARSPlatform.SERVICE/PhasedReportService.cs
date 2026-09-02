@@ -383,6 +383,10 @@ namespace ARSPlatform.SERVICES
             item.SubmittedAt = nowUtc;
             item.UpdatedAt = nowUtc;
             item.ReportFileUrl = request.ReportFileUrl;
+            if (!string.IsNullOrWhiteSpace(request.PhasedMaterialsUrl))
+            {
+                item.PhasedMaterialsUrl = request.PhasedMaterialsUrl;
+            }
 
             if (item.DeadlineAt.HasValue && nowUtc > item.DeadlineAt.Value)
             {

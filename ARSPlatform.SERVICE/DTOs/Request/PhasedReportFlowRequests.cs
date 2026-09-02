@@ -10,6 +10,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public int? PhaseNumber { get; set; }
         public int? ResearchGroupId { get; set; }
         public string ReportFileUrl { get; set; } = string.Empty;
+        public string? PhasedMaterialsUrl { get; set; }
         public int? GroupMemberId { get; set; }
     }
 

@@ -26,6 +26,8 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public string? Status { get; set; }
 
+        public string? PhasedMaterialsUrl { get; set; }
+
         public DateTime? DeadlineAt { get; set; }
 
         public DateTime? SubmittedAt { get; set; }
