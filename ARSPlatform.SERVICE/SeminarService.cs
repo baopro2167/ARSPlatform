@@ -78,14 +78,10 @@ namespace ARSPlatform.SERVICES
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
             if (seminar == null)
-            {
                 return null;
-            }
 
             if (organizerId.HasValue && seminar.OrganizerId != organizerId.Value)
-            {
                 return null;
-            }
 
             return _mapper.Map<SeminarResponse>(seminar);
         }
@@ -95,40 +91,24 @@ namespace ARSPlatform.SERVICES
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
             if (seminar == null)
-            {
                 return null;
-            }
 
-            // Lecturer là chủ seminar luôn được xem.
+            // Chủ Seminar luôn được xem.
             if (seminar.OrganizerId == currentUserId)
-            {
                 return _mapper.Map<SeminarResponse>(seminar);
-            }
 
             var currentUser = await _userRepository.GetByIdAsync(currentUserId);
             var currentUserEmail = currentUser?.Email;
 
             // Participant được nhận diện bằng UserId hoặc email được mời.
-            var isParticipant = seminar.SeminarParticipants.Any(
-                participant =>
-                    NormalizeParticipantStatus(participant.InvitationStatus) != "DECLINED"
-                    &&
-                    (
-                        participant.UserId == currentUserId
-                        ||
-                        (
-                            !string.IsNullOrWhiteSpace(currentUserEmail)
-                            && string.Equals(
-                                participant.InvitedEmail,
-                                currentUserEmail,
-                                StringComparison.OrdinalIgnoreCase)
-                        )
-                    ));
+            var isParticipant = seminar.SeminarParticipants.Any(participant =>
+                NormalizeParticipantStatus(participant.InvitationStatus) != "DECLINED"
+                && (participant.UserId == currentUserId
+                    || (!string.IsNullOrWhiteSpace(currentUserEmail)
+                        && string.Equals(participant.InvitedEmail, currentUserEmail, StringComparison.OrdinalIgnoreCase))));
 
             if (!isParticipant)
-            {
                 return null;
-            }
 
             return _mapper.Map<SeminarResponse>(seminar);
         }
@@ -138,12 +118,7 @@ namespace ARSPlatform.SERVICES
             SeminarCreateRequest request,
             CancellationToken cancellationToken = default)
         {
-            ValidateSeminarValues(
-                request.StartTime,
-                request.EndTime,
-                request.Content,
-                request.MaxParticipants,
-                0);
+            ValidateSeminarValues(request.StartTime, request.EndTime, request.Content, request.MaxParticipants, 0);
 
             var normalizedGuestEmails = NormalizeEmails(request.GuestEmails);
 
@@ -175,6 +150,7 @@ namespace ARSPlatform.SERVICES
             foreach (var email in normalizedGuestEmails)
             {
                 var user = await _userRepository.GetByEmailAsync(email);
+
                 var participant = new SeminarParticipant
                 {
                     Seminar = seminar,
@@ -198,16 +174,14 @@ namespace ARSPlatform.SERVICES
                 }
             }
 
-            // Seminar and initial participant rows share the same scoped AppDbContext.
-            // One SaveChanges persists the database registration state together.
+            // Seminar và participant ban đầu dùng cùng scoped AppDbContext.
             await _seminarRepository.SaveChangesAsync();
 
             if (notificationsToCreate.Count > 0)
             {
-                foreach (var notif in notificationsToCreate)
-                {
-                    await _notificationRepository.AddAsync(notif);
-                }
+                foreach (var notification in notificationsToCreate)
+                    await _notificationRepository.AddAsync(notification);
+
                 await _notificationRepository.SaveChangesAsync();
             }
 
@@ -220,9 +194,7 @@ namespace ARSPlatform.SERVICES
                     var email = ResolveParticipantEmail(participant);
 
                     if (string.IsNullOrWhiteSpace(email))
-                    {
                         continue;
-                    }
 
                     try
                     {
@@ -245,9 +217,7 @@ namespace ARSPlatform.SERVICES
                 }
 
                 if (invitationTimestampChanged)
-                {
                     await _participantRepository.SaveChangesAsync();
-                }
             }
 
             var created = await _seminarRepository.GetByIdWithParticipantsAsync(seminar.SeminarId);
@@ -263,9 +233,7 @@ namespace ARSPlatform.SERVICES
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
             if (seminar == null || seminar.OrganizerId != organizerId)
-            {
                 return null;
-            }
 
             var startTime = request.StartTime ?? seminar.StartTime;
             var endTime = request.EndTime ?? seminar.EndTime;
@@ -286,30 +254,20 @@ namespace ARSPlatform.SERVICES
                 seminar.ReminderSentAt = null;
 
                 foreach (var participant in seminar.SeminarParticipants)
-                {
                     participant.EventReminderSentAt = null;
-                }
             }
 
             if (request.EndTime.HasValue)
-            {
                 seminar.EndTime = request.EndTime.Value;
-            }
 
             if (request.Content != null)
-            {
                 seminar.Content = request.Content.Trim();
-            }
 
             if (request.MaxParticipants.HasValue)
-            {
                 seminar.MaxParticipants = request.MaxParticipants.Value;
-            }
 
             if (request.SubFieldId.HasValue)
-            {
                 seminar.SubFieldId = request.SubFieldId.Value;
-            }
 
             if (request.ReminderEnabled.HasValue)
             {
@@ -334,12 +292,10 @@ namespace ARSPlatform.SERVICES
             _seminarRepository.Update(seminar);
             await _seminarRepository.SaveChangesAsync();
 
-            // FE30 currently uses PUT { isReminderSent: true } for "Remind Pending".
-            // Preserve that contract while the canonical endpoint also exists.
+            // FE hiện vẫn dùng PUT { isReminderSent: true } cho Remind Pending.
+            // Giữ contract này song song với endpoint reminder riêng.
             if (request.IsReminderSent == true)
-            {
                 await SendFeedbackRemindersAsync(seminarId, organizerId, cancellationToken);
-            }
 
             var updated = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
             return _mapper.Map<SeminarResponse>(updated ?? seminar);
@@ -350,9 +306,7 @@ namespace ARSPlatform.SERVICES
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
             if (seminar == null || seminar.OrganizerId != organizerId)
-            {
                 return false;
-            }
 
             _seminarRepository.Delete(seminar);
             await _seminarRepository.SaveChangesAsync();
@@ -368,16 +322,12 @@ namespace ARSPlatform.SERVICES
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
             if (seminar == null || seminar.OrganizerId != organizerId)
-            {
                 throw new KeyNotFoundException("Seminar not found.");
-            }
 
             var normalizedEmails = NormalizeEmails(request.Emails);
 
             if (normalizedEmails.Count == 0)
-            {
                 throw new ArgumentException("At least one valid email is required.");
-            }
 
             var response = new SeminarInviteResponse
             {
@@ -394,6 +344,7 @@ namespace ARSPlatform.SERVICES
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var user = await _userRepository.GetByEmailAsync(email);
+
                 var existing = existingParticipants.FirstOrDefault(p =>
                     (user != null && p.UserId == user.UserId)
                     || string.Equals(p.InvitedEmail, email, StringComparison.OrdinalIgnoreCase)
@@ -402,13 +353,10 @@ namespace ARSPlatform.SERVICES
                 if (existing != null)
                 {
                     if (existing.InvitationSentAt == null)
-                    {
                         participantsToSend.Add(existing);
-                    }
                     else
-                    {
                         response.Skipped++;
-                    }
+
                     continue;
                 }
 
@@ -428,13 +376,12 @@ namespace ARSPlatform.SERVICES
                 && seminar.MaxParticipants.Value > 0
                 && existingParticipants.Count + newParticipants.Count > seminar.MaxParticipants.Value)
             {
-                throw new InvalidOperationException("Invitations would exceed the seminar MaxParticipants limit.");
+                throw new InvalidOperationException(
+                    "Invitations would exceed the seminar MaxParticipants limit.");
             }
 
             foreach (var participant in newParticipants)
-            {
                 await _participantRepository.AddAsync(participant);
-            }
 
             if (newParticipants.Count > 0)
             {
@@ -453,10 +400,9 @@ namespace ARSPlatform.SERVICES
 
                 if (notifications.Count > 0)
                 {
-                    foreach (var notif in notifications)
-                    {
-                        await _notificationRepository.AddAsync(notif);
-                    }
+                    foreach (var notification in notifications)
+                        await _notificationRepository.AddAsync(notification);
+
                     await _notificationRepository.SaveChangesAsync();
                 }
             }
@@ -488,6 +434,7 @@ namespace ARSPlatform.SERVICES
                 catch (Exception ex)
                 {
                     response.FailedEmails.Add(email);
+
                     _logger.LogWarning(
                         ex,
                         "Failed to send seminar {SeminarId} invitation to {Email}.",
@@ -497,9 +444,7 @@ namespace ARSPlatform.SERVICES
             }
 
             if (participantsToSend.Count > 0)
-            {
                 await _participantRepository.SaveChangesAsync();
-            }
 
             return response;
         }
@@ -509,18 +454,20 @@ namespace ARSPlatform.SERVICES
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
             if (seminar == null || seminar.OrganizerId != organizerId)
-            {
                 return null;
-            }
 
             var participants = seminar.SeminarParticipants.ToList();
-            var declined = participants.Count(p => NormalizeParticipantStatus(p.InvitationStatus) == "DECLINED");
+
+            var declined = participants.Count(p =>
+                NormalizeParticipantStatus(p.InvitationStatus) == "DECLINED");
 
             var submitted = participants.Count(p =>
             {
                 var status = NormalizeParticipantStatus(p.InvitationStatus);
+
                 return status != "DECLINED"
-                    && (status == "SUBMITTED" || !string.IsNullOrWhiteSpace(p.ParticipantEvaluation));
+                    && (status == "SUBMITTED"
+                        || !string.IsNullOrWhiteSpace(p.ParticipantEvaluation));
             });
 
             var pending = participants.Count - submitted - declined;
@@ -532,13 +479,15 @@ namespace ARSPlatform.SERVICES
                 Submitted = submitted,
                 Pending = pending,
                 Declined = declined,
-
                 CompletionPercentage = participants.Count == 0
                     ? 0
                     : Math.Round((decimal)submitted / participants.Count * 100, 2),
-
                 AverageScore = participants.Any(p => p.Rating.HasValue)
-                    ? Math.Round(participants.Where(p => p.Rating.HasValue).Average(p => (decimal)p.Rating!.Value), 2)
+                    ? Math.Round(
+                        participants
+                            .Where(p => p.Rating.HasValue)
+                            .Average(p => (decimal)p.Rating!.Value),
+                        2)
                     : null
             };
         }
@@ -551,14 +500,13 @@ namespace ARSPlatform.SERVICES
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
             if (seminar == null || seminar.OrganizerId != organizerId)
-            {
                 throw new KeyNotFoundException("Seminar not found.");
-            }
 
             var eligibleParticipants = seminar.SeminarParticipants
                 .Where(p =>
                 {
                     var status = NormalizeParticipantStatus(p.InvitationStatus);
+
                     return status != "SUBMITTED"
                         && status != "DECLINED"
                         && string.IsNullOrWhiteSpace(p.ParticipantEvaluation)
@@ -598,6 +546,7 @@ namespace ARSPlatform.SERVICES
                 catch (Exception ex)
                 {
                     response.FailedEmails.Add(email);
+
                     _logger.LogWarning(
                         ex,
                         "Failed to send feedback reminder for seminar {SeminarId} to {Email}.",
@@ -607,9 +556,7 @@ namespace ARSPlatform.SERVICES
             }
 
             if (eligibleParticipants.Count > 0)
-            {
                 await _participantRepository.SaveChangesAsync();
-            }
 
             return response;
         }
@@ -630,12 +577,13 @@ namespace ARSPlatform.SERVICES
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var expectedStatus = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, now);
+                var expectedStatus = CalculateLifecycleStatus(
+                    seminar.StartTime,
+                    seminar.EndTime,
+                    now);
 
                 if (string.Equals(seminar.Status, expectedStatus, StringComparison.OrdinalIgnoreCase))
-                {
                     continue;
-                }
 
                 seminar.Status = expectedStatus;
                 _seminarRepository.Update(seminar);
@@ -643,14 +591,13 @@ namespace ARSPlatform.SERVICES
             }
 
             if (hasChanges)
-            {
                 await _seminarRepository.SaveChangesAsync();
-            }
         }
 
         public async Task SendDueEventRemindersAsync(CancellationToken cancellationToken = default)
         {
             var now = DateTime.UtcNow;
+
             var seminars = await _seminarRepository.GetDueReminderSeminarsAsync(
                 now,
                 now.Add(EventReminderWindow));
@@ -676,9 +623,7 @@ namespace ARSPlatform.SERVICES
                     var email = ResolveParticipantEmail(participant);
 
                     if (string.IsNullOrWhiteSpace(email))
-                    {
                         continue;
-                    }
 
                     try
                     {
@@ -713,9 +658,38 @@ namespace ARSPlatform.SERVICES
             }
 
             if (hasChanges)
-            {
                 await _seminarRepository.SaveChangesAsync();
-            }
+        }
+
+        public async Task<List<SuggestedInviteeDto>> GetSuggestedInviteesAsync(
+            int subFieldId,
+            int currentUserId)
+        {
+            var users = await _userRepository.GetQueryable()
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .Include(u => u.ProfessionalProfile)
+                    .ThenInclude(p => p.SubField)
+                .Where(u => u.UserId != currentUserId
+                         && (u.IsActive == null || u.IsActive == true)
+                         && u.ProfessionalProfile != null
+                         && u.ProfessionalProfile.SubFieldId == subFieldId
+                         && !string.IsNullOrEmpty(u.Email))
+                .ToListAsync();
+
+            return users.Select(u => new SuggestedInviteeDto
+            {
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                AvatarUrl = u.AvatarUrl,
+                Role = u.UserRoles.FirstOrDefault(ur => ur.Role != null)?.Role?.Name ?? "Researcher",
+                SubFieldId = u.ProfessionalProfile?.SubFieldId,
+                SubFieldName = u.ProfessionalProfile?.SubField?.Name,
+                OrcidId = u.ProfessionalProfile?.OrcidId,
+                Hindex = u.ProfessionalProfile?.Hindex,
+                PublicationCount = u.ProfessionalProfile?.PublicationCount
+            }).ToList();
         }
 
         private static void ValidateSeminarValues(
@@ -726,34 +700,27 @@ namespace ARSPlatform.SERVICES
             int existingParticipantCount)
         {
             if (string.IsNullOrWhiteSpace(content))
-            {
                 throw new ArgumentException("Seminar content is required.");
-            }
 
             if (endTime <= startTime)
-            {
                 throw new ArgumentException("EndTime must be later than StartTime.");
-            }
 
             if (maxParticipants.HasValue && maxParticipants.Value < 0)
-            {
                 throw new ArgumentException("MaxParticipants cannot be negative.");
-            }
 
             if (maxParticipants.HasValue
                 && maxParticipants.Value > 0
                 && maxParticipants.Value < existingParticipantCount)
             {
-                throw new ArgumentException("MaxParticipants cannot be lower than the current participant count.");
+                throw new ArgumentException(
+                    "MaxParticipants cannot be lower than the current participant count.");
             }
         }
 
         private static List<string> NormalizeEmails(IEnumerable<string>? emails)
         {
             if (emails == null)
-            {
                 return new List<string>();
-            }
 
             var validator = new EmailAddressAttribute();
             var normalized = new List<string>();
@@ -764,19 +731,13 @@ namespace ARSPlatform.SERVICES
                 var email = rawEmail?.Trim();
 
                 if (string.IsNullOrWhiteSpace(email))
-                {
                     continue;
-                }
 
                 if (!validator.IsValid(email))
-                {
                     throw new ArgumentException($"Invalid seminar invitation email: {email}");
-                }
 
                 if (seen.Add(email))
-                {
                     normalized.Add(email);
-                }
             }
 
             return normalized;
@@ -790,14 +751,10 @@ namespace ARSPlatform.SERVICES
         private static string CalculateLifecycleStatus(DateTime startTime, DateTime endTime, DateTime nowUtc)
         {
             if (endTime <= nowUtc)
-            {
                 return "Completed";
-            }
 
             if (startTime <= nowUtc)
-            {
                 return "In Progress";
-            }
 
             return "Upcoming";
         }
@@ -805,26 +762,18 @@ namespace ARSPlatform.SERVICES
         private static string NormalizeParticipantStatus(string? status)
         {
             if (string.IsNullOrWhiteSpace(status))
-            {
                 return "PENDING";
-            }
 
             var value = status.Trim().ToLowerInvariant();
 
             if (value is "submitted" or "complete" or "completed")
-            {
                 return "SUBMITTED";
-            }
 
             if (value is "declined" or "rejected")
-            {
                 return "DECLINED";
-            }
 
             if (value is "invited" or "accepted" or "confirmed")
-            {
                 return "INVITED";
-            }
 
             return "PENDING";
         }
@@ -832,9 +781,7 @@ namespace ARSPlatform.SERVICES
         private static string? ResolveParticipantEmail(SeminarParticipant participant)
         {
             if (!string.IsNullOrWhiteSpace(participant.User?.Email))
-            {
                 return participant.User.Email;
-            }
 
             return participant.InvitedEmail;
         }
@@ -845,18 +792,19 @@ namespace ARSPlatform.SERVICES
             var link = WebUtility.HtmlEncode(seminar.OnlineLink ?? string.Empty);
 
             return $@"
-                <html>
-                <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
-                    <h2>Thư mời tham dự hội thảo</h2>
-                    <p>Bạn nhận được lời mời tham dự hội thảo với chủ đề:</p>
-                    <p><strong>{content}</strong></p>
-                    <ul>
-                        <li><strong>Thời gian bắt đầu:</strong> {seminar.StartTime:dd/MM/yyyy HH:mm}</li>
-                        <li><strong>Link tham dự:</strong> <a href='{link}'>{link}</a></li>
-                    </ul>
-                    <p>Rất mong sự góp mặt của bạn!</p>
-                </body>
-                </html>";
+<html>
+<body style='font-family: Arial, sans-serif; line-height: 1.6;'>
+    <h2>Thư mời tham dự hội thảo</h2>
+    <p>Bạn nhận được lời mời tham dự hội thảo với chủ đề:</p>
+    <p><strong>{content}</strong></p>
+    <ul>
+        <li><strong>Thời gian bắt đầu:</strong> {seminar.StartTime:dd/MM/yyyy HH:mm}</li>
+        <li><strong>Thời gian kết thúc:</strong> {seminar.EndTime:dd/MM/yyyy HH:mm}</li>
+        <li><strong>Link tham dự:</strong> <a href='{link}'>{link}</a></li>
+    </ul>
+    <p>Rất mong sự góp mặt của bạn!</p>
+</body>
+</html>";
         }
 
         private static string BuildEventReminderEmailBody(Seminar seminar)
@@ -865,17 +813,17 @@ namespace ARSPlatform.SERVICES
             var link = WebUtility.HtmlEncode(seminar.OnlineLink ?? string.Empty);
 
             return $@"
-                <html>
-                <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
-                    <h2>Nhắc nhở: Hội thảo sắp diễn ra</h2>
-                    <p>Hội thảo <strong>{content}</strong> sắp sửa diễn ra.</p>
-                    <ul>
-                        <li><strong>Thời gian:</strong> {seminar.StartTime:dd/MM/yyyy HH:mm}</li>
-                        <li><strong>Link tham dự:</strong> <a href='{link}'>{link}</a></li>
-                    </ul>
-                    <p>Vui lòng sắp xếp thời gian để tham dự đúng giờ!</p>
-                </body>
-                </html>";
+<html>
+<body style='font-family: Arial, sans-serif; line-height: 1.6;'>
+    <h2>Nhắc nhở: Hội thảo sắp diễn ra</h2>
+    <p>Hội thảo <strong>{content}</strong> sắp sửa diễn ra.</p>
+    <ul>
+        <li><strong>Thời gian:</strong> {seminar.StartTime:dd/MM/yyyy HH:mm}</li>
+        <li><strong>Link tham dự:</strong> <a href='{link}'>{link}</a></li>
+    </ul>
+    <p>Vui lòng sắp xếp thời gian để tham dự đúng giờ!</p>
+</body>
+</html>";
         }
 
         private static string BuildFeedbackReminderEmailBody(Seminar seminar)
@@ -883,14 +831,14 @@ namespace ARSPlatform.SERVICES
             var content = WebUtility.HtmlEncode(seminar.Content);
 
             return $@"
-                <html>
-                <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
-                    <h2>Khảo sát hội thảo</h2>
-                    <p>Cảm ơn bạn đã tham gia hội thảo <strong>{content}</strong>.</p>
-                    <p>Chúng tôi rất mong nhận được những đánh giá, góp ý của bạn để các chương trình tiếp theo diễn ra tốt đẹp hơn.</p>
-                    <p>Vui lòng đăng nhập vào hệ thống để gửi feedback của bạn.</p>
-                </body>
-                </html>";
+<html>
+<body style='font-family: Arial, sans-serif; line-height: 1.6;'>
+    <h2>Khảo sát hội thảo</h2>
+    <p>Bạn hiện còn feedback/evaluation chưa gửi cho hội thảo <strong>{content}</strong>.</p>
+    <p>Chúng tôi rất mong nhận được những đánh giá, góp ý của bạn để các chương trình tiếp theo diễn ra tốt đẹp hơn.</p>
+    <p>Vui lòng đăng nhập vào hệ thống để gửi feedback của bạn.</p>
+</body>
+</html>";
         }
     }
 }
