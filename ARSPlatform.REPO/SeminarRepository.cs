@@ -16,6 +16,7 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await _dbSet
                 .AsNoTracking()
+                .Include(s => s.SubField)
                 .Include(s => s.SeminarParticipants)
                     .ThenInclude(p => p.User)
                 .OrderByDescending(s => s.StartTime)
@@ -26,6 +27,7 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await _dbSet
                 .AsNoTracking()
+                .Include(s => s.SubField)
                 .Include(s => s.SeminarParticipants)
                     .ThenInclude(p => p.User)
                 .Where(s => s.OrganizerId == organizerId)
@@ -41,6 +43,7 @@ namespace ARSPlatform.REPOSITORIES
                 orderBy: q => q.OrderByDescending(s => s.StartTime),
                 includes: new System.Linq.Expressions.Expression<System.Func<Seminar, object>>[]
                 {
+                    s => s.SubField!,
                     s => s.SeminarParticipants
                 });
         }
@@ -53,6 +56,7 @@ namespace ARSPlatform.REPOSITORIES
         public async Task<Seminar?> GetByIdWithParticipantsAsync(int id)
         {
             return await _dbSet
+                .Include(s => s.SubField)
                 .Include(s => s.SeminarParticipants)
                     .ThenInclude(p => p.User)
                 .FirstOrDefaultAsync(s => s.SeminarId == id);

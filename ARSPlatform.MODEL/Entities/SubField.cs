@@ -29,4 +29,7 @@ public partial class SubField
     [JsonIgnore]
     public virtual ICollection<ProfessionalProfile> ProfessionalProfiles { get; set; }
     = new List<ProfessionalProfile>();
+
+    [JsonIgnore]
+    public virtual ICollection<Seminar> Seminars { get; set; } = new List<Seminar>();
 }

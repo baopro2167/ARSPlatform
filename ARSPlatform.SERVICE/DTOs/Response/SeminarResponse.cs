@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
@@ -32,6 +32,10 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         // Existing feedback feature
         public string? Feedback { get; set; }
+
+        public int? SubFieldId { get; set; }
+
+        public string? SubFieldName { get; set; }
 
         public List<SeminarParticipantResponse> Participants { get; set; }
             = new();

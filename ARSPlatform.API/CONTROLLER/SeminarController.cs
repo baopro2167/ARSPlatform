@@ -76,6 +76,29 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Gợi ý danh sách người tham dự phù hợp theo chuyên ngành (SubFieldId) để mời tham gia Seminar
+        /// </summary>
+        /// <param name="subFieldId">ID chuyên ngành phụ</param>
+        /// <returns>Danh sách người dùng / chuyên gia gợi ý</returns>
+        [HttpGet("suggested-invitees")]
+        [Authorize]
+        public async Task<ActionResult<List<SuggestedInviteeDto>>> GetSuggestedInvitees([FromQuery] int subFieldId)
+        {
+            if (!TryGetCurrentUserId(out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            if (subFieldId <= 0)
+            {
+                return BadRequest(new { message = "SubFieldId không hợp lệ." });
+            }
+
+            var result = await _seminarService.GetSuggestedInviteesAsync(subFieldId, currentUserId);
+            return Ok(result);
+        }
+
+        /// <summary>
         /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>

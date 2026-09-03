@@ -24,5 +24,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? Status { get; set; }
 
         public List<string>? GuestEmails { get; set; }
+        
+        public int? SubFieldId { get; set; }
     }
 }

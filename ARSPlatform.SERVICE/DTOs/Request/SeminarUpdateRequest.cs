@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
@@ -19,5 +19,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public bool? ReminderEnabled { get; set; }
 
         public string? Status { get; set; }
+        
+        public int? SubFieldId { get; set; }
     }
 }

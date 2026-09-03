@@ -60,5 +60,9 @@ namespace ARSPlatform.SERVICE.Interfaces
 
         Task SendDueEventRemindersAsync(
             CancellationToken cancellationToken = default);
+
+        Task<List<SuggestedInviteeDto>> GetSuggestedInviteesAsync(
+            int subFieldId,
+            int currentUserId);
     }
 }

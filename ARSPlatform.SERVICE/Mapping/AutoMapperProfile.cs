@@ -341,7 +341,8 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // Seminar
             CreateMap<Seminar, SeminarResponse>()
-                .ForMember(dest => dest.Participants, opt => opt.MapFrom(src => src.SeminarParticipants));
+                .ForMember(dest => dest.Participants, opt => opt.MapFrom(src => src.SeminarParticipants))
+                .ForMember(dest => dest.SubFieldName, opt => opt.MapFrom(src => src.SubField != null ? src.SubField.Name : null));
 
             CreateMap<SeminarCreateRequest, Seminar>();
             CreateMap<SeminarUpdateRequest, Seminar>()
