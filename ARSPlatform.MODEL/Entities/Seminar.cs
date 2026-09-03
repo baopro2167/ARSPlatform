@@ -33,6 +33,10 @@ public partial class Seminar
     // Existing seminar feedback feature
     public string? Feedback { get; set; }
 
+    public int? SubFieldId { get; set; }
+
+    public virtual SubField? SubField { get; set; }
+
     public virtual User? Organizer { get; set; }
 
     public virtual ICollection<SeminarParticipant> SeminarParticipants { get; set; } = new List<SeminarParticipant>();

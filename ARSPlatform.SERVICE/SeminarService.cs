@@ -1,10 +1,11 @@
-﻿using ARSPlatform.MODEL.Entities;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -23,6 +24,7 @@ namespace ARSPlatform.SERVICES
         private readonly ISeminarRepository _seminarRepository;
         private readonly ISeminarParticipantRepository _participantRepository;
         private readonly IUserRepository _userRepository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IGoogleMeetService _googleMeetService;
         private readonly IEmailService _emailService;
         private readonly IMapper _mapper;
@@ -32,6 +34,7 @@ namespace ARSPlatform.SERVICES
             ISeminarRepository seminarRepository,
             ISeminarParticipantRepository participantRepository,
             IUserRepository userRepository,
+            INotificationRepository notificationRepository,
             IGoogleMeetService googleMeetService,
             IEmailService emailService,
             IMapper mapper,
@@ -40,6 +43,7 @@ namespace ARSPlatform.SERVICES
             _seminarRepository = seminarRepository;
             _participantRepository = participantRepository;
             _userRepository = userRepository;
+            _notificationRepository = notificationRepository;
             _googleMeetService = googleMeetService;
             _emailService = emailService;
             _mapper = mapper;
@@ -173,6 +177,7 @@ namespace ARSPlatform.SERVICES
             seminar.ReminderEnabled = request.IsReminderSent ?? false;
             seminar.IsReminderSent = false;
             seminar.ReminderSentAt = null;
+            seminar.SubFieldId = request.SubFieldId;
             seminar.Status = IsDraft(request.Status)
                 ? "Draft"
                 : CalculateLifecycleStatus(
@@ -183,6 +188,7 @@ namespace ARSPlatform.SERVICES
             await _seminarRepository.AddAsync(seminar);
 
             var participants = new List<SeminarParticipant>();
+            var notificationsToCreate = new List<Notification>();
 
             foreach (var email in normalizedGuestEmails)
             {
@@ -198,11 +204,31 @@ namespace ARSPlatform.SERVICES
 
                 participants.Add(participant);
                 await _participantRepository.AddAsync(participant);
+
+                if (user != null)
+                {
+                    notificationsToCreate.Add(new Notification
+                    {
+                        UserId = user.UserId,
+                        Message = $"Bạn được mời tham dự hội thảo '{seminar.Content}' diễn ra vào lúc {seminar.StartTime:dd/MM/yyyy HH:mm}.",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
             }
 
             // Seminar and initial participant rows share the same scoped AppDbContext.
             // One SaveChanges persists the database registration state together.
             await _seminarRepository.SaveChangesAsync();
+
+            if (notificationsToCreate.Count > 0)
+            {
+                foreach (var notif in notificationsToCreate)
+                {
+                    await _notificationRepository.AddAsync(notif);
+                }
+                await _notificationRepository.SaveChangesAsync();
+            }
 
             if (participants.Count > 0)
             {
@@ -299,6 +325,11 @@ namespace ARSPlatform.SERVICES
             if (request.MaxParticipants.HasValue)
             {
                 seminar.MaxParticipants = request.MaxParticipants.Value;
+            }
+
+            if (request.SubFieldId.HasValue)
+            {
+                seminar.SubFieldId = request.SubFieldId.Value;
             }
 
             if (request.ReminderEnabled.HasValue)
@@ -446,6 +477,26 @@ namespace ARSPlatform.SERVICES
             if (newParticipants.Count > 0)
             {
                 await _participantRepository.SaveChangesAsync();
+
+                var notifications = newParticipants
+                    .Where(p => p.UserId.HasValue)
+                    .Select(p => new Notification
+                    {
+                        UserId = p.UserId!.Value,
+                        Message = $"Bạn được mời tham dự hội thảo '{seminar.Content}' diễn ra vào lúc {seminar.StartTime:dd/MM/yyyy HH:mm}.",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    })
+                    .ToList();
+
+                if (notifications.Count > 0)
+                {
+                    foreach (var notif in notifications)
+                    {
+                        await _notificationRepository.AddAsync(notif);
+                    }
+                    await _notificationRepository.SaveChangesAsync();
+                }
             }
 
             response.Added = newParticipants.Count;
@@ -928,6 +979,37 @@ namespace ARSPlatform.SERVICES
   <p>Please submit your pending seminar feedback/evaluation.</p>
   <p><strong>Seminar:</strong> {content}</p>
 </div>";
+        }
+
+        public async Task<List<SuggestedInviteeDto>> GetSuggestedInviteesAsync(int subFieldId, int currentUserId)
+        {
+            var users = await _userRepository.GetQueryable()
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .Include(u => u.ProfessionalProfile)
+                    .ThenInclude(p => p.SubField)
+                .Where(u => u.UserId != currentUserId
+                         && (u.IsActive == null || u.IsActive == true)
+                         && u.ProfessionalProfile != null
+                         && u.ProfessionalProfile.SubFieldId == subFieldId
+                         && !string.IsNullOrEmpty(u.Email))
+                .ToListAsync();
+
+            var result = users.Select(u => new SuggestedInviteeDto
+            {
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                AvatarUrl = u.AvatarUrl,
+                Role = u.UserRoles.FirstOrDefault(ur => ur.Role != null)?.Role?.Name ?? "Researcher",
+                SubFieldId = u.ProfessionalProfile?.SubFieldId,
+                SubFieldName = u.ProfessionalProfile?.SubField?.Name,
+                OrcidId = u.ProfessionalProfile?.OrcidId,
+                Hindex = u.ProfessionalProfile?.Hindex,
+                PublicationCount = u.ProfessionalProfile?.PublicationCount
+            }).ToList();
+
+            return result;
         }
     }
 }

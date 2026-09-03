@@ -678,6 +678,10 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.OrganizerId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("FK__Seminars__Organi__2CF2ADDF");
+
+            entity.HasOne(d => d.SubField).WithMany(p => p.Seminars)
+                .HasForeignKey(d => d.SubFieldId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<SeminarParticipant>(entity =>

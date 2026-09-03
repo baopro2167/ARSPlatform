@@ -732,6 +732,19 @@ using (var scope = app.Services.CreateScope())
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PhasedReport') AND name = 'StartDate')
                     ALTER TABLE [PhasedReport] ADD [StartDate] datetime2 NULL;
             END
+
+            -- Seminars SubFieldId
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Seminars')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Seminars') AND name = 'SubFieldId')
+                    ALTER TABLE [Seminars] ADD [SubFieldId] int NULL;
+            END
+
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Seminar')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Seminar') AND name = 'SubFieldId')
+                    ALTER TABLE [Seminar] ADD [SubFieldId] int NULL;
+            END
         ");
     }
     catch (System.Exception ex)
