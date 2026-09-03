@@ -278,5 +278,142 @@ namespace ARSPlatform.SERVICES
                 Message = resultMessage
             };
         }
+
+        public async Task<ManualAssignReviewersResponse> ManualAssignReviewersAsync(ManualAssignReviewersRequest request, int? assignedByUserId = null)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            var paper = await _paperRepository.GetByIdAsync(request.PaperId);
+            if (paper == null)
+            {
+                throw new KeyNotFoundException($"Không tìm thấy bài báo với ID {request.PaperId}.");
+            }
+
+            var reviewerIds = request.GetDistinctReviewerIds();
+            if (reviewerIds.Count == 0)
+            {
+                throw new ArgumentException("Vui lòng cung cấp ít nhất một ID phản biện viên (ReviewerId) để gán cho bài báo.");
+            }
+
+            // Check if author is in the list
+            if (paper.CreatorId.HasValue && reviewerIds.Contains(paper.CreatorId.Value))
+            {
+                throw new ArgumentException($"Tác giả của bài báo (UserId: {paper.CreatorId.Value}) không được tự phản biện bài của chính mình.");
+            }
+
+            // Fetch reviewers
+            var reviewers = await _userRepository.GetQueryable()
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .Include(u => u.ProfessionalProfile)
+                .Where(u => reviewerIds.Contains(u.UserId))
+                .ToListAsync();
+
+            var foundReviewerIds = reviewers.Select(r => r.UserId).ToHashSet();
+            var missingIds = reviewerIds.Where(id => !foundReviewerIds.Contains(id)).ToList();
+            if (missingIds.Count > 0)
+            {
+                throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {string.Join(", ", missingIds)}.");
+            }
+
+            // Check existing assignments for this paper
+            var existingAssignments = await _repository.GetQueryable()
+                .Where(rr => rr.PaperId == request.PaperId && rr.ReviewerId.HasValue && reviewerIds.Contains(rr.ReviewerId.Value))
+                .ToListAsync();
+
+            var existingPendingOrAccepted = existingAssignments
+                .Where(rr => string.Equals(rr.Status, "PENDING", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(rr.Status, "ACCEPTED", StringComparison.OrdinalIgnoreCase))
+                .Select(rr => rr.ReviewerId!.Value)
+                .ToHashSet();
+
+            var nowUtc = DateTime.UtcNow;
+            var deadline = request.Deadline ?? nowUtc.AddDays(14);
+            var assignedList = new List<AssignedReviewerDto>();
+            var warnings = new List<string>();
+
+            foreach (var reviewer in reviewers)
+            {
+                if (existingPendingOrAccepted.Contains(reviewer.UserId))
+                {
+                    warnings.Add($"Phản biện viên \"{reviewer.FullName}\" (ID: {reviewer.UserId}) đã được phân công bài này trước đó (đang chờ duyệt hoặc đã nhận). Bỏ qua gán lặp.");
+                    continue;
+                }
+
+                var reviewFee = request.Fee ?? reviewer.ProfessionalProfile?.ReviewFee ?? 0;
+
+                var reviewRequest = new ReviewRequest
+                {
+                    PaperId = paper.PaperId,
+                    ReviewerId = reviewer.UserId,
+                    Fee = reviewFee,
+                    Status = "PENDING",
+                    Deadline = deadline,
+                    CreatedAt = nowUtc,
+                    Airecommended = false,
+                    Type = "ManualAssigned"
+                };
+
+                await _repository.AddAsync(reviewRequest);
+                await _repository.SaveChangesAsync();
+
+                var notification = new Notification
+                {
+                    UserId = reviewer.UserId,
+                    Message = string.IsNullOrWhiteSpace(request.Note)
+                        ? $"Bạn đã được Ban biên tập phân công phản biện bài báo: \"{paper.Title}\"."
+                        : $"Bạn đã được Ban biên tập phân công phản biện bài báo: \"{paper.Title}\". Lời nhắn: \"{request.Note}\"",
+                    IsRead = false,
+                    CreatedAt = nowUtc
+                };
+                await _notificationRepository.AddAsync(notification);
+
+                assignedList.Add(new AssignedReviewerDto
+                {
+                    ReviewerId = reviewer.UserId,
+                    FullName = reviewer.FullName,
+                    Email = reviewer.Email,
+                    AvatarUrl = reviewer.AvatarUrl,
+                    SubFieldId = reviewer.ProfessionalProfile?.SubFieldId,
+                    ReviewFee = reviewFee,
+                    ReviewRequestId = reviewRequest.ReviewRequestId,
+                    Status = "PENDING",
+                    CreatedAt = nowUtc
+                });
+            }
+
+            if (assignedList.Any())
+            {
+                await _notificationRepository.SaveChangesAsync();
+            }
+
+            string resultMessage;
+            if (assignedList.Count == reviewerIds.Count)
+            {
+                resultMessage = $"Đã gán thủ công thành công {assignedList.Count} phản biện viên cho bài báo \"{paper.Title}\".";
+            }
+            else if (assignedList.Count > 0)
+            {
+                resultMessage = $"Đã gán {assignedList.Count}/{reviewerIds.Count} phản biện viên cho bài báo \"{paper.Title}\". Một số phản biện viên bị bỏ qua do đã được phân công trước đó.";
+            }
+            else
+            {
+                resultMessage = "Không có phản biện viên nào mới được gán do tất cả các phản biện viên gửi lên đều đã được phân công cho bài báo này.";
+            }
+
+            return new ManualAssignReviewersResponse
+            {
+                PaperId = paper.PaperId,
+                PaperTitle = paper.Title,
+                RequestedCount = reviewerIds.Count,
+                AssignedCount = assignedList.Count,
+                AssignedReviewers = assignedList,
+                Warnings = warnings,
+                Message = resultMessage
+            };
+        }
     }
 }
