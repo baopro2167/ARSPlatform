@@ -354,6 +354,13 @@ builder.Services.AddHttpClient<IAudioSummaryService, AudioSummaryService>(client
     client.Timeout = TimeSpan.FromMinutes(15);
 });
 
+// Register Seminar Feedback AI Service
+// Dùng chung GEMINI_API_KEY và GeminiSettings với Audio Summary
+builder.Services.AddHttpClient<ISeminarFeedbackAiService, SeminarFeedbackAiService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+});
+
 // Register Google Meet Settings and Service
 builder.Services.Configure<GoogleMeetSettings>(
     builder.Configuration.GetSection("GoogleMeetSettings"));

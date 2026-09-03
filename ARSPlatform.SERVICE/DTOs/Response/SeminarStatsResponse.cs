@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace ARSPlatform.SERVICE.DTOs.Response
+﻿namespace ARSPlatform.SERVICE.DTOs.Response
 {
     public class SeminarStatsResponse
     {
@@ -14,6 +8,5 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int Pending { get; set; }
         public int Declined { get; set; }
         public decimal CompletionPercentage { get; set; }
-        public decimal? AverageScore { get; set; }
     }
 }

@@ -232,9 +232,9 @@ namespace ARSPlatform.API.CONTROLLER
                 return Unauthorized();
             }
 
-            if (request == null || string.IsNullOrWhiteSpace(request.ParticipantEvaluation))
+            if (request == null)
             {
-                return BadRequest(new { message = "Participant evaluation is required." });
+                return BadRequest(new { message = "Feedback request is required." });
             }
 
             try
@@ -425,6 +425,45 @@ namespace ARSPlatform.API.CONTROLLER
             catch (KeyNotFoundException)
             {
                 return NotFound();
+            }
+        }
+
+        /// <summary>
+        /// Tổng hợp toàn bộ feedback của người tham dự bằng Gemini AI và lưu kết quả vào Seminar
+        /// </summary>
+        /// <param name="id">ID Seminar</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Kết quả AI tổng hợp feedback</returns>
+        [HttpPost("{id:int}/summarize-feedback")]
+        [Authorize(Roles = "Lecturer,Researcher")]
+        [ProducesResponseType(typeof(SeminarFeedbackAiSummaryResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> SummarizeFeedback(int id, CancellationToken cancellationToken)
+        {
+            if (!TryGetCurrentUserId(out var organizerId))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                var response = await _seminarService.SummarizeFeedbackAsync(id, organizerId, cancellationToken);
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
             }
         }
 

@@ -16,11 +16,11 @@ public partial class SeminarParticipant
 
     public string? InvitationStatus { get; set; }
 
-    public string? ParticipantEvaluation { get; set; }
-
-    public int? Rating { get; set; }
+    public string? FeedbackJson { get; set; }
 
     public DateTime? FeedbackSubmittedAt { get; set; }
+
+    public DateTime? FeedbackUpdatedAt { get; set; }
 
     public DateTime? InvitationSentAt { get; set; }
 

@@ -3,6 +3,7 @@ using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
+using ARSPlatform.SERVICE.ExternalServices;
 using ARSPlatform.SERVICE.Interfaces;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,6 +23,7 @@ namespace ARSPlatform.SERVICES
     {
         private static readonly TimeSpan EventReminderWindow = TimeSpan.FromHours(24);
 
+        private readonly ISeminarFeedbackAiService _seminarFeedbackAiService;
         private readonly ISeminarRepository _seminarRepository;
         private readonly ISeminarParticipantRepository _participantRepository;
         private readonly IUserRepository _userRepository;
@@ -31,6 +34,7 @@ namespace ARSPlatform.SERVICES
         private readonly ILogger<SeminarService> _logger;
 
         public SeminarService(
+            ISeminarFeedbackAiService seminarFeedbackAiService,
             ISeminarRepository seminarRepository,
             ISeminarParticipantRepository participantRepository,
             IUserRepository userRepository,
@@ -40,6 +44,7 @@ namespace ARSPlatform.SERVICES
             IMapper mapper,
             ILogger<SeminarService> logger)
         {
+            _seminarFeedbackAiService = seminarFeedbackAiService;
             _seminarRepository = seminarRepository;
             _participantRepository = participantRepository;
             _userRepository = userRepository;
@@ -93,7 +98,7 @@ namespace ARSPlatform.SERVICES
             if (seminar == null)
                 return null;
 
-            // Chủ Seminar luôn được xem.
+            // Chủ Seminar luôn được xem toàn bộ dữ liệu participant, bao gồm raw feedback.
             if (seminar.OrganizerId == currentUserId)
                 return _mapper.Map<SeminarResponse>(seminar);
 
@@ -110,13 +115,29 @@ namespace ARSPlatform.SERVICES
             if (!isParticipant)
                 return null;
 
-            return _mapper.Map<SeminarResponse>(seminar);
+            var response = _mapper.Map<SeminarResponse>(seminar);
+
+            // Participant chỉ được xem raw feedback của chính mình, không được xem feedback của participant khác.
+            foreach (var participant in response.Participants)
+            {
+                var isCurrentParticipant = participant.UserId == currentUserId
+                    || (!string.IsNullOrWhiteSpace(currentUserEmail)
+                        && (string.Equals(participant.InvitedEmail, currentUserEmail, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(participant.UserEmail, currentUserEmail, StringComparison.OrdinalIgnoreCase)));
+
+                if (!isCurrentParticipant)
+                {
+                    participant.Feedback = null;
+                    participant.ParticipantEvaluation = null;
+                    participant.FeedbackSubmittedAt = null;
+                    participant.FeedbackUpdatedAt = null;
+                }
+            }
+
+            return response;
         }
 
-        public async Task<SeminarResponse> CreateAsync(
-            int organizerId,
-            SeminarCreateRequest request,
-            CancellationToken cancellationToken = default)
+        public async Task<SeminarResponse> CreateAsync(int organizerId, SeminarCreateRequest request, CancellationToken cancellationToken = default)
         {
             ValidateSeminarValues(request.StartTime, request.EndTime, request.Content, request.MaxParticipants, 0);
 
@@ -198,21 +219,13 @@ namespace ARSPlatform.SERVICES
 
                     try
                     {
-                        await _emailService.SendEmailAsync(
-                            email,
-                            "[ARS] Seminar Invitation",
-                            BuildInvitationEmailBody(seminar));
-
+                        await _emailService.SendEmailAsync(email, "[ARS] Seminar Invitation", BuildInvitationEmailBody(seminar));
                         participant.InvitationSentAt = DateTime.UtcNow;
                         invitationTimestampChanged = true;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(
-                            ex,
-                            "Failed to send seminar {SeminarId} invitation to {Email}.",
-                            seminar.SeminarId,
-                            email);
+                        _logger.LogWarning(ex, "Failed to send seminar {SeminarId} invitation to {Email}.", seminar.SeminarId, email);
                     }
                 }
 
@@ -224,11 +237,7 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<SeminarResponse>(created ?? seminar);
         }
 
-        public async Task<SeminarResponse?> UpdateAsync(
-            int seminarId,
-            int organizerId,
-            SeminarUpdateRequest request,
-            CancellationToken cancellationToken = default)
+        public async Task<SeminarResponse?> UpdateAsync(int seminarId, int organizerId, SeminarUpdateRequest request, CancellationToken cancellationToken = default)
         {
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
@@ -240,12 +249,7 @@ namespace ARSPlatform.SERVICES
             var content = request.Content ?? seminar.Content;
             var maxParticipants = request.MaxParticipants ?? seminar.MaxParticipants;
 
-            ValidateSeminarValues(
-                startTime,
-                endTime,
-                content,
-                maxParticipants,
-                seminar.SeminarParticipants.Count);
+            ValidateSeminarValues(startTime, endTime, content, maxParticipants, seminar.SeminarParticipants.Count);
 
             if (request.StartTime.HasValue)
             {
@@ -313,11 +317,7 @@ namespace ARSPlatform.SERVICES
             return true;
         }
 
-        public async Task<SeminarInviteResponse> InviteAsync(
-            int seminarId,
-            int organizerId,
-            SeminarInviteRequest request,
-            CancellationToken cancellationToken = default)
+        public async Task<SeminarInviteResponse> InviteAsync(int seminarId, int organizerId, SeminarInviteRequest request, CancellationToken cancellationToken = default)
         {
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
@@ -376,8 +376,7 @@ namespace ARSPlatform.SERVICES
                 && seminar.MaxParticipants.Value > 0
                 && existingParticipants.Count + newParticipants.Count > seminar.MaxParticipants.Value)
             {
-                throw new InvalidOperationException(
-                    "Invitations would exceed the seminar MaxParticipants limit.");
+                throw new InvalidOperationException("Invitations would exceed the seminar MaxParticipants limit.");
             }
 
             foreach (var participant in newParticipants)
@@ -423,23 +422,14 @@ namespace ARSPlatform.SERVICES
 
                 try
                 {
-                    await _emailService.SendEmailAsync(
-                        email,
-                        "[ARS] Seminar Invitation",
-                        BuildInvitationEmailBody(seminar));
-
+                    await _emailService.SendEmailAsync(email, "[ARS] Seminar Invitation", BuildInvitationEmailBody(seminar));
                     participant.InvitationSentAt = DateTime.UtcNow;
                     response.Sent++;
                 }
                 catch (Exception ex)
                 {
                     response.FailedEmails.Add(email);
-
-                    _logger.LogWarning(
-                        ex,
-                        "Failed to send seminar {SeminarId} invitation to {Email}.",
-                        seminarId,
-                        email);
+                    _logger.LogWarning(ex, "Failed to send seminar {SeminarId} invitation to {Email}.", seminarId, email);
                 }
             }
 
@@ -462,13 +452,8 @@ namespace ARSPlatform.SERVICES
                 NormalizeParticipantStatus(p.InvitationStatus) == "DECLINED");
 
             var submitted = participants.Count(p =>
-            {
-                var status = NormalizeParticipantStatus(p.InvitationStatus);
-
-                return status != "DECLINED"
-                    && (status == "SUBMITTED"
-                        || !string.IsNullOrWhiteSpace(p.ParticipantEvaluation));
-            });
+                NormalizeParticipantStatus(p.InvitationStatus) != "DECLINED"
+                && !string.IsNullOrWhiteSpace(p.FeedbackJson));
 
             var pending = participants.Count - submitted - declined;
 
@@ -481,21 +466,11 @@ namespace ARSPlatform.SERVICES
                 Declined = declined,
                 CompletionPercentage = participants.Count == 0
                     ? 0
-                    : Math.Round((decimal)submitted / participants.Count * 100, 2),
-                AverageScore = participants.Any(p => p.Rating.HasValue)
-                    ? Math.Round(
-                        participants
-                            .Where(p => p.Rating.HasValue)
-                            .Average(p => (decimal)p.Rating!.Value),
-                        2)
-                    : null
+                    : Math.Round((decimal)submitted / participants.Count * 100, 2)
             };
         }
 
-        public async Task<SeminarReminderResponse> SendFeedbackRemindersAsync(
-            int seminarId,
-            int organizerId,
-            CancellationToken cancellationToken = default)
+        public async Task<SeminarReminderResponse> SendFeedbackRemindersAsync(int seminarId, int organizerId, CancellationToken cancellationToken = default)
         {
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
@@ -507,9 +482,8 @@ namespace ARSPlatform.SERVICES
                 {
                     var status = NormalizeParticipantStatus(p.InvitationStatus);
 
-                    return status != "SUBMITTED"
-                        && status != "DECLINED"
-                        && string.IsNullOrWhiteSpace(p.ParticipantEvaluation)
+                    return status != "DECLINED"
+                        && string.IsNullOrWhiteSpace(p.FeedbackJson)
                         && p.FeedbackReminderSentAt == null;
                 })
                 .ToList();
@@ -535,23 +509,14 @@ namespace ARSPlatform.SERVICES
 
                 try
                 {
-                    await _emailService.SendEmailAsync(
-                        email,
-                        "[ARS] Seminar Feedback Reminder",
-                        BuildFeedbackReminderEmailBody(seminar));
-
+                    await _emailService.SendEmailAsync(email, "[ARS] Seminar Feedback Reminder", BuildFeedbackReminderEmailBody(seminar));
                     participant.FeedbackReminderSentAt = DateTime.UtcNow;
                     response.Sent++;
                 }
                 catch (Exception ex)
                 {
                     response.FailedEmails.Add(email);
-
-                    _logger.LogWarning(
-                        ex,
-                        "Failed to send feedback reminder for seminar {SeminarId} to {Email}.",
-                        seminarId,
-                        email);
+                    _logger.LogWarning(ex, "Failed to send feedback reminder for seminar {SeminarId} to {Email}.", seminarId, email);
                 }
             }
 
@@ -577,10 +542,7 @@ namespace ARSPlatform.SERVICES
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var expectedStatus = CalculateLifecycleStatus(
-                    seminar.StartTime,
-                    seminar.EndTime,
-                    now);
+                var expectedStatus = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, now);
 
                 if (string.Equals(seminar.Status, expectedStatus, StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -597,11 +559,7 @@ namespace ARSPlatform.SERVICES
         public async Task SendDueEventRemindersAsync(CancellationToken cancellationToken = default)
         {
             var now = DateTime.UtcNow;
-
-            var seminars = await _seminarRepository.GetDueReminderSeminarsAsync(
-                now,
-                now.Add(EventReminderWindow));
-
+            var seminars = await _seminarRepository.GetDueReminderSeminarsAsync(now, now.Add(EventReminderWindow));
             var hasChanges = false;
 
             foreach (var seminar in seminars)
@@ -627,21 +585,13 @@ namespace ARSPlatform.SERVICES
 
                     try
                     {
-                        await _emailService.SendEmailAsync(
-                            email,
-                            "[ARS] Upcoming Seminar Reminder",
-                            BuildEventReminderEmailBody(seminar));
-
+                        await _emailService.SendEmailAsync(email, "[ARS] Upcoming Seminar Reminder", BuildEventReminderEmailBody(seminar));
                         participant.EventReminderSentAt = DateTime.UtcNow;
                         hasChanges = true;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(
-                            ex,
-                            "Failed to send event reminder for seminar {SeminarId} to {Email}.",
-                            seminar.SeminarId,
-                            email);
+                        _logger.LogWarning(ex, "Failed to send event reminder for seminar {SeminarId} to {Email}.", seminar.SeminarId, email);
                     }
                 }
 
@@ -651,7 +601,6 @@ namespace ARSPlatform.SERVICES
                 {
                     seminar.IsReminderSent = true;
                     seminar.ReminderSentAt ??= DateTime.UtcNow;
-
                     _seminarRepository.Update(seminar);
                     hasChanges = true;
                 }
@@ -661,9 +610,7 @@ namespace ARSPlatform.SERVICES
                 await _seminarRepository.SaveChangesAsync();
         }
 
-        public async Task<List<SuggestedInviteeDto>> GetSuggestedInviteesAsync(
-            int subFieldId,
-            int currentUserId)
+        public async Task<List<SuggestedInviteeDto>> GetSuggestedInviteesAsync(int subFieldId, int currentUserId)
         {
             var users = await _userRepository.GetQueryable()
                 .Include(u => u.UserRoles)
@@ -692,12 +639,46 @@ namespace ARSPlatform.SERVICES
             }).ToList();
         }
 
-        private static void ValidateSeminarValues(
-            DateTime startTime,
-            DateTime endTime,
-            string? content,
-            int? maxParticipants,
-            int existingParticipantCount)
+        public async Task<SeminarFeedbackAiSummaryResponse> SummarizeFeedbackAsync(int seminarId, int organizerId, CancellationToken cancellationToken = default)
+        {
+            var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
+
+            if (seminar == null || seminar.OrganizerId != organizerId)
+                throw new KeyNotFoundException("Seminar not found.");
+
+            var feedbackJsons = seminar.SeminarParticipants
+                .Where(p =>
+                    NormalizeParticipantStatus(p.InvitationStatus) != "DECLINED"
+                    && !string.IsNullOrWhiteSpace(p.FeedbackJson))
+                .Select(p => p.FeedbackJson!)
+                .ToList();
+
+            if (feedbackJsons.Count == 0)
+                throw new InvalidOperationException("Seminar chưa có feedback để tổng hợp.");
+
+            var aiFeedback = await _seminarFeedbackAiService.SummarizeFeedbackAsync(
+                seminar.Content,
+                feedbackJsons,
+                cancellationToken);
+
+            var generatedAt = DateTime.UtcNow;
+
+            seminar.Feedback = JsonSerializer.Serialize(aiFeedback);
+            seminar.AiFeedbackGeneratedAt = generatedAt;
+
+            _seminarRepository.Update(seminar);
+            await _seminarRepository.SaveChangesAsync();
+
+            return new SeminarFeedbackAiSummaryResponse
+            {
+                SeminarId = seminar.SeminarId,
+                FeedbackCount = feedbackJsons.Count,
+                Feedback = aiFeedback,
+                GeneratedAt = generatedAt
+            };
+        }
+
+        private static void ValidateSeminarValues(DateTime startTime, DateTime endTime, string? content, int? maxParticipants, int existingParticipantCount)
         {
             if (string.IsNullOrWhiteSpace(content))
                 throw new ArgumentException("Seminar content is required.");
@@ -712,8 +693,7 @@ namespace ARSPlatform.SERVICES
                 && maxParticipants.Value > 0
                 && maxParticipants.Value < existingParticipantCount)
             {
-                throw new ArgumentException(
-                    "MaxParticipants cannot be lower than the current participant count.");
+                throw new ArgumentException("MaxParticipants cannot be lower than the current participant count.");
             }
         }
 

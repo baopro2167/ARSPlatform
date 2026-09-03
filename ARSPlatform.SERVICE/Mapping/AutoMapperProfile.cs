@@ -350,15 +350,21 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // SeminarParticipant
             CreateMap<SeminarParticipant, SeminarParticipantResponse>()
-                .ForMember(dest => dest.UserFullName, opt => opt.MapFrom(src =>
-                    src.User != null ? src.User.FullName : null))
-                .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src =>
-                    src.User != null ? src.User.Email : src.InvitedEmail));
+                .ForMember(dest => dest.UserFullName, opt => opt.MapFrom(src => src.User != null ? src.User.FullName : null))
+                .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src => src.User != null ? src.User.Email : src.InvitedEmail))
+                .ForMember(dest => dest.Feedback, opt => opt.MapFrom(src => DeserializeSeminarFeedback(src.FeedbackJson)))
+                .ForMember(dest => dest.ParticipantEvaluation, opt => opt.MapFrom(src => GetLegacyOverallComment(src.FeedbackJson)));
 
-            CreateMap<SeminarParticipantCreateRequest, SeminarParticipant>();
+            CreateMap<SeminarParticipantCreateRequest, SeminarParticipant>()
+                .ForMember(dest => dest.FeedbackJson, opt => opt.Ignore())
+                .ForMember(dest => dest.FeedbackSubmittedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.FeedbackUpdatedAt, opt => opt.Ignore());
 
             CreateMap<SeminarParticipantUpdateRequest, SeminarParticipant>()
-                .ForMember(dest => dest.SeminarParticipantId, opt => opt.Ignore());
+                .ForMember(dest => dest.SeminarParticipantId, opt => opt.Ignore())
+                .ForMember(dest => dest.FeedbackJson, opt => opt.Ignore())
+                .ForMember(dest => dest.FeedbackSubmittedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.FeedbackUpdatedAt, opt => opt.Ignore());
 
             // SharedMaterial
             CreateMap<SharedMaterial, SharedMaterialResponse>();
@@ -439,6 +445,25 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.WithdrawalRequestId, opt => opt.Ignore())
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => "PENDING"))
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow));
+        }
+        private static SeminarFeedbackContentResponse? DeserializeSeminarFeedback(string? feedbackJson)
+        {
+            if (string.IsNullOrWhiteSpace(feedbackJson))
+                return null;
+
+            try
+            {
+                return JsonSerializer.Deserialize<SeminarFeedbackContentResponse>(feedbackJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        private static string? GetLegacyOverallComment(string? feedbackJson)
+        {
+            return DeserializeSeminarFeedback(feedbackJson)?.OverallComment;
         }
     }
 }

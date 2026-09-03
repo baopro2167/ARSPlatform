@@ -33,6 +33,8 @@ public partial class Seminar
     // Existing seminar feedback feature
     public string? Feedback { get; set; }
 
+    public DateTime? AiFeedbackGeneratedAt { get; set; }
+
     public int? SubFieldId { get; set; }
 
     public virtual SubField? SubField { get; set; }

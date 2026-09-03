@@ -61,7 +61,7 @@ namespace ARSPlatform.API.CONTROLLER
         public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int seminarId, [FromBody] SeminarFeedbackRequest request)
         {
             if (!TryGetCurrentUserId(out var currentUserId)) return Unauthorized();
-            if (request == null || string.IsNullOrWhiteSpace(request.ParticipantEvaluation)) return BadRequest(new { message = "Participant evaluation is required." });
+            if (request == null) return BadRequest(new { message = "Feedback request is required." });
 
             try
             {
@@ -111,6 +111,7 @@ namespace ARSPlatform.API.CONTROLLER
         public async Task<ActionResult<SeminarParticipantResponse>> Create([FromBody] SeminarParticipantCreateRequest request)
         {
             if (!TryGetCurrentUserId(out var organizerId)) return Unauthorized();
+
             try
             {
                 var response = await _service.CreateAsync(request, organizerId);
@@ -119,6 +120,10 @@ namespace ARSPlatform.API.CONTROLLER
             catch (KeyNotFoundException)
             {
                 return NotFound();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
             }
             catch (ArgumentException ex)
             {
@@ -146,7 +151,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Cập nhật trạng thái mời / đánh giá người tham dự Seminar (dành cho Lecturer/Researcher là chủ Seminar hoặc Người tham dự nộp Feedback)
+        /// Cập nhật trạng thái mời hoặc feedback của chính người tham dự; chủ Seminar không được tạo/sửa feedback thay participant
         /// </summary>
         /// <param name="id">ID bản ghi người tham dự</param>
         /// <param name="request">Dữ liệu cập nhật</param>
@@ -156,11 +161,16 @@ namespace ARSPlatform.API.CONTROLLER
         public async Task<ActionResult<SeminarParticipantResponse>> Update(int id, [FromBody] SeminarParticipantUpdateRequest request)
         {
             if (!TryGetCurrentUserId(out var currentUserId)) return Unauthorized();
+
             try
             {
                 var response = await _service.UpdateAsync(id, request, currentUserId);
                 if (response == null) return NotFound(new { Message = "Participant record not found or access denied." });
                 return Ok(response);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
             }
             catch (ArgumentException ex)
             {

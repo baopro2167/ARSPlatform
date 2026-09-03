@@ -680,6 +680,7 @@ public partial class AppDbContext : DbContext
         {
             entity.Property(e => e.IsReminderSent).HasDefaultValue(false);
             entity.Property(e => e.MaxParticipants).HasDefaultValue(0);
+            entity.Property(e => e.AiFeedbackGeneratedAt).HasColumnType("datetime2(7)");
             entity.Property(e => e.OnlineLink).HasMaxLength(255);
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
@@ -700,9 +701,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.InvitationStatus)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-            entity.Property(e => e.ParticipantEvaluation).HasMaxLength(255);
-            entity.Property(e => e.Rating);
+            entity.Property(e => e.FeedbackJson).HasColumnType("nvarchar(max)");
             entity.Property(e => e.FeedbackSubmittedAt).HasColumnType("datetime2(7)");
+            entity.Property(e => e.FeedbackUpdatedAt).HasColumnType("datetime2(7)");
 
             entity.HasOne(d => d.Seminar).WithMany(p => p.SeminarParticipants)
                 .HasForeignKey(d => d.SeminarId)
