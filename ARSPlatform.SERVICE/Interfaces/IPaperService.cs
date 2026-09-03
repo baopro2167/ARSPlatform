@@ -41,5 +41,12 @@ namespace ARSPlatform.SERVICE.Interfaces
             VerifyAuthorshipAsync(
                 int paperId,
                 PaperAuthorshipVerifyRequest request);
+
+        /// <summary>
+        /// Lấy danh sách paper được phân công cho 1 reviewer.
+        /// Response gồm paper kèm <c>ReviewerId</c> và <c>ReviewerName</c> (User.FullName).
+        /// </summary>
+        Task<List<PaperWithReviewerResponse>> GetPapersByReviewerAsync(
+            int reviewerId);
     }
 }

@@ -19,6 +19,13 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<IEnumerable<PhasedReportResponse>> CreateTopicMilestonesAsync(TopicMilestonesCreateRequest request, int? lecturerUserId = null);
         Task<PhasedReportResponse> CreateAsync(PhasedReportCreateRequest request, int? currentUserId = null);
         Task<PhasedReportResponse?> UpdateAsync(int id, PhasedReportUpdateRequest request, int? currentUserId = null);
+
+        /// <summary>
+        /// Giảng viên (Lecture) gia hạn deadline để sinh viên nộp bài.
+        /// Tự động set <c>Status = "Pending"</c> cho báo cáo.
+        /// </summary>
+        Task<PhasedReportResponse?> ExtendDeadlineAsync(int id, PhasedReportExtendDeadlineRequest request, int? currentUserId = null);
+
         Task<PhasedReportResponse> SubmitReportAsync(PhasedReportSubmitRequest request, int? currentUserId = null);
         Task<PhasedReportResponse?> EvaluateReportAsync(int phasedReportId, PhasedReportEvaluationRequest request, int? lecturerUserId = null);
         Task<bool> DeleteAsync(int id);

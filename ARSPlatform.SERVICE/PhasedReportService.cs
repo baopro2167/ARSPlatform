@@ -330,6 +330,63 @@ namespace ARSPlatform.SERVICES
             return updated ?? _mapper.Map<PhasedReportResponse>(item);
         }
 
+        public async Task<PhasedReportResponse?> ExtendDeadlineAsync(
+            int id,
+            PhasedReportExtendDeadlineRequest request,
+            int? currentUserId = null)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            if (request.DeadlineAt == default)
+                throw new ArgumentException(
+                    "Deadline là bắt buộc khi gia hạn deadline cho báo cáo tiến độ.",
+                    nameof(request));
+
+            var item = (await _repository.GetAllAsync(
+                    x => x.PhasedReportId == id,
+                    x => x.ResearchGroup!,
+                    x => x.GroupMember!))
+                .FirstOrDefault();
+
+            if (item == null)
+                return null;
+
+            // Cập nhật deadline mới và đặt lại trạng thái Pending
+            // để sinh viên tiếp tục nộp bài sau khi giảng viên gia hạn.
+            item.DeadlineAt = request.DeadlineAt;
+            item.Status = "Pending";
+            item.UpdatedAt = DateTime.UtcNow;
+
+            _repository.Update(item);
+            await _repository.SaveChangesAsync();
+
+            // Gửi notification tới sinh viên thông báo đã được gia hạn deadline.
+            try
+            {
+                if (item.GroupMember?.StudentId != null)
+                {
+                    var phase = item.PhaseNumber ?? 1;
+                    var notif = new Notification
+                    {
+                        UserId = item.GroupMember.StudentId.Value,
+                        Message = $"[Báo cáo tiến độ] Giảng viên đã gia hạn deadline Phase {phase} đến {item.DeadlineAt:yyyy-MM-dd HH:mm} UTC. Trạng thái: Pending.",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepository.AddAsync(notif);
+                    await _notificationRepository.SaveChangesAsync();
+                }
+            }
+            catch
+            {
+                // Ignore notification errors
+            }
+
+            var updated = await GetByIdAsync(item.PhasedReportId);
+            return updated ?? _mapper.Map<PhasedReportResponse>(item);
+        }
+
         public async Task<PhasedReportResponse> SubmitReportAsync(PhasedReportSubmitRequest request, int? currentUserId = null)
         {
             PhasedReport? item = null;

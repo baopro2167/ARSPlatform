@@ -1,3 +1,4 @@
+using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.REPO.Interfaces;
@@ -49,17 +50,20 @@ namespace ARSPlatform.SERVICES
         private readonly IExternalApiService _externalApiService;
         private readonly IOpenAlexService _openAlexService;
         private readonly IMapper _mapper;
+        private readonly AppDbContext _dbContext;
 
         public PaperService(
             IPaperRepository paperRepository,
             IExternalApiService externalApiService,
             IOpenAlexService openAlexService,
-            IMapper mapper)
+            IMapper mapper,
+            AppDbContext dbContext)
         {
             _paperRepository = paperRepository;
             _externalApiService = externalApiService;
             _openAlexService = openAlexService;
             _mapper = mapper;
+            _dbContext = dbContext;
         }
 
         public async Task<PagedResult<PaperResponse>> GetPapersAsync(
@@ -170,6 +174,10 @@ namespace ARSPlatform.SERVICES
                 NormalizeCanonicalWorkIdOrNull(
                     request.OpenAlexWorkId);
 
+            var normalizedPaperType =
+                NormalizePaperType(
+                    request.PaperType);
+
             var paper =
                 _mapper.Map<Paper>(request);
 
@@ -178,6 +186,9 @@ namespace ARSPlatform.SERVICES
 
             paper.OpenAlexWorkId =
                 normalizedWorkId;
+
+            paper.PaperType =
+                normalizedPaperType;
 
             paper.Status =
                 "Submitted";
@@ -281,6 +292,11 @@ namespace ARSPlatform.SERVICES
                     ? paper.IssnValue
                     : NormalizeOptionalText(request.IssnValue);
 
+            var updatedPaperType =
+                string.IsNullOrWhiteSpace(request.PaperType)
+                    ? paper.PaperType
+                    : NormalizePaperType(request.PaperType);
+
             var authorsChanged =
                 request.Authors != null &&
                 AuthorsChanged(
@@ -343,6 +359,11 @@ namespace ARSPlatform.SERVICES
                     updatedIssnValue,
                     StringComparison.Ordinal) ||
 
+                !string.Equals(
+                    paper.PaperType,
+                    updatedPaperType,
+                    StringComparison.OrdinalIgnoreCase) ||
+
                 authorsChanged;
 
             /*
@@ -395,6 +416,9 @@ namespace ARSPlatform.SERVICES
 
             paper.IssnValue =
                 updatedIssnValue;
+
+            paper.PaperType =
+                updatedPaperType;
 
             if (request.Authors != null)
             {
@@ -501,6 +525,48 @@ namespace ARSPlatform.SERVICES
                 .SaveChangesAsync();
 
             return true;
+        }
+
+        public async Task<List<PaperWithReviewerResponse>> GetPapersByReviewerAsync(
+            int reviewerId)
+        {
+            /*
+                Lấy danh sách paper được phân công cho 1 reviewer
+                thông qua bảng ReviewRequest (ReviewerId -> PaperId).
+                Response gồm paper + ReviewerId + ReviewerName (User.FullName).
+            */
+            var query =
+                from rr in _dbContext.ReviewRequests.AsNoTracking()
+                join p in _dbContext.Papers.AsNoTracking()
+                    on rr.PaperId equals p.PaperId
+                join u in _dbContext.Users.AsNoTracking()
+                    on rr.ReviewerId equals u.UserId
+                where rr.ReviewerId == reviewerId
+                orderby rr.CreatedAt descending
+                select new PaperWithReviewerResponse
+                {
+                    PaperId = p.PaperId,
+                    Title = p.Title,
+                    Abstract = p.Abstract,
+                    FileUrl = p.FileUrl,
+                    Status = p.Status,
+                    PaperType = string.IsNullOrWhiteSpace(p.PaperType) ? "Journal" : p.PaperType,
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt,
+                    PublicationDate = p.PublicationDate,
+                    Quartile = p.Quartile,
+                    SourceName = p.SourceName,
+                    Doi = p.Doi,
+                    SubFieldId = p.SubFieldId,
+                    AuthorId = p.CreatorId,
+                    AuthorName = p.Creator != null ? p.Creator.FullName : string.Empty,
+                    ReviewerId = u.UserId,
+                    ReviewerName = u.FullName ?? string.Empty,
+                    ReviewRequestStatus = rr.Status,
+                    ReviewRequestId = rr.ReviewRequestId
+                };
+
+            return await query.ToListAsync();
         }
 
         public async Task<PaperAuthorshipVerificationResponse?>
@@ -963,6 +1029,38 @@ namespace ARSPlatform.SERVICES
             return string.IsNullOrWhiteSpace(value)
                 ? null
                 : value.Trim();
+        }
+
+        private static string NormalizePaperType(
+            string? value)
+        {
+            var trimmed =
+                (value ?? string.Empty).Trim();
+
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                throw new ArgumentException(
+                    "PaperType is required. Chỉ chấp nhận 'Journal' hoặc 'Conference'.");
+            }
+
+            if (string.Equals(
+                    trimmed,
+                    "Journal",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return "Journal";
+            }
+
+            if (string.Equals(
+                    trimmed,
+                    "Conference",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return "Conference";
+            }
+
+            throw new ArgumentException(
+                "PaperType chỉ chấp nhận 'Journal' hoặc 'Conference'.");
         }
 
         private static string? NormalizeCanonicalWorkIdOrNull(

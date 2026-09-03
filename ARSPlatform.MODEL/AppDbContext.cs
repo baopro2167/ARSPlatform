@@ -403,7 +403,14 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Paper>(entity =>
         {
-            entity.ToTable(tb => tb.HasTrigger("trg_Papers_update"));
+            entity.ToTable("Papers", tb =>
+            {
+                tb.HasTrigger("trg_Papers_update");
+
+                tb.HasCheckConstraint(
+                    "CK_Papers_PaperType",
+                    "[PaperType] IN ('Journal', 'Conference')");
+            });
 
             entity.Property(e => e.AuthorshipVerificationReason)
                 .HasMaxLength(100)
@@ -424,6 +431,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.OpenAlexWorkId)
                 .HasMaxLength(50)
                 .IsUnicode(false);
+            entity.Property(e => e.PaperType)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Journal");
             entity.Property(e => e.PublicationDate)
                 .HasColumnType("datetime2(7)");
             entity.Property(e => e.Quartile)

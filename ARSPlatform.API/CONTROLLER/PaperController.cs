@@ -315,6 +315,34 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Lấy danh sách bài báo được phân công cho 1 phản biện viên (Reviewer).
+        /// Truyền vào <c>reviewerId</c> sẽ list tất cả paper đã được phân công,
+        /// response gồm <c>ReviewerId</c> và <c>ReviewerName</c> (= User.FullName).
+        /// </summary>
+        /// <param name="reviewerId">ID của phản biện viên (User.UserId)</param>
+        /// <returns>Danh sách paper kèm thông tin reviewer</returns>
+        [HttpGet("by-reviewer/{reviewerId:int}")]
+        public async Task<ActionResult<IEnumerable<PaperWithReviewerResponse>>>
+            GetPapersByReviewer(
+                int reviewerId)
+        {
+            if (reviewerId <= 0)
+            {
+                return BadRequest(
+                    new
+                    {
+                        Message = "reviewerId phải lớn hơn 0."
+                    });
+            }
+
+            var result =
+                await _paperService
+                    .GetPapersByReviewerAsync(reviewerId);
+
+            return Ok(result);
+        }
+
+        /// <summary>
         /// Xóa bài báo nghiên cứu
         /// </summary>
         /// <param name="id">

@@ -46,6 +46,15 @@ public partial class Paper
 
     public string? AuthorshipVerificationReason { get; set; }
 
+    /// <summary>
+    /// Loại bài báo. Hỗ trợ 2 giá trị:
+    /// <list type="bullet">
+    /// <item><description><c>Journal</c> - Bài báo tạp chí khoa học.</description></item>
+    /// <item><description><c>Conference</c> - Bài báo hội nghị khoa học.</description></item>
+    /// </list>
+    /// </summary>
+    public string PaperType { get; set; } = "Journal";
+
     public virtual User? Creator { get; set; }
 
     [JsonIgnore]

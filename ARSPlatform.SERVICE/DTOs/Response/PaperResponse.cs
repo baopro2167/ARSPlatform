@@ -47,6 +47,15 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string? IssnValue { get; set; }
 
+        /// <summary>
+        /// Loại bài báo. Một trong 2 giá trị:
+        /// <list type="bullet">
+        /// <item><description><c>Journal</c> - Bài báo tạp chí khoa học.</description></item>
+        /// <item><description><c>Conference</c> - Bài báo hội nghị khoa học.</description></item>
+        /// </list>
+        /// </summary>
+        public string PaperType { get; set; } = "Journal";
+
         public string AuthorshipVerificationStatus { get; set; }
             = "NOT_CHECKED";
 

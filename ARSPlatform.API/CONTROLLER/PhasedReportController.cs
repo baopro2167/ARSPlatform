@@ -240,5 +240,43 @@ namespace ARSPlatform.API.CONTROLLER
             if (!success) return NotFound(new { Message = "Phased report not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
+
+        /// <summary>
+        /// Giảng viên (Lecture) gia hạn deadline để sinh viên nộp bài báo cáo tiến độ.
+        /// Hệ thống sẽ tự động set <c>Status = "Pending"</c> cho báo cáo tương ứng.
+        /// </summary>
+        /// <param name="id">ID báo cáo tiến độ cần gia hạn</param>
+        /// <param name="request">Deadline mới (UTC) và lý do gia hạn (tùy chọn)</param>
+        /// <returns>Báo cáo sau khi đã được cập nhật deadline và trạng thái Pending</returns>
+        [HttpPut("{id:int}/extend-deadline")]
+        public async Task<ActionResult<PhasedReportResponse>> ExtendDeadline(
+            int id,
+            [FromBody] PhasedReportExtendDeadlineRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new { Message = "Request body is required." });
+            }
+
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                var response = await _service.ExtendDeadlineAsync(id, request, currentUserId);
+                if (response == null)
+                {
+                    return NotFound(new { Message = "Phased report not found." });
+                }
+
+                return Ok(new
+                {
+                    Message = "Đã gia hạn deadline thành công. Sinh viên có thể tiếp tục nộp bài.",
+                    Data = response
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
     }
 }

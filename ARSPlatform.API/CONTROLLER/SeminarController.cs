@@ -109,7 +109,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Buổi Seminar vừa tạo</returns>
         [HttpPost]
-        [Authorize(Roles = "Lecturer")]
+        [Authorize(Roles = "Lecturer,Researcher")]
         public async Task<ActionResult<SeminarResponse>> Create(
             [FromBody] SeminarCreateRequest request,
             CancellationToken cancellationToken)
