@@ -81,6 +81,42 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Gán thủ công danh sách phản biện viên (ví dụ: 3 Reviewer) cho một bài báo nghiên cứu khoa học
+        /// </summary>
+        /// <param name="request">Thông tin PaperId và danh sách ReviewerIds (hoặc reviewerId1, reviewerId2, reviewerId3)</param>
+        /// <returns>Danh sách các Reviewer được gán thủ công và trạng thái tạo trong ReviewRequest</returns>
+        [HttpPost("manual-assign")]
+        public async Task<ActionResult<ManualAssignReviewersResponse>> ManualAssign([FromBody] ManualAssignReviewersRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                var response = await _service.ManualAssignReviewersAsync(request);
+                return Ok(response);
+            }
+            catch (System.ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.Collections.Generic.KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (System.InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Tạo mới một yêu cầu phản biện bài báo
         /// </summary>
         /// <param name="request">Thông tin yêu cầu phản biện</param>

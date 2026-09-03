@@ -401,5 +401,48 @@ namespace ARSPlatform.API.CONTROLLER
                 return StatusCode(500, new { Message = ex.Message });
             }
         }
+
+        /// <summary>
+        /// Gán thủ công danh sách phản biện viên cho bài báo
+        /// </summary>
+        /// <param name="id">ID bài báo</param>
+        /// <param name="request">Dữ liệu phân công phản biện viên</param>
+        /// <param name="reviewRequestService">Service phân công phản biện</param>
+        /// <returns>Kết quả phân công phản biện viên thủ công</returns>
+        [HttpPost("{id:int}/assign-reviewers-manual")]
+        [Authorize]
+        public async Task<ActionResult<ManualAssignReviewersResponse>> AssignReviewersManual(
+            int id,
+            [FromBody] ManualAssignReviewersRequest request,
+            [FromServices] IReviewRequestService reviewRequestService = null!)
+        {
+            if (request == null)
+            {
+                request = new ManualAssignReviewersRequest();
+            }
+            request.PaperId = id;
+
+            try
+            {
+                var result = await reviewRequestService.ManualAssignReviewersAsync(request);
+                return Ok(result);
+            }
+            catch (System.Collections.Generic.KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (System.ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
     }
 }
