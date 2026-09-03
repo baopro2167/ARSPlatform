@@ -671,7 +671,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">UserId và ExpiresAcc mới</param>
         /// <returns>Thông báo kết quả</returns>
         [HttpPut("update-expires-acc")]
-        [Authorize(Policy = "AdminOnly")]
+       // [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> UpdateExpiresAcc([FromBody] UpdateExpiresAccRequest request)
         {
             try
