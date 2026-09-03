@@ -2,9 +2,9 @@ using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
-    public class UpdateExpiresAccRequest
+    public class UpdateExpiresAtRequest
     {
         public int UserId { get; set; }
-        public DateTime ExpiresAcc { get; set; }
+        public DateTime ExpiresAt { get; set; }
     }
 }

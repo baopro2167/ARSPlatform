@@ -1610,7 +1610,7 @@ namespace ARSPlatform.MODELS.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(255)");
 
-                    b.Property<DateTime?>("ExpiresAcc")
+                    b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ExpiresOtpAt")

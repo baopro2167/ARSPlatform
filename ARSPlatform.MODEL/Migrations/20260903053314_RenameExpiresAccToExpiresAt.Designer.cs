@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ARSPlatform.MODELS.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260903053314_AddExpiresAccToUsers")]
-    partial class AddExpiresAccToUsers
+    [Migration("20260903053314_RenameExpiresAccToExpiresAt")]
+    partial class RenameExpiresAccToExpiresAt
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1619,7 +1619,7 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<DateTime?>("ExpiresOtpAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("ExpiresAcc")
+                    b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("FullName")

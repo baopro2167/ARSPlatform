@@ -666,21 +666,21 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Cập nhật thời hạn trải nghiệm (ExpiresAcc) cho tài khoản người dùng
+        /// Cập nhật thời hạn trải nghiệm (ExpiresAt) cho tài khoản người dùng
         /// </summary>
-        /// <param name="request">UserId và ExpiresAcc mới</param>
+        /// <param name="request">UserId và ExpiresAt mới</param>
         /// <returns>Thông báo kết quả</returns>
-        [HttpPut("update-expires-acc")]
-       // [Authorize(Policy = "AdminOnly")]
-        public async Task<IActionResult> UpdateExpiresAcc([FromBody] UpdateExpiresAccRequest request)
+        [HttpPut("update-expires-at")]
+        // [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> UpdateExpiresAt([FromBody] UpdateExpiresAtRequest request)
         {
             try
             {
-                var result = await _authService.UpdateExpiresAccAsync(request.UserId, request.ExpiresAcc);
+                var result = await _authService.UpdateExpiresAtAsync(request.UserId, request.ExpiresAt);
                 if (!result)
-                    return BadRequest(new { Message = "Failed to update ExpiresAcc." });
+                    return BadRequest(new { Message = "Failed to update ExpiresAt." });
 
-                return Ok(new { Message = "ExpiresAcc updated successfully.", ExpiresAcc = request.ExpiresAcc });
+                return Ok(new { Message = "ExpiresAt updated successfully.", ExpiresAt = request.ExpiresAt });
             }
             catch (KeyNotFoundException ex)
             {

@@ -15,6 +15,6 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public System.Collections.Generic.List<string>? Roles { get; set; }
         public bool? RequiresOnboarding { get; set; }
         public string? EffectiveRole { get; set; }
-        public DateTime? ExpiresAcc { get; set; }
+        public DateTime? ExpiresAt { get; set; }
     }
 }
