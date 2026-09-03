@@ -20,5 +20,6 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<string?> ResendOtpAsync(string email);
         Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request);
         Task<bool> ResetPasswordAsync(ResetPasswordRequest request);
+        Task<bool> UpdateExpiresAccAsync(int userId, DateTime expiresAcc);
     }
 }

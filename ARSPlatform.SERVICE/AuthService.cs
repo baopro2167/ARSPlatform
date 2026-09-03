@@ -419,7 +419,8 @@ namespace ARSPlatform.SERVICES
                 IsEmailVerified = createdUser.IsEmailVerified,
                 IsActive = createdUser.IsActive,
                 VerificationStatus =
-                    createdUser.VerificationStatus
+                    createdUser.VerificationStatus,
+                ExpiresAcc = createdUser.ExpiresAcc
             };
         }
 
@@ -454,7 +455,8 @@ namespace ARSPlatform.SERVICES
                     Role = "Guest",
                     IsEmailVerified = user.IsEmailVerified,
                     IsActive = user.IsActive,
-                    VerificationStatus = user.VerificationStatus
+                    VerificationStatus = user.VerificationStatus,
+                    ExpiresAcc = user.ExpiresAcc
                 };
             }
 
@@ -504,7 +506,8 @@ namespace ARSPlatform.SERVICES
                 Role = effectiveRole,
                 IsEmailVerified = user.IsEmailVerified,
                 IsActive = user.IsActive,
-                VerificationStatus = user.VerificationStatus
+                VerificationStatus = user.VerificationStatus,
+                ExpiresAcc = user.ExpiresAcc
             };
         }
 
@@ -610,7 +613,8 @@ namespace ARSPlatform.SERVICES
                     IsNewUser = true,
                     RequiresOnboarding = true,
                     EffectiveRole = null,
-                    Roles = new List<string>()
+                    Roles = new List<string>(),
+                    ExpiresAcc = user.ExpiresAcc
                 };
             }
             else
@@ -644,7 +648,8 @@ namespace ARSPlatform.SERVICES
                         IsNewUser = true,
                         RequiresOnboarding = true,
                         EffectiveRole = null,
-                        Roles = new List<string>()
+                        Roles = new List<string>(),
+                        ExpiresAcc = user.ExpiresAcc
                     };
                 }
 
@@ -666,7 +671,8 @@ namespace ARSPlatform.SERVICES
                         IsNewUser = false,
                         RequiresOnboarding = false,
                         EffectiveRole = "Guest",
-                        Roles = new List<string>()
+                        Roles = new List<string>(),
+                        ExpiresAcc = user.ExpiresAcc
                     };
                 }
 
@@ -690,7 +696,8 @@ namespace ARSPlatform.SERVICES
                 IsNewUser = false,
                 RequiresOnboarding = false,
                 EffectiveRole = effectiveRole,
-                Roles = rolesList
+                Roles = rolesList,
+                ExpiresAcc = user.ExpiresAcc
             };
         }
 
@@ -1373,7 +1380,8 @@ namespace ARSPlatform.SERVICES
                 IsNewUser = false,
                 RequiresOnboarding = false,
                 EffectiveRole = "Guest",
-                Roles = new List<string>()
+                Roles = new List<string>(),
+                ExpiresAcc = user.ExpiresAcc
             };
         }
 
@@ -1418,7 +1426,8 @@ namespace ARSPlatform.SERVICES
                 IsNewUser = false,
                 RequiresOnboarding = false,
                 EffectiveRole = chosenRole,
-                Roles = rolesList
+                Roles = rolesList,
+                ExpiresAcc = user.ExpiresAcc
             };
         }
 
@@ -1472,6 +1481,19 @@ namespace ARSPlatform.SERVICES
             }
 
             return audiences.Distinct();
+        }
+
+        public async Task<bool> UpdateExpiresAccAsync(int userId, DateTime expiresAcc)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+                throw new KeyNotFoundException("User not found.");
+
+            user.ExpiresAcc = expiresAcc;
+            user.UpdatedAt = DateTime.UtcNow;
+            _userRepository.Update(user);
+            await _userRepository.SaveChangesAsync();
+            return true;
         }
     }
 }

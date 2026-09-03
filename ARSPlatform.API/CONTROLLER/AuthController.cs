@@ -664,5 +664,32 @@ namespace ARSPlatform.API.CONTROLLER
                     "not configured",
                     StringComparison.OrdinalIgnoreCase);
         }
+
+        /// <summary>
+        /// Cập nhật thời hạn trải nghiệm (ExpiresAcc) cho tài khoản người dùng
+        /// </summary>
+        /// <param name="request">UserId và ExpiresAcc mới</param>
+        /// <returns>Thông báo kết quả</returns>
+        [HttpPut("update-expires-acc")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> UpdateExpiresAcc([FromBody] UpdateExpiresAccRequest request)
+        {
+            try
+            {
+                var result = await _authService.UpdateExpiresAccAsync(request.UserId, request.ExpiresAcc);
+                if (!result)
+                    return BadRequest(new { Message = "Failed to update ExpiresAcc." });
+
+                return Ok(new { Message = "ExpiresAcc updated successfully.", ExpiresAcc = request.ExpiresAcc });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
     }
 }
