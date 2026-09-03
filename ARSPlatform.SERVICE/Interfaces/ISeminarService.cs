@@ -17,6 +17,10 @@ namespace ARSPlatform.SERVICE.Interfaces
             int seminarId,
             int? organizerId = null);
 
+        Task<SeminarResponse?> GetByIdForViewerAsync(
+            int seminarId,
+            int currentUserId);
+
         Task<SeminarResponse> CreateAsync(
             int organizerId,
             SeminarCreateRequest request,

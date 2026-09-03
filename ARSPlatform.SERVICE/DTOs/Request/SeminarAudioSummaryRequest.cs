@@ -12,5 +12,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
     {
         [Required(ErrorMessage = "File âm thanh không được để trống.")]
         public IFormFile AudioFile { get; set; } = null!;
+
+        public bool ReplaceExisting { get; set; } = false;
     }
 }

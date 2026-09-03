@@ -1,4 +1,4 @@
-using ARSPlatform.MODEL.Entities;
+﻿using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -94,6 +94,53 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<SeminarResponse>(seminar);
         }
 
+        public async Task<SeminarResponse?> GetByIdForViewerAsync( int seminarId, int currentUserId)
+        {
+            var seminar = await _seminarRepository
+                .GetByIdWithParticipantsAsync(seminarId);
+
+            if (seminar == null)
+            {
+                return null;
+            }
+
+            // Lecturer là chủ seminar luôn được xem.
+            if (seminar.OrganizerId == currentUserId)
+            {
+                return _mapper.Map<SeminarResponse>(seminar);
+            }
+
+            var currentUser = await _userRepository
+                .GetByIdAsync(currentUserId);
+
+            var currentUserEmail = currentUser?.Email;
+
+            // Participant được nhận diện bằng UserId hoặc email được mời.
+            var isParticipant = seminar.SeminarParticipants.Any(
+                participant =>
+                    NormalizeParticipantStatus(
+                        participant.InvitationStatus)
+                    != "DECLINED"
+                    &&
+                    (
+                        participant.UserId == currentUserId
+                        ||
+                        (
+                            !string.IsNullOrWhiteSpace(currentUserEmail)
+                            && string.Equals(
+                                participant.InvitedEmail,
+                                currentUserEmail,
+                                StringComparison.OrdinalIgnoreCase)
+                        )
+                    ));
+
+            if (!isParticipant)
+            {
+                return null;
+            }
+
+            return _mapper.Map<SeminarResponse>(seminar);
+        }
         public async Task<SeminarResponse> CreateAsync(
             int organizerId,
             SeminarCreateRequest request,

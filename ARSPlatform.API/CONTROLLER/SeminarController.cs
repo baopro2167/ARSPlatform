@@ -49,6 +49,12 @@ namespace ARSPlatform.API.CONTROLLER
 
             int? organizerId = User.IsInRole("Lecturer") ? userId : null;
             var response = await _seminarService.GetAllAsync(organizerId);
+
+            foreach (var seminar in response)
+            {
+                seminar.AiSummary = null;
+            }
+
             return Ok(response);
         }
 
@@ -70,7 +76,7 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
         /// <returns>Danh sách Seminar có phân trang</returns>
@@ -84,7 +90,15 @@ namespace ARSPlatform.API.CONTROLLER
             }
 
             int? organizerId = User.IsInRole("Lecturer") ? userId : null;
-            var result = await _seminarService.GetPagedAsync(paginationParams, organizerId);
+            var result = await _seminarService.GetPagedAsync(
+                paginationParams,
+                organizerId);
+
+            foreach (var seminar in result.Items)
+            {
+                seminar.AiSummary = null;
+            }
+
             return Ok(result);
         }
 
@@ -146,16 +160,13 @@ namespace ARSPlatform.API.CONTROLLER
                 return Unauthorized();
             }
 
-            int? organizerId = User.IsInRole("Lecturer") ? userId : null;
-            var response = await _seminarService.GetByIdAsync(id, organizerId);
+            var response = await _seminarService.GetByIdForViewerAsync(
+                id,
+                userId);
+
             if (response == null)
             {
-                // Nếu là Lecturer kiểm tra không phải của họ, thử lấy thông tin seminar chung
-                response = await _seminarService.GetByIdAsync(id, null);
-                if (response == null)
-                {
-                    return NotFound();
-                }
+                return NotFound();
             }
 
             return Ok(response);
@@ -233,7 +244,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// </summary>
         /// <param name="id">ID Seminar cần cập nhật</param>
         /// <param name="request">Dữ liệu cập nhật</param>
-        /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name name="cancellationToken">Cancellation token</param>
         /// <returns>Seminar sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
         [Authorize(Roles = "Lecturer")]
@@ -408,6 +419,7 @@ namespace ARSPlatform.API.CONTROLLER
         [RequestSizeLimit(524_288_000)]
         [RequestFormLimits(MultipartBodyLengthLimit = 524_288_000)]
         [ProducesResponseType(typeof(SeminarAudioSummaryResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> SummarizeAudio(
             int id,
             [FromForm] SeminarAudioSummaryRequest request,
@@ -418,9 +430,23 @@ namespace ARSPlatform.API.CONTROLLER
                 return Unauthorized();
             }
 
-            if (!await _seminarService.IsOwnedByOrganizerAsync(id, organizerId))
+            var seminar = await _seminarService.GetByIdAsync(
+                id,
+                organizerId);
+
+            if (seminar == null)
             {
                 return NotFound();
+            }
+
+            if (!string.IsNullOrWhiteSpace(seminar.AiSummary)
+                && !request.ReplaceExisting)
+            {
+                return Conflict(new
+                {
+                    code = "SUMMARY_ALREADY_EXISTS",
+                    message = "Seminar đã có AI Summary. Hãy xác nhận nếu muốn thay thế kết quả hiện tại."
+                });
             }
 
             try
