@@ -14,11 +14,5 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         /// </summary>
         [Required(ErrorMessage = "Deadline là bắt buộc.")]
         public DateTime DeadlineAt { get; set; }
-
-        /// <summary>
-        /// Lý do gia hạn deadline (tùy chọn, dùng để audit/log).
-        /// </summary>
-        [MaxLength(500)]
-        public string? Reason { get; set; }
     }
 }
