@@ -451,11 +451,16 @@ namespace ARSPlatform.SERVICES
                     UserId = user.UserId,
                     Token = guestToken,
                     Username = user.FullName,
+                    FullName = user.FullName,
                     Email = user.Email,
                     Role = "Guest",
                     IsEmailVerified = user.IsEmailVerified,
                     IsActive = user.IsActive,
                     VerificationStatus = user.VerificationStatus,
+                    IsNewUser = false,
+                    RequiresOnboarding = false,
+                    EffectiveRole = "Guest",
+                    Roles = new List<string> { "Guest" },
                     ExpiresAt = user.ExpiresAt
                 };
             }
@@ -497,16 +502,30 @@ namespace ARSPlatform.SERVICES
 
             var finalToken = GenerateJwtToken(user, effectiveRole);
 
+            var rolesList = user.UserRoles != null && user.UserRoles.Any()
+                ? user.UserRoles.Where(ur => ur.Role != null).Select(ur => ur.Role!.Name).ToList()
+                : (!string.IsNullOrEmpty(effectiveRole) ? new List<string> { effectiveRole } : new List<string>());
+
+            if (!string.IsNullOrEmpty(effectiveRole) && !rolesList.Contains(effectiveRole))
+            {
+                rolesList.Add(effectiveRole);
+            }
+
             return new AuthResponse
             {
                 UserId = user.UserId,
                 Token = finalToken,
                 Username = user.FullName,
+                FullName = user.FullName,
                 Email = user.Email,
                 Role = effectiveRole,
                 IsEmailVerified = user.IsEmailVerified,
                 IsActive = user.IsActive,
                 VerificationStatus = user.VerificationStatus,
+                IsNewUser = false,
+                RequiresOnboarding = false,
+                EffectiveRole = effectiveRole,
+                Roles = rolesList,
                 ExpiresAt = user.ExpiresAt
             };
         }
