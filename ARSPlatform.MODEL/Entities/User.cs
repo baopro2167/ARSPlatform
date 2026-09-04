@@ -165,4 +165,8 @@ public partial class User
     [JsonIgnore]
     public virtual ICollection<WithdrawalRequest> WithdrawalRequests { get; set; }
         = new List<WithdrawalRequest>();
+
+    [JsonIgnore]
+    public virtual ICollection<UserMedal> UserMedals { get; set; }
+        = new List<UserMedal>();
 }

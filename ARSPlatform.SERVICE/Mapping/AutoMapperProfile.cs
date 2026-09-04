@@ -445,6 +445,55 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.WithdrawalRequestId, opt => opt.Ignore())
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => "PENDING"))
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow));
+
+            // Medal & UserMedal
+            CreateMap<Medal, MedalResponse>()
+                .ForMember(dest => dest.Roles, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.Roles)
+                        ? new List<string> { "All" }
+                        : (src.Roles.Trim().StartsWith("[")
+                            ? (JsonSerializer.Deserialize<List<string>>(src.Roles, (JsonSerializerOptions?)null) ?? new List<string>())
+                            : new List<string> { src.Roles })))
+                .ForMember(dest => dest.TitleVi, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.TitleVi) ? src.Title : src.TitleVi))
+                .ForMember(dest => dest.DescriptionVi, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.DescriptionVi) ? src.Description : src.DescriptionVi));
+
+            CreateMap<Medal, MedalSummaryDto>()
+                .ForMember(dest => dest.TitleVi, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.TitleVi) ? src.Title : src.TitleVi))
+                .ForMember(dest => dest.DescriptionVi, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.DescriptionVi) ? src.Description : src.DescriptionVi));
+
+            CreateMap<MedalCreateRequest, Medal>()
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.Id)
+                        ? "medal-" + Guid.NewGuid().ToString("N").Substring(0, 8)
+                        : src.Id))
+                .ForMember(dest => dest.Code, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.Code)
+                        ? src.Title.Trim().ToUpper().Replace(" ", "_") + "_" + src.Tier.Trim().ToUpper()
+                        : src.Code))
+                .ForMember(dest => dest.TitleVi, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.TitleVi) ? src.Title : src.TitleVi))
+                .ForMember(dest => dest.DescriptionVi, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.DescriptionVi) ? src.Description : src.DescriptionVi))
+                .ForMember(dest => dest.Roles, opt => opt.MapFrom(src =>
+                    src.Roles != null && src.Roles.Any()
+                        ? JsonSerializer.Serialize(src.Roles, (JsonSerializerOptions?)null)
+                        : "[\"All\"]"))
+                .ForMember(dest => dest.CriteriaUnit, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.CriteriaUnit) ? "lần" : src.CriteriaUnit))
+                .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive ?? true))
+                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
+                .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => DateTime.UtcNow));
+
+            CreateMap<UserMedal, UserMedalResponse>()
+                .ForMember(dest => dest.Medal, opt => opt.MapFrom(src => src.Medal))
+                .ForMember(dest => dest.ProgressPercentage, opt => opt.MapFrom(src =>
+                    src.Medal == null || src.Medal.CriteriaThreshold <= 0
+                        ? 0.0
+                        : Math.Min(100.0, Math.Round((double)src.CurrentProgress / src.Medal.CriteriaThreshold * 100.0, 1))));
         }
         private static SeminarFeedbackContentResponse? DeserializeSeminarFeedback(string? feedbackJson)
         {

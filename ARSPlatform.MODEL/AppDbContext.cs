@@ -34,6 +34,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<MajorField> MajorFields { get; set; }
 
+    public virtual DbSet<Medal> Medals { get; set; }
+
     public virtual DbSet<MembershipPackage> MembershipPackages { get; set; }
 
     public virtual DbSet<MembershipPurchase> MembershipPurchases { get; set; }
@@ -75,6 +77,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<Transaction> Transactions { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
+
+    public virtual DbSet<UserMedal> UserMedals { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
@@ -880,6 +884,53 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.WalletId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_WithdrawalRequests_Wallet");
+        });
+
+        modelBuilder.Entity<Medal>(entity =>
+        {
+            entity.ToTable("Medals");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Code).IsUnique();
+
+            entity.Property(e => e.Id).HasMaxLength(100);
+            entity.Property(e => e.Code).HasMaxLength(100).IsUnicode(false);
+            entity.Property(e => e.Title).HasMaxLength(200);
+            entity.Property(e => e.TitleVi).HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.DescriptionVi).HasMaxLength(500);
+            entity.Property(e => e.Roles).HasMaxLength(255);
+            entity.Property(e => e.Tier).HasMaxLength(20).IsUnicode(false);
+            entity.Property(e => e.StageLevel).HasDefaultValue(1);
+            entity.Property(e => e.ImageUrl).HasMaxLength(1000);
+            entity.Property(e => e.CriteriaMetric).HasMaxLength(100).IsUnicode(false);
+            entity.Property(e => e.CriteriaUnit).HasMaxLength(50);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
+        });
+
+        modelBuilder.Entity<UserMedal>(entity =>
+        {
+            entity.ToTable("UserMedals");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.UserId, e.MedalId }, "UQ_UserMedals_UserId_MedalId").IsUnique();
+
+            entity.Property(e => e.MedalId).HasMaxLength(100);
+            entity.Property(e => e.CurrentProgress).HasDefaultValue(0);
+            entity.Property(e => e.IsUnlocked).HasDefaultValue(false);
+            entity.Property(e => e.AwardedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.User)
+                .WithMany(p => p.UserMedals)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_UserMedals_User");
+
+            entity.HasOne(d => d.Medal)
+                .WithMany(p => p.UserMedals)
+                .HasForeignKey(d => d.MedalId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_UserMedals_Medal");
         });
 
         OnModelCreatingPartial(modelBuilder);

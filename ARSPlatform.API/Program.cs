@@ -752,7 +752,59 @@ using (var scope = app.Services.CreateScope())
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Seminar') AND name = 'SubFieldId')
                     ALTER TABLE [Seminar] ADD [SubFieldId] int NULL;
             END
+
+            -- 7. Medals and UserMedals Tables
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Medals')
+            BEGIN
+                CREATE TABLE [dbo].[Medals](
+                    [Id] [nvarchar](100) NOT NULL PRIMARY KEY,
+                    [Code] [varchar](100) NOT NULL UNIQUE,
+                    [Title] [nvarchar](200) NOT NULL,
+                    [TitleVi] [nvarchar](200) NOT NULL,
+                    [Description] [nvarchar](500) NULL,
+                    [DescriptionVi] [nvarchar](500) NULL,
+                    [Roles] [nvarchar](255) NOT NULL,
+                    [Tier] [varchar](20) NOT NULL,
+                    [StageLevel] [int] NOT NULL DEFAULT 1,
+                    [ImageUrl] [nvarchar](1000) NOT NULL,
+                    [CriteriaMetric] [varchar](100) NOT NULL,
+                    [CriteriaThreshold] [int] NOT NULL,
+                    [CriteriaUnit] [nvarchar](50) NOT NULL,
+                    [IsActive] [bit] NOT NULL DEFAULT 1,
+                    [CreatedAt] [datetime2](7) NULL DEFAULT GETUTCDATE(),
+                    [UpdatedAt] [datetime2](7) NULL DEFAULT GETUTCDATE()
+                );
+            END
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserMedals')
+            BEGIN
+                CREATE TABLE [dbo].[UserMedals](
+                    [Id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [UserId] [int] NOT NULL,
+                    [MedalId] [nvarchar](100) NOT NULL,
+                    [CurrentProgress] [int] NOT NULL DEFAULT 0,
+                    [IsUnlocked] [bit] NOT NULL DEFAULT 0,
+                    [UnlockedAt] [datetime2](7) NULL,
+                    [AwardedAt] [datetime2](7) NULL DEFAULT GETUTCDATE(),
+                    CONSTRAINT [FK_UserMedals_User] FOREIGN KEY([UserId]) REFERENCES [dbo].[User] ([UserId]) ON DELETE CASCADE,
+                    CONSTRAINT [FK_UserMedals_Medal] FOREIGN KEY([MedalId]) REFERENCES [dbo].[Medals] ([Id]) ON DELETE CASCADE,
+                    CONSTRAINT [UQ_UserMedals_UserId_MedalId] UNIQUE NONCLUSTERED ([UserId], [MedalId])
+                );
+            END
         ");
+
+        // Seed default medals if table is empty
+        if (!context.Medals.Any())
+        {
+            var defaultMedals = ARSPlatform.SERVICES.MedalService.GetDefaultMedals();
+            foreach (var medal in defaultMedals)
+            {
+                medal.CreatedAt = DateTime.UtcNow;
+                medal.UpdatedAt = DateTime.UtcNow;
+                context.Medals.Add(medal);
+            }
+            context.SaveChanges();
+        }
     }
     catch (System.Exception ex)
     {
