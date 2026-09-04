@@ -1,4 +1,4 @@
-using ARSPlatform.MODEL.Entities;
+﻿using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE;
 using System.Net.Http;
@@ -17,6 +17,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 
 namespace ARSPlatform.SERVICES
@@ -906,82 +907,96 @@ namespace ARSPlatform.SERVICES
 
         private string BuildForgotPasswordEmailBody(string fullName, string otp)
         {
+            var safeFullName = HtmlEncoder.Default.Encode(fullName);
+            var safeOtp = HtmlEncoder.Default.Encode(otp);
+
             return $@"
-<div style=""background-color: #f4f6f9; padding: 40px 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333333;"">
-  <div style=""max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);"">
-    <div style=""background-color: #243257; padding: 25px; text-align: center;"">
-      <svg width=""40"" height=""35"" viewBox=""0 0 40 35"" fill=""none"" xmlns=""http://www.w3.org/2000/svg"" style=""vertical-align: middle; margin-right: 10px;"">
-        <path d=""M20 2L38 32H2L20 2Z"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
-        <circle cx=""20"" cy=""19"" r=""6"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
-      </svg>
-      <span style=""color: #ffffff; font-size: 20px; font-weight: bold; letter-spacing: 1px; vertical-align: middle; font-family: 'Outfit', sans-serif;"">ARS</span>
-      <div style=""color: #8fa0c0; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px;"">ACADEMIC RESEARCH SHARING</div>
-    </div>
-    <div style=""padding: 30px 40px;"">
-      <h3 style=""margin-top: 0; font-size: 18px; color: #243257;"">Hello {fullName},</h3>
-      <p style=""line-height: 1.6; font-size: 14px; color: #555555;"">You have requested to reset your password on the <strong>Academic Research Sharing (ARS)</strong> platform. Your OTP code for password reset is:</p>
-      
-      <div style=""text-align: center; margin: 30px 0;"">
-        <div style=""background-color: #f0f4f8; border: 2px dashed #e65100; border-radius: 8px; padding: 20px 40px; display: inline-block;"">
-          <span style=""font-size: 32px; font-weight: bold; color: #e65100; letter-spacing: 8px; font-family: 'Courier New', monospace;"">{otp}</span>
-        </div>
-      </div>
-      
-      <p style=""line-height: 1.6; font-size: 13px; color: #888888; text-align: center;"">This OTP code will expire in <strong>5 minutes</strong>.</p>
-      
-      <div style=""background-color: #fff3e0; border: 1px solid #ffcc80; border-radius: 6px; padding: 15px; margin-top: 25px;"">
-        <h4 style=""margin: 0 0 8px 0; color: #e65100; font-size: 14px;"">Security Note:</h4>
-        <p style=""margin: 0; font-size: 13px; color: #6d4c41; line-height: 1.5;"">If you did not request a password reset, please ignore this email or contact support immediately. Do not share this code with anyone.</p>
-      </div>
-    </div>
-    <div style=""background-color: #fbfcfd; border-top: 1px solid #f0f2f5; padding: 20px; text-align: center; font-size: 12px; color: #888888;"">
-      <p style=""margin: 0 0 10px 0;"">Academic Research Sharing Platform</p>
-      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Privacy Policy</a> | 
-      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Terms of Service</a> | 
-      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Contact Support</a>
-    </div>
-  </div>
-</div>";
+<!doctype html>
+<html lang=""en"">
+<head>
+  <meta charset=""utf-8"">
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><!--[if mso]>
+  <style type=""text/css"">
+    body, table, td, p, a, h1, h2, h3 {{ font-family: Arial, Helvetica, sans-serif !important; }}
+  </style>
+  <![endif]-->
+  <style type=""text/css"">
+    @media screen and (max-width: 620px) {{
+      .email-shell {{ width: 100% !important; }}
+      .email-gutter {{ padding-left: 24px !important; padding-right: 24px !important; }}
+      .otp-box {{ padding-left: 20px !important; padding-right: 20px !important; }}
+      .otp-code {{ font-size: 28px !important; letter-spacing: 6px !important; }}
+    }}
+  </style>
+</head>
+<body style=""margin:0; padding:0; background-color:#f5f1e8; color:#1d1c19; font-family:Arial, Helvetica, sans-serif;""><span style=""display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;"">Your ARS password reset code is ready. It expires in 5 minutes.</span>
+  <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#f5f1e8;""><tr><td align=""center"" style=""padding:36px 16px;"">
+    <table role=""presentation"" class=""email-shell"" width=""600"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""width:100%; max-width:600px; background-color:#ffffff; border:1px solid #ded9cf;""><tr><td>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#1d1c19;""><tr><td class=""email-gutter"" style=""padding:26px 40px 24px;"">
+        <div style=""font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:30px; font-weight:bold; color:#fffdf8;"">ARS<span style=""color:#e2ad2f;"">.</span></div>
+        <div style=""padding-top:7px; font-size:10px; line-height:14px; letter-spacing:2px; color:#d7d2c8;"">ACADEMIC RESEARCH SHARING</div>
+      </td></tr></table>
+      <div style=""height:4px; line-height:4px; font-size:4px; background-color:#e2ad2f;"">&nbsp;</div>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0""><tr><td class=""email-gutter"" style=""padding:40px;"">
+        <div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Password reset</div>
+        <h1 style=""margin:9px 0 18px; font-family:Georgia, 'Times New Roman', serif; font-size:30px; line-height:36px; font-weight:bold; color:#1d1c19;"">Hello {safeFullName},</h1>
+        <p style=""margin:0; font-size:16px; line-height:26px; color:#4f4b42;"">You requested a password reset for your Academic Research Sharing account. Enter the verification code below to continue.</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:30px 0 18px;""><tr><td align=""center"" class=""otp-box"" style=""padding:22px 28px; background-color:#fff9e8; border:1px solid #e2ad2f;""><div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Your one-time code</div><div class=""otp-code"" style=""padding-top:8px; font-family:'Courier New', Courier, monospace; font-size:32px; line-height:40px; font-weight:bold; letter-spacing:8px; color:#1d1c19;"">{safeOtp}</div></td></tr></table>
+        <p style=""margin:0; text-align:center; font-size:13px; line-height:20px; color:#6f695d;"">This code expires in <strong style=""color:#4f4b42;"">5 minutes</strong>.</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin-top:30px;""><tr><td style=""padding:16px; background-color:#f6f8f5; border:1px solid #d7ded7;""><p style=""margin:0 0 6px; font-size:13px; line-height:19px; font-weight:bold; color:#4f765d;"">Keep your account secure</p><p style=""margin:0; font-size:13px; line-height:20px; color:#4f4b42;"">If you did not request a password reset, you can ignore this email. Never share this code with anyone.</p></td></tr></table>
+      </td></tr></table>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""border-top:1px solid #ded9cf; background-color:#fffdf8;""><tr><td class=""email-gutter"" align=""center"" style=""padding:20px 40px;""><p style=""margin:0; font-size:12px; line-height:19px; color:#6f695d;"">Academic Research Sharing Platform</p><p style=""margin:5px 0 0; font-size:12px; line-height:19px; color:#6f695d;"">This message was sent automatically. Please do not reply.</p></td></tr></table>
+    </td></tr></table>
+  </td></tr></table>
+</body>
+</html>";
         }
 
         private string BuildOtpEmailBody(string fullName, string otp)
         {
+            var safeFullName = HtmlEncoder.Default.Encode(fullName);
+            var safeOtp = HtmlEncoder.Default.Encode(otp);
+
             return $@"
-<div style=""background-color: #f4f6f9; padding: 40px 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333333;"">
-  <div style=""max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);"">
-    <div style=""background-color: #243257; padding: 25px; text-align: center;"">
-      <svg width=""40"" height=""35"" viewBox=""0 0 40 35"" fill=""none"" xmlns=""http://www.w3.org/2000/svg"" style=""vertical-align: middle; margin-right: 10px;"">
-        <path d=""M20 2L38 32H2L20 2Z"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
-        <circle cx=""20"" cy=""19"" r=""6"" stroke=""#00E5FF"" stroke-width=""3"" fill=""none""/>
-      </svg>
-      <span style=""color: #ffffff; font-size: 20px; font-weight: bold; letter-spacing: 1px; vertical-align: middle; font-family: 'Outfit', sans-serif;"">ARS</span>
-      <div style=""color: #8fa0c0; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px;"">ACADEMIC RESEARCH SHARING</div>
-    </div>
-    <div style=""padding: 30px 40px;"">
-      <h3 style=""margin-top: 0; font-size: 18px; color: #243257;"">Hello {fullName},</h3>
-      <p style=""line-height: 1.6; font-size: 14px; color: #555555;"">Thank you for registering on the <strong>Academic Research Sharing (ARS)</strong> platform. Your OTP code for account verification is:</p>
-      
-      <div style=""text-align: center; margin: 30px 0;"">
-        <div style=""background-color: #f0f4f8; border: 2px dashed #007aff; border-radius: 8px; padding: 20px 40px; display: inline-block;"">
-          <span style=""font-size: 32px; font-weight: bold; color: #007aff; letter-spacing: 8px; font-family: 'Courier New', monospace;"">{otp}</span>
-        </div>
-      </div>
-      
-      <p style=""line-height: 1.6; font-size: 13px; color: #888888; text-align: center;"">This OTP code will expire in <strong>5 minutes</strong>.</p>
-      
-      <div style=""background-color: #fff3e0; border: 1px solid #ffcc80; border-radius: 6px; padding: 15px; margin-top: 25px;"">
-        <h4 style=""margin: 0 0 8px 0; color: #e65100; font-size: 14px;"">Security Note:</h4>
-        <p style=""margin: 0; font-size: 13px; color: #6d4c41; line-height: 1.5;"">If you did not request this OTP, please ignore this email. Do not share this code with anyone.</p>
-      </div>
-    </div>
-    <div style=""background-color: #fbfcfd; border-top: 1px solid #f0f2f5; padding: 20px; text-align: center; font-size: 12px; color: #888888;"">
-      <p style=""margin: 0 0 10px 0;"">If you did not create an account on ARS, please ignore this email.</p>
-      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Privacy Policy</a> | 
-      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Terms of Service</a> | 
-      <a href=""#"" style=""color: #007aff; text-decoration: none;"">Contact Support</a>
-    </div>
-  </div>
-</div>";
+<!doctype html>
+<html lang=""en"">
+<head>
+  <meta charset=""utf-8"">
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><!--[if mso]>
+  <style type=""text/css"">
+    body, table, td, p, a, h1, h2, h3 {{ font-family: Arial, Helvetica, sans-serif !important; }}
+  </style>
+  <![endif]-->
+  <style type=""text/css"">
+    @media screen and (max-width: 620px) {{
+      .email-shell {{ width: 100% !important; }}
+      .email-gutter {{ padding-left: 24px !important; padding-right: 24px !important; }}
+      .otp-box {{ padding-left: 20px !important; padding-right: 20px !important; }}
+      .otp-code {{ font-size: 28px !important; letter-spacing: 6px !important; }}
+    }}
+  </style>
+</head>
+<body style=""margin:0; padding:0; background-color:#f5f1e8; color:#1d1c19; font-family:Arial, Helvetica, sans-serif;""><span style=""display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;"">Your ARS account verification code is ready. It expires in 5 minutes.</span>
+  <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#f5f1e8;""><tr><td align=""center"" style=""padding:36px 16px;"">
+    <table role=""presentation"" class=""email-shell"" width=""600"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""width:100%; max-width:600px; background-color:#ffffff; border:1px solid #ded9cf;""><tr><td>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#1d1c19;""><tr><td class=""email-gutter"" style=""padding:26px 40px 24px;"">
+        <div style=""font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:30px; font-weight:bold; color:#fffdf8;"">ARS<span style=""color:#e2ad2f;"">.</span></div>
+        <div style=""padding-top:7px; font-size:10px; line-height:14px; letter-spacing:2px; color:#d7d2c8;"">ACADEMIC RESEARCH SHARING</div>
+      </td></tr></table>
+      <div style=""height:4px; line-height:4px; font-size:4px; background-color:#e2ad2f;"">&nbsp;</div>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0""><tr><td class=""email-gutter"" style=""padding:40px;"">
+        <div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Account verification</div>
+        <h1 style=""margin:9px 0 18px; font-family:Georgia, 'Times New Roman', serif; font-size:30px; line-height:36px; font-weight:bold; color:#1d1c19;"">Welcome to ARS, {safeFullName}</h1>
+        <p style=""margin:0; font-size:16px; line-height:26px; color:#4f4b42;"">Thank you for creating an Academic Research Sharing account. Enter the verification code below to confirm your email address.</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:30px 0 18px;""><tr><td align=""center"" class=""otp-box"" style=""padding:22px 28px; background-color:#fff9e8; border:1px solid #e2ad2f;""><div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Your one-time code</div><div class=""otp-code"" style=""padding-top:8px; font-family:'Courier New', Courier, monospace; font-size:32px; line-height:40px; font-weight:bold; letter-spacing:8px; color:#1d1c19;"">{safeOtp}</div></td></tr></table>
+        <p style=""margin:0; text-align:center; font-size:13px; line-height:20px; color:#6f695d;"">This code expires in <strong style=""color:#4f4b42;"">5 minutes</strong>.</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin-top:30px;""><tr><td style=""padding:16px; background-color:#f6f8f5; border:1px solid #d7ded7;""><p style=""margin:0 0 6px; font-size:13px; line-height:19px; font-weight:bold; color:#4f765d;"">Keep your account secure</p><p style=""margin:0; font-size:13px; line-height:20px; color:#4f4b42;"">If you did not create an ARS account, you can ignore this email. Never share this code with anyone.</p></td></tr></table>
+      </td></tr></table>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""border-top:1px solid #ded9cf; background-color:#fffdf8;""><tr><td class=""email-gutter"" align=""center"" style=""padding:20px 40px;""><p style=""margin:0; font-size:12px; line-height:19px; color:#6f695d;"">Academic Research Sharing Platform</p><p style=""margin:5px 0 0; font-size:12px; line-height:19px; color:#6f695d;"">This message was sent automatically. Please do not reply.</p></td></tr></table>
+    </td></tr></table>
+  </td></tr></table>
+</body>
+</html>";
         }
 
         public async Task<bool> VerifyEmailAsync(string token)
