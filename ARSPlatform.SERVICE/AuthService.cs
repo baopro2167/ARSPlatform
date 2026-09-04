@@ -249,6 +249,9 @@ namespace ARSPlatform.SERVICES
                 user.ExpiresOtpAt =
                     now.AddMinutes(5);
 
+                user.ExpiresAt =
+                    now.AddDays(7);
+
                 /*
                     Only a verified OAuth ticket is allowed
                     to write these fields.
@@ -294,6 +297,9 @@ namespace ARSPlatform.SERVICES
 
                 user.ExpiresOtpAt =
                     now.AddMinutes(5);
+
+                user.ExpiresAt =
+                    now.AddDays(7);
 
                 user.UserRoles =
                     new List<UserRole>();
