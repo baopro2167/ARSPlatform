@@ -41,8 +41,17 @@ namespace ARSPlatform.SERVICE.ExternalServices
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", accessToken);
 
+            var requestBody = new
+            {
+                config = new
+                {
+                    accessType = "OPEN",
+                    entryPointAccess = "ALL"
+                }
+            };
+
             request.Content = new StringContent(
-                "{}",
+                JsonSerializer.Serialize(requestBody),
                 Encoding.UTF8,
                 "application/json");
 
