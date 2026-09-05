@@ -922,8 +922,12 @@ public partial class AppDbContext : DbContext
 
             entity.Property(e => e.MedalId).HasMaxLength(100);
             entity.Property(e => e.CurrentProgress).HasDefaultValue(0);
-            entity.Property(e => e.IsUnlocked).HasDefaultValue(false);
             entity.Property(e => e.AwardedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CriteriaUnit).HasMaxLength(100);
+            entity.Property(e => e.AwardedReason).HasMaxLength(500);
+            entity.Property(e => e.CorrelationId).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.HasIndex(e => new { e.UserId, e.IsUnlocked }, "IX_UserMedals_UserId_IsUnlocked");
 
             entity.HasOne(d => d.User)
                 .WithMany(p => p.UserMedals)

@@ -18,6 +18,13 @@ namespace ARSPlatform.SERVICE.Interfaces
         // User Endpoints
         Task<IEnumerable<UserMedalResponse>> GetMyMedalsAsync(int userId);
         Task<IEnumerable<UserMedalResponse>> GetUserUnlockedMedalsAsync(int userId);
+        Task<IEnumerable<UserMedalResponse>> GetUserMedalsAsync(int userId, bool includeLocked, int? callerId, bool isAdmin);
         Task EvaluateUserMedalsAsync(int userId);
+
+        // Admin Manual Grant & Dev Helpers (Ticket BE-MEDAL-GRANT-01)
+        Task<(UserMedalResponse Response, bool IsCreated)> GrantMedalAsync(MedalGrantRequest request, int adminId, string adminName);
+        Task<bool> RevokeGrantedMedalAsync(long userMedalId, int adminId, string adminName);
+        Task<MedalDevGrantAllResponse> DevGrantAllByRoleAsync(MedalDevGrantAllRequest request, int adminId, string adminName);
+        Task<MedalDevRevokeAllResponse> DevRevokeAllAsync(int userId, int adminId, string adminName);
     }
 }

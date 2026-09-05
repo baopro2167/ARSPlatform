@@ -490,10 +490,13 @@ namespace ARSPlatform.SERVICE.Mapping
 
             CreateMap<UserMedal, UserMedalResponse>()
                 .ForMember(dest => dest.Medal, opt => opt.MapFrom(src => src.Medal))
+                .ForMember(dest => dest.Code, opt => opt.MapFrom(src => src.Medal != null ? src.Medal.Code : string.Empty))
+                .ForMember(dest => dest.CriteriaThreshold, opt => opt.MapFrom(src => src.CriteriaThreshold ?? (src.Medal != null ? src.Medal.CriteriaThreshold : 0)))
+                .ForMember(dest => dest.CriteriaUnit, opt => opt.MapFrom(src => src.CriteriaUnit ?? (src.Medal != null ? src.Medal.CriteriaUnit : null)))
                 .ForMember(dest => dest.ProgressPercentage, opt => opt.MapFrom(src =>
-                    src.Medal == null || src.Medal.CriteriaThreshold <= 0
+                    (src.CriteriaThreshold ?? (src.Medal != null ? src.Medal.CriteriaThreshold : 0)) <= 0
                         ? 0.0
-                        : Math.Min(100.0, Math.Round((double)src.CurrentProgress / src.Medal.CriteriaThreshold * 100.0, 1))));
+                        : Math.Min(100.0, Math.Round((double)src.CurrentProgress / (src.CriteriaThreshold ?? src.Medal!.CriteriaThreshold) * 100.0, 1))));
         }
         private static SeminarFeedbackContentResponse? DeserializeSeminarFeedback(string? feedbackJson)
         {

@@ -19,6 +19,20 @@ public partial class UserMedal
 
     public DateTime? AwardedAt { get; set; }
 
+    public int? CriteriaThreshold { get; set; }
+
+    public string? CriteriaUnit { get; set; }
+
+    public int? AwardedByAdminId { get; set; }
+
+    public string? AwardedReason { get; set; }
+
+    public string? CorrelationId { get; set; }
+
+    public DateTime? CreatedAt { get; set; }
+
+    public DateTime? UpdatedAt { get; set; }
+
     [JsonIgnore]
     public virtual User User { get; set; } = null!;
 

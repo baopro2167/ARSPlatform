@@ -21,19 +21,22 @@ namespace ARSPlatform.SERVICES
         private readonly INotificationRepository _notificationRepo;
         private readonly AppDbContext _context;
         private readonly IMapper _mapper;
+        private readonly IAuditLogService _auditLogService;
 
         public MedalService(
             IMedalRepository medalRepo,
             IUserMedalRepository userMedalRepo,
             INotificationRepository notificationRepo,
             AppDbContext context,
-            IMapper mapper)
+            IMapper mapper,
+            IAuditLogService auditLogService)
         {
             _medalRepo = medalRepo;
             _userMedalRepo = userMedalRepo;
             _notificationRepo = notificationRepo;
             _context = context;
             _mapper = mapper;
+            _auditLogService = auditLogService;
         }
 
         #region Admin Methods
@@ -226,7 +229,7 @@ namespace ARSPlatform.SERVICES
             return responseList
                 .OrderByDescending(r => r.IsUnlocked)
                 .ThenByDescending(r => r.ProgressPercentage)
-                .ThenBy(r => r.Medal.Tier)
+                .ThenBy(r => r.Medal?.Tier)
                 .ToList();
         }
 
@@ -234,6 +237,77 @@ namespace ARSPlatform.SERVICES
         {
             var unlockedMedals = await _userMedalRepo.GetUnlockedByUserIdAsync(userId);
             return _mapper.Map<IEnumerable<UserMedalResponse>>(unlockedMedals);
+        }
+
+        public async Task<IEnumerable<UserMedalResponse>> GetUserMedalsAsync(int userId, bool includeLocked, int? callerId, bool isAdmin)
+        {
+            var targetUserExists = await _context.Users.AnyAsync(u => u.UserId == userId);
+            if (!targetUserExists)
+            {
+                throw new KeyNotFoundException($"User with ID {userId} not found.");
+            }
+
+            if (!includeLocked)
+            {
+                return await GetUserUnlockedMedalsAsync(userId);
+            }
+
+            // If includeLocked is true, caller must be the user themself, an Admin, or a supervising Lecturer
+            if (!isAdmin && (!callerId.HasValue || callerId.Value != userId))
+            {
+                var isSupervisor = callerId.HasValue && await _context.ResearchGroups
+                    .AnyAsync(rg => rg.LecturerId == callerId.Value && rg.GroupMembers.Any(gm => gm.StudentId == userId));
+
+                if (!isSupervisor)
+                {
+                    throw new UnauthorizedAccessException("Not authorized to view locked medals for this user.");
+                }
+            }
+
+            await EvaluateUserMedalsAsync(userId);
+
+            var activeMedals = await _context.Medals
+                .AsNoTracking()
+                .Where(m => m.IsActive)
+                .OrderBy(m => m.Roles)
+                .ThenBy(m => m.StageLevel)
+                .ToListAsync();
+
+            var userMedals = await _userMedalRepo.GetByUserIdWithMedalsAsync(userId);
+            var userMedalDict = userMedals.ToDictionary(um => um.MedalId);
+
+            var responseList = new List<UserMedalResponse>();
+
+            foreach (var medal in activeMedals)
+            {
+                if (userMedalDict.TryGetValue(medal.Id, out var um))
+                {
+                    var resp = _mapper.Map<UserMedalResponse>(um);
+                    responseList.Add(resp);
+                }
+                else
+                {
+                    responseList.Add(new UserMedalResponse
+                    {
+                        UserId = userId,
+                        MedalId = medal.Id,
+                        Code = medal.Code,
+                        CriteriaThreshold = medal.CriteriaThreshold,
+                        CriteriaUnit = medal.CriteriaUnit,
+                        CurrentProgress = 0,
+                        IsUnlocked = false,
+                        ProgressPercentage = 0.0,
+                        UnlockedAt = null,
+                        Medal = _mapper.Map<MedalSummaryDto>(medal)
+                    });
+                }
+            }
+
+            return responseList
+                .OrderByDescending(r => r.IsUnlocked)
+                .ThenByDescending(r => r.ProgressPercentage)
+                .ThenBy(r => r.Medal?.Tier)
+                .ToList();
         }
 
         public async Task EvaluateUserMedalsAsync(int userId)
@@ -344,13 +418,26 @@ namespace ARSPlatform.SERVICES
 
                 if (existingUserMedals.TryGetValue(medal.Id, out var userMedal))
                 {
-                    userMedal.CurrentProgress = currentProgress;
-                    if (!userMedal.IsUnlocked && currentProgress >= medal.CriteriaThreshold)
+                    if (userMedal.AwardedByAdminId != null || userMedal.IsUnlocked)
                     {
                         userMedal.IsUnlocked = true;
-                        userMedal.UnlockedAt = DateTime.UtcNow;
-                        newlyUnlockedMedals.Add(medal);
+                        userMedal.CurrentProgress = Math.Max(userMedal.CurrentProgress, currentProgress);
                     }
+                    else
+                    {
+                        userMedal.CurrentProgress = currentProgress;
+                        if (currentProgress >= medal.CriteriaThreshold)
+                        {
+                            userMedal.IsUnlocked = true;
+                            userMedal.UnlockedAt = DateTime.UtcNow;
+                            newlyUnlockedMedals.Add(medal);
+                        }
+                    }
+
+                    if (!userMedal.CriteriaThreshold.HasValue) userMedal.CriteriaThreshold = medal.CriteriaThreshold;
+                    if (string.IsNullOrWhiteSpace(userMedal.CriteriaUnit)) userMedal.CriteriaUnit = medal.CriteriaUnit;
+                    userMedal.UpdatedAt = DateTime.UtcNow;
+
                     _context.UserMedals.Update(userMedal);
                 }
                 else
@@ -361,9 +448,13 @@ namespace ARSPlatform.SERVICES
                         UserId = userId,
                         MedalId = medal.Id,
                         CurrentProgress = currentProgress,
+                        CriteriaThreshold = medal.CriteriaThreshold,
+                        CriteriaUnit = medal.CriteriaUnit,
                         IsUnlocked = isUnlocked,
                         UnlockedAt = isUnlocked ? DateTime.UtcNow : null,
-                        AwardedAt = DateTime.UtcNow
+                        AwardedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
                     };
 
                     await _context.UserMedals.AddAsync(newUserMedal);
@@ -394,6 +485,446 @@ namespace ARSPlatform.SERVICES
             if (newlyUnlockedMedals.Any())
             {
                 await _notificationRepo.SaveChangesAsync();
+            }
+        }
+
+        #endregion
+
+        #region Ticket BE-MEDAL-GRANT-01 Admin Manual Grant & Dev Helpers
+
+        public async Task<(UserMedalResponse Response, bool IsCreated)> GrantMedalAsync(MedalGrantRequest request, int adminId, string adminName)
+        {
+            if (request.UserId <= 0)
+            {
+                throw new ArgumentException("Valid UserId is required.");
+            }
+            if (string.IsNullOrWhiteSpace(request.MedalCode))
+            {
+                throw new ArgumentException("MedalCode is required.");
+            }
+            if (request.ForceUnlocked && string.IsNullOrWhiteSpace(request.AwardedReason))
+            {
+                throw new ArgumentException("AwardedReason is required when forceUnlocked is true.");
+            }
+
+            var user = await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.UserId == request.UserId);
+
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID '{request.UserId}' not found.");
+            }
+
+            var medalCodeNormalized = request.MedalCode.Trim();
+            var medal = await _context.Medals
+                .FirstOrDefaultAsync(m => m.Code == medalCodeNormalized || m.Code.ToLower() == medalCodeNormalized.ToLower());
+
+            if (medal == null)
+            {
+                throw new KeyNotFoundException($"Medal with code '{request.MedalCode}' not found.");
+            }
+
+            // Role check: Reject (409 Conflict) if medalCode does not list any of user's current roles
+            var userRoles = user.UserRoles
+                .Select(ur => ur.Role?.Name ?? ur.UserRole1)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Select(r => r!)
+                .ToList();
+
+            if (!MedalMatchesRoles(medal.Roles, userRoles))
+            {
+                throw new InvalidOperationException($"Medal '{medal.Code}' does not apply to any role possessed by user {user.UserId} (User Roles: {string.Join(", ", userRoles)}).");
+            }
+
+            var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+
+            var existing = await _context.UserMedals
+                .Include(um => um.Medal)
+                .FirstOrDefaultAsync(um => um.UserId == request.UserId && um.MedalId == medal.Id);
+
+            if (existing != null)
+            {
+                // Idempotent re-grant (returns 200 OK)
+                if (request.ForceUnlocked)
+                {
+                    existing.CurrentProgress = medal.CriteriaThreshold;
+                    existing.IsUnlocked = true;
+                    if (!existing.UnlockedAt.HasValue)
+                    {
+                        existing.UnlockedAt = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    existing.CurrentProgress = Math.Max(existing.CurrentProgress, 1);
+                }
+
+                existing.CriteriaThreshold = medal.CriteriaThreshold;
+                existing.CriteriaUnit = medal.CriteriaUnit;
+                existing.AwardedByAdminId = adminId;
+                existing.AwardedReason = request.AwardedReason ?? existing.AwardedReason;
+                existing.CorrelationId = correlationId;
+                existing.UpdatedAt = DateTime.UtcNow;
+
+                _context.UserMedals.Update(existing);
+                await _context.SaveChangesAsync();
+
+                await _auditLogService.CreateAsync(new AuditLogCreateRequest
+                {
+                    AdminId = adminId,
+                    AdminName = adminName,
+                    Action = "MEDAL_GRANT",
+                    Target = "UserMedal",
+                    TargetId = existing.Id.ToString(),
+                    Details = $"Admin granted medal {medal.Code} to user {user.UserId} ({user.FullName}). ForceUnlocked: {request.ForceUnlocked}. CorrelationId: {correlationId}. Reason: {request.AwardedReason}"
+                });
+
+                return (_mapper.Map<UserMedalResponse>(existing), false);
+            }
+
+            // First-time grant (returns 201 Created)
+            var isUnlocked = request.ForceUnlocked;
+            var currentProgress = request.ForceUnlocked ? medal.CriteriaThreshold : 1;
+
+            var newRow = new UserMedal
+            {
+                UserId = request.UserId,
+                MedalId = medal.Id,
+                CurrentProgress = currentProgress,
+                CriteriaThreshold = medal.CriteriaThreshold,
+                CriteriaUnit = medal.CriteriaUnit,
+                IsUnlocked = isUnlocked,
+                UnlockedAt = isUnlocked ? DateTime.UtcNow : null,
+                AwardedAt = DateTime.UtcNow,
+                AwardedByAdminId = adminId,
+                AwardedReason = request.AwardedReason,
+                CorrelationId = correlationId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            try
+            {
+                await _context.UserMedals.AddAsync(newRow);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                _context.ChangeTracker.Clear();
+                var raced = await _context.UserMedals
+                    .Include(um => um.Medal)
+                    .FirstOrDefaultAsync(um => um.UserId == request.UserId && um.MedalId == medal.Id);
+                if (raced != null)
+                {
+                    return (_mapper.Map<UserMedalResponse>(raced), false);
+                }
+                throw;
+            }
+
+            newRow.Medal = medal;
+
+            await _auditLogService.CreateAsync(new AuditLogCreateRequest
+            {
+                AdminId = adminId,
+                AdminName = adminName,
+                Action = "MEDAL_GRANT",
+                Target = "UserMedal",
+                TargetId = newRow.Id.ToString(),
+                Details = $"Admin granted medal {medal.Code} to user {user.UserId} ({user.FullName}). ForceUnlocked: {request.ForceUnlocked}. CorrelationId: {correlationId}. Reason: {request.AwardedReason}"
+            });
+
+            return (_mapper.Map<UserMedalResponse>(newRow), true);
+        }
+
+        public async Task<bool> RevokeGrantedMedalAsync(long userMedalId, int adminId, string adminName)
+        {
+            var userMedal = await _context.UserMedals
+                .Include(um => um.Medal)
+                .FirstOrDefaultAsync(um => um.Id == userMedalId);
+
+            if (userMedal == null)
+            {
+                // Idempotent: repeat calls return 204 No Content
+                return true;
+            }
+
+            // Ticket rule: Reject (404) if userMedalId does not refer to an admin-granted row
+            if (!userMedal.AwardedByAdminId.HasValue)
+            {
+                throw new KeyNotFoundException($"Medal grant '{userMedalId}' was not granted by an admin and cannot be revoked via this endpoint.");
+            }
+
+            var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            var medalCode = userMedal.Medal?.Code ?? userMedal.MedalId;
+
+            _context.UserMedals.Remove(userMedal);
+            await _context.SaveChangesAsync();
+
+            await _auditLogService.CreateAsync(new AuditLogCreateRequest
+            {
+                AdminId = adminId,
+                AdminName = adminName,
+                Action = "MEDAL_REVOKE",
+                Target = "UserMedal",
+                TargetId = userMedalId.ToString(),
+                Details = $"Admin revoked medal {medalCode} (ID: {userMedalId}) for user {userMedal.UserId}. CorrelationId: {correlationId}"
+            });
+
+            return true;
+        }
+
+        public async Task<MedalDevGrantAllResponse> DevGrantAllByRoleAsync(MedalDevGrantAllRequest request, int adminId, string adminName)
+        {
+            if (request.UserId <= 0)
+            {
+                throw new ArgumentException("Valid UserId is required.");
+            }
+
+            var user = await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.UserId == request.UserId);
+
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID '{request.UserId}' not found.");
+            }
+
+            var userRoles = user.UserRoles
+                .Select(ur => ur.Role?.Name ?? ur.UserRole1)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Select(r => r!)
+                .ToList();
+
+            // Resolve primary role
+            var primaryRole = userRoles.FirstOrDefault(r =>
+                string.Equals(r, "Lecturer", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(r, "Researcher", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(r, "Reviewer", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(r, "Graduate Student", StringComparison.OrdinalIgnoreCase))
+                ?? userRoles.FirstOrDefault()
+                ?? "Researcher";
+
+            // Fetch active medals
+            var query = _context.Medals.Where(m => m.IsActive).AsQueryable();
+
+            if (!request.IncludePlatinum)
+            {
+                query = query.Where(m => m.Tier.ToLower() != "platinum");
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.TierFilter) && !request.TierFilter.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                var tf = request.TierFilter.Trim().ToLower();
+                query = query.Where(m => m.Tier.ToLower() == tf);
+            }
+
+            var allCandidates = await query.ToListAsync();
+            var matchingMedals = allCandidates
+                .Where(m => MedalMatchesRoles(m.Roles, new[] { primaryRole }))
+                .OrderBy(m => m.StageLevel)
+                .ThenBy(m => m.Tier)
+                .ToList();
+
+            var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            var awardedRows = new List<MedalDevGrantRow>();
+            var awardedCount = 0;
+            var skippedCount = 0;
+
+            var existingUserMedals = await _context.UserMedals
+                .Where(um => um.UserId == request.UserId)
+                .ToDictionaryAsync(um => um.MedalId);
+
+            var childAuditRequests = new List<AuditLogCreateRequest>();
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                foreach (var medal in matchingMedals)
+                {
+                    if (existingUserMedals.TryGetValue(medal.Id, out var existing))
+                    {
+                        existing.CurrentProgress = medal.CriteriaThreshold;
+                        existing.CriteriaThreshold = medal.CriteriaThreshold;
+                        existing.CriteriaUnit = medal.CriteriaUnit;
+                        existing.IsUnlocked = true;
+                        if (!existing.UnlockedAt.HasValue) existing.UnlockedAt = DateTime.UtcNow;
+                        existing.AwardedByAdminId = adminId;
+                        existing.AwardedReason = request.AwardedReason ?? "Dev role seeding";
+                        existing.CorrelationId = correlationId;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        _context.UserMedals.Update(existing);
+
+                        awardedRows.Add(new MedalDevGrantRow
+                        {
+                            Id = existing.Id,
+                            MedalCode = medal.Code,
+                            IsUnlocked = true
+                        });
+                        awardedCount++;
+
+                        childAuditRequests.Add(new AuditLogCreateRequest
+                        {
+                            AdminId = adminId,
+                            AdminName = adminName,
+                            Action = "MEDAL_GRANT",
+                            Target = "UserMedal",
+                            TargetId = existing.Id.ToString(),
+                            Details = $"Granted {medal.Code} as part of role seeding (parent: {correlationId})"
+                        });
+                    }
+                    else
+                    {
+                        var newUm = new UserMedal
+                        {
+                            UserId = request.UserId,
+                            MedalId = medal.Id,
+                            CurrentProgress = medal.CriteriaThreshold,
+                            CriteriaThreshold = medal.CriteriaThreshold,
+                            CriteriaUnit = medal.CriteriaUnit,
+                            IsUnlocked = true,
+                            UnlockedAt = DateTime.UtcNow,
+                            AwardedAt = DateTime.UtcNow,
+                            AwardedByAdminId = adminId,
+                            AwardedReason = request.AwardedReason ?? "Dev role seeding",
+                            CorrelationId = correlationId,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+
+                        await _context.UserMedals.AddAsync(newUm);
+                        await _context.SaveChangesAsync();
+
+                        awardedRows.Add(new MedalDevGrantRow
+                        {
+                            Id = newUm.Id,
+                            MedalCode = medal.Code,
+                            IsUnlocked = true
+                        });
+                        awardedCount++;
+
+                        childAuditRequests.Add(new AuditLogCreateRequest
+                        {
+                            AdminId = adminId,
+                            AdminName = adminName,
+                            Action = "MEDAL_GRANT",
+                            Target = "UserMedal",
+                            TargetId = newUm.Id.ToString(),
+                            Details = $"Granted {medal.Code} as part of role seeding (parent: {correlationId})"
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Parent audit log
+                await _auditLogService.CreateAsync(new AuditLogCreateRequest
+                {
+                    AdminId = adminId,
+                    AdminName = adminName,
+                    Action = "MEDAL_GRANT_ALL_BY_ROLE",
+                    Target = "User",
+                    TargetId = request.UserId.ToString(),
+                    Details = $"Granted all {awardedCount} role medals for role '{primaryRole}' to user {request.UserId} ({user.FullName}) with correlationId: {correlationId}. Reason: {request.AwardedReason}"
+                });
+
+                // Child audit logs
+                foreach (var childLog in childAuditRequests)
+                {
+                    await _auditLogService.CreateAsync(childLog);
+                }
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            return new MedalDevGrantAllResponse
+            {
+                UserId = request.UserId,
+                Role = primaryRole,
+                AwardedCount = awardedCount,
+                SkippedCount = skippedCount,
+                Rows = awardedRows,
+                CorrelationId = correlationId
+            };
+        }
+
+        public async Task<MedalDevRevokeAllResponse> DevRevokeAllAsync(int userId, int adminId, string adminName)
+        {
+            if (userId <= 0)
+            {
+                throw new ArgumentException("Valid UserId is required.");
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId);
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID '{userId}' not found.");
+            }
+
+            var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            var revokedCount = 0;
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var adminGrantedRows = await _context.UserMedals
+                    .Where(um => um.UserId == userId && um.AwardedByAdminId != null)
+                    .ToListAsync();
+
+                revokedCount = adminGrantedRows.Count;
+                if (revokedCount > 0)
+                {
+                    _context.UserMedals.RemoveRange(adminGrantedRows);
+                    await _context.SaveChangesAsync();
+                }
+
+                await _auditLogService.CreateAsync(new AuditLogCreateRequest
+                {
+                    AdminId = adminId,
+                    AdminName = adminName,
+                    Action = "MEDAL_REVOKE_ALL",
+                    Target = "User",
+                    TargetId = userId.ToString(),
+                    Details = $"Revoked all {revokedCount} admin-granted medals for user {userId} ({user.FullName}) with correlationId: {correlationId}"
+                });
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            return new MedalDevRevokeAllResponse
+            {
+                UserId = userId,
+                RevokedCount = revokedCount,
+                CorrelationId = correlationId
+            };
+        }
+
+        private static bool MedalMatchesRoles(string? rolesJson, IEnumerable<string> userRoles)
+        {
+            if (string.IsNullOrWhiteSpace(rolesJson)) return false;
+            try
+            {
+                var roles = JsonSerializer.Deserialize<List<string>>(rolesJson, (JsonSerializerOptions?)null);
+                if (roles == null || !roles.Any()) return false;
+                if (roles.Any(r => string.Equals(r, "All", StringComparison.OrdinalIgnoreCase))) return true;
+                return roles.Any(r => userRoles.Any(ur => string.Equals(ur, r, StringComparison.OrdinalIgnoreCase)));
+            }
+            catch
+            {
+                if (rolesJson.Contains("All", StringComparison.OrdinalIgnoreCase)) return true;
+                return userRoles.Any(ur => rolesJson.Contains(ur, StringComparison.OrdinalIgnoreCase));
             }
         }
 
