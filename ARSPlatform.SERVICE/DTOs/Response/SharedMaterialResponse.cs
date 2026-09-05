@@ -18,6 +18,10 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int? LearningMaterialId { get; set; }
         public string? LearningMaterialTitle { get; set; }
         public string? LearningMaterialUrl { get; set; }
+        public string? Title { get; set; }
+        public string? FileUrl { get; set; }
+        public string? Url { get; set; }
+        public string? Description { get; set; }
         public int? PaperId { get; set; }
 
         public DateTime? SharedAt { get; set; }

@@ -78,6 +78,17 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpPut("{id:int}")]
         public async Task<ActionResult<LearningMaterialResponse>> Update(int id, [FromBody] LearningMaterialUpdateRequest request)
         {
+            var existing = await _service.GetByIdAsync(id);
+            if (existing == null) return NotFound(new { Message = "Learning material not found." });
+
+            var isAdmin = User.IsInRole("Admin");
+            int? currentUserId = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : null;
+
+            if (!isAdmin && existing.LecturerId != currentUserId)
+            {
+                return Forbid();
+            }
+
             var response = await _service.UpdateAsync(id, request);
             if (response == null) return NotFound(new { Message = "Learning material not found." });
             return Ok(response);
@@ -91,6 +102,17 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
+            var existing = await _service.GetByIdAsync(id);
+            if (existing == null) return NotFound(new { Message = "Learning material not found." });
+
+            var isAdmin = User.IsInRole("Admin");
+            int? currentUserId = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : null;
+
+            if (!isAdmin && existing.LecturerId != currentUserId)
+            {
+                return Forbid();
+            }
+
             var success = await _service.DeleteAsync(id);
             if (!success) return NotFound(new { Message = "Learning material not found." });
             return Ok(new { Message = "Deleted successfully." });

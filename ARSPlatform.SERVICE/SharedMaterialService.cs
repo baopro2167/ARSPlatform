@@ -297,6 +297,7 @@ namespace ARSPlatform.SERVICES
             var learningMaterialId = item.LearningMaterialId ?? item.PaperId;
             var materialTitle = item.LearningMaterial?.Title ?? item.Paper?.Title ?? $"Material #{learningMaterialId}";
             var materialUrl = item.LearningMaterial?.FileUrl ?? item.Paper?.FileUrl;
+            var description = item.LearningMaterial?.Description ?? item.Paper?.Abstract;
 
             return new SharedMaterialResponse
             {
@@ -309,6 +310,10 @@ namespace ARSPlatform.SERVICES
                 LearningMaterialId = learningMaterialId,
                 LearningMaterialTitle = materialTitle,
                 LearningMaterialUrl = materialUrl,
+                Title = materialTitle,
+                FileUrl = materialUrl,
+                Url = materialUrl,
+                Description = description,
                 PaperId = learningMaterialId,
                 SharedAt = item.SharedAt,
                 ExpiresAt = expiresAt,
