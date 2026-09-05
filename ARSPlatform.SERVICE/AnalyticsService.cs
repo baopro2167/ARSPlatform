@@ -33,18 +33,26 @@ namespace ARSPlatform.SERVICES
 
         public async Task<AnalyticsTimeseriesResponse> GetTimeseriesAsync(string range, string metric, CancellationToken cancellationToken)
         {
-            range = range?.Trim().ToLowerInvariant() ?? string.Empty;
-            metric = metric?.Trim().ToLowerInvariant() ?? string.Empty;
-
-            if (!SupportedRanges.Contains(range))
+            var rawRange = range?.Trim().ToLowerInvariant() ?? string.Empty;
+            range = rawRange switch
             {
-                throw new ArgumentException("range must be one of: daily, weekly, monthly, yearly.");
-            }
+                "7d" or "7days" or "week" => "weekly",
+                "30d" or "30days" or "month" => "monthly",
+                "90d" or "90days" or "3m" or "quarter" => "monthly",
+                "1y" or "1year" or "year" => "yearly",
+                "1d" or "day" => "daily",
+                _ when SupportedRanges.Contains(rawRange) => rawRange,
+                _ => "weekly"
+            };
 
-            if (!SupportedMetrics.Contains(metric))
+            var rawMetric = metric?.Trim().ToLowerInvariant() ?? string.Empty;
+            metric = rawMetric switch
             {
-                throw new ArgumentException("metric must be one of: user_registrations, revenue.");
-            }
+                "users" or "registrations" or "user_registrations" => "user_registrations",
+                "revenue" or "revenues" => "revenue",
+                _ when SupportedMetrics.Contains(rawMetric) => rawMetric,
+                _ => "user_registrations"
+            };
 
             var points = metric switch
             {

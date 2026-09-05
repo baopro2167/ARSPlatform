@@ -1,4 +1,4 @@
-﻿using ARSPlatform.MODEL.Entities;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE;
 using System.Net.Http;
@@ -741,10 +741,27 @@ namespace ARSPlatform.SERVICES
                 new Claim(ClaimTypes.Email, user.Email)
             };
 
-            var roleName = effectiveRole ?? user.UserRoles.FirstOrDefault()?.Role?.Name;
-            if (!string.IsNullOrWhiteSpace(roleName))
+            var rolesList = user.UserRoles?
+                .Select(ur => ur.Role?.Name)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Select(r => r!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(effectiveRole))
             {
-                claims.Add(new Claim(ClaimTypes.Role, roleName));
+                var existing = rolesList.FirstOrDefault(r => string.Equals(r, effectiveRole, StringComparison.OrdinalIgnoreCase));
+                if (existing != null)
+                {
+                    rolesList.Remove(existing);
+                }
+                rolesList.Insert(0, effectiveRole);
+            }
+
+            foreach (var r in rolesList)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, r));
+                claims.Add(new Claim("role", r));
             }
 
             var token = new JwtSecurityToken(

@@ -29,21 +29,60 @@ namespace ARSPlatform.SERVICES
 
         public async Task<PagedResult<UserResponse>> GetUsersAsync(PaginationParams paginationParams)
         {
+            return await GetUsersAsync(paginationParams, role: null, isActive: null, excludeUserId: null);
+        }
+
+        public async Task<PagedResult<UserResponse>> GetUsersAsync(
+            PaginationParams paginationParams,
+            string? role = null,
+            bool? isActive = null,
+            int? excludeUserId = null)
+        {
             var query = _userRepository.GetQueryable()
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .AsNoTracking();
 
+            if (isActive.HasValue)
+            {
+                query = query.Where(u => u.IsActive == isActive.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(role) && !role.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                var roleTrimmed = role.Trim();
+                query = query.Where(u => u.UserRoles.Any(ur => ur.Role != null && ur.Role.Name == roleTrimmed));
+            }
+
+            if (excludeUserId.HasValue && excludeUserId.Value > 0)
+            {
+                query = query.Where(u => u.UserId != excludeUserId.Value);
+            }
+
             var totalCount = await query.CountAsync();
 
+            var pageNumber = paginationParams.PageNumber < 1 ? 1 : paginationParams.PageNumber;
+            var pageSize = paginationParams.PageSize < 1 ? 10 : paginationParams.PageSize;
+
             var items = await query
-                .Skip((paginationParams.PageNumber - 1) * paginationParams.PageSize)
-                .Take(paginationParams.PageSize)
+                .OrderBy(u => u.FullName)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             var dtos = _mapper.Map<List<UserResponse>>(items);
 
-            return new PagedResult<UserResponse>(dtos, totalCount, paginationParams.PageNumber, paginationParams.PageSize);
+            return new PagedResult<UserResponse>(dtos, totalCount, pageNumber, pageSize);
+        }
+
+        public async Task<List<UserResponse>> GetLecturersRosterAsync(int? excludeUserId = null)
+        {
+            var paged = await GetUsersAsync(
+                new PaginationParams { PageNumber = 1, PageSize = 1000 },
+                role: "Lecturer",
+                isActive: true,
+                excludeUserId: excludeUserId);
+            return paged.Items;
         }
 
         public async Task<PagedResult<UserResponse>> GetAllAsync(int pageNumber, int pageSize)
@@ -63,9 +102,14 @@ namespace ARSPlatform.SERVICES
             if (user == null)
                 return null;
 
-            user.FullName = request.FullName;
-            user.AvatarUrl = request.AvatarUrl;
-            user.IsActive = request.IsActive;
+            if (!string.IsNullOrWhiteSpace(request.FullName))
+                user.FullName = request.FullName;
+
+            if (request.AvatarUrl != null)
+                user.AvatarUrl = request.AvatarUrl;
+
+            if (request.IsActive.HasValue)
+                user.IsActive = request.IsActive;
 
             _userRepository.Update(user);
             await _userRepository.SaveChangesAsync();

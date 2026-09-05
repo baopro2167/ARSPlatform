@@ -72,6 +72,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">Dữ liệu cập nhật</param>
         /// <returns>Gói Premium sau khi cập nhật</returns>
         [HttpPatch("{id:int}")]
+        [HttpPut("{id:int}")]
         public async Task<ActionResult<PremiumPackageResponse>> Update(int id, [FromBody] PremiumPackageUpdateRequest request)
         {
             try

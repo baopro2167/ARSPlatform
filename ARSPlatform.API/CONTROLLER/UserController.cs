@@ -12,6 +12,7 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Route("api/Account")]
     [Authorize]
     public class UserController : ControllerBase
     {
@@ -23,28 +24,67 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Lấy danh sách người dùng phân trang (Dành cho Admin)
+        /// Lấy danh sách người dùng phân trang (Admin hoặc người dùng tìm kiếm đồng nghiệp)
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
+        /// <param name="role">Lọc theo vai trò (Lecturer, Researcher, v.v.)</param>
+        /// <param name="isActive">Lọc theo trạng thái kích hoạt</param>
         /// <returns>Danh sách người dùng</returns>
         [HttpGet]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<PagedResult<UserResponse>>> GetUsers([FromQuery] PaginationParams paginationParams)
+        public async Task<ActionResult<PagedResult<UserResponse>>> GetUsers(
+            [FromQuery] PaginationParams paginationParams,
+            [FromQuery] string? role = null,
+            [FromQuery] bool? isActive = null)
         {
-            var result = await _userService.GetUsersAsync(paginationParams);
-            return Ok(result);
+            var isAdmin = User.IsInRole("Admin");
+            int? currentUserId = null;
+            if (int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid))
+            {
+                currentUserId = uid;
+            }
+
+            if (!isAdmin)
+            {
+                // Non-admins can only view active users, defaulting role to Lecturer if not provided, and excluding themselves
+                isActive = true;
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    role = "Lecturer";
+                }
+                var result = await _userService.GetUsersAsync(paginationParams, role, isActive, excludeUserId: currentUserId);
+                return Ok(result);
+            }
+            else
+            {
+                var result = await _userService.GetUsersAsync(paginationParams, role, isActive, excludeUserId: null);
+                return Ok(result);
+            }
         }
 
         /// <summary>
-        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// Lấy danh sách người dùng có phân trang
         /// </summary>
-        /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
-        /// <returns>Danh sách người dùng có phân trang</returns>
         [HttpGet("paged")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<PagedResult<UserResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
+        public async Task<ActionResult<PagedResult<UserResponse>>> GetPaged(
+            [FromQuery] PaginationParams paginationParams,
+            [FromQuery] string? role = null,
+            [FromQuery] bool? isActive = null)
         {
-            var result = await _userService.GetUsersAsync(paginationParams);
+            return await GetUsers(paginationParams, role, isActive);
+        }
+
+        /// <summary>
+        /// Lấy danh sách giảng viên để chia sẻ tài liệu
+        /// </summary>
+        [HttpGet("lecturers")]
+        public async Task<ActionResult<System.Collections.Generic.List<UserResponse>>> GetLecturers()
+        {
+            int? currentUserId = null;
+            if (int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid))
+            {
+                currentUserId = uid;
+            }
+            var result = await _userService.GetLecturersRosterAsync(excludeUserId: currentUserId);
             return Ok(result);
         }
 
@@ -73,9 +113,8 @@ namespace ARSPlatform.API.CONTROLLER
         public async Task<ActionResult<UserResponse>> UpdateUser(int id, [FromBody] UserUpdateRequest request)
         {
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            if (currentUserRole != "Admin" && currentUserIdStr != id.ToString())
+            if (!User.IsInRole("Admin") && currentUserIdStr != id.ToString())
             {
                 return Forbid();
             }
@@ -92,6 +131,34 @@ namespace ARSPlatform.API.CONTROLLER
             {
                 return BadRequest(new { Message = ex.Message });
             }
+        }
+
+        /// <summary>
+        /// Khóa tài khoản người dùng (Dành cho Admin)
+        /// </summary>
+        [HttpPost("{id:int}/suspend")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<UserResponse>> SuspendUser(int id)
+        {
+            var updated = await _userService.UpdateUserAsync(id, new UserUpdateRequest { IsActive = false });
+            if (updated == null)
+                return NotFound(new { Message = "User not found." });
+
+            return Ok(updated);
+        }
+
+        /// <summary>
+        /// Mở khóa tài khoản người dùng (Dành cho Admin)
+        /// </summary>
+        [HttpPost("{id:int}/unsuspend")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<UserResponse>> UnsuspendUser(int id)
+        {
+            var updated = await _userService.UpdateUserAsync(id, new UserUpdateRequest { IsActive = true });
+            if (updated == null)
+                return NotFound(new { Message = "User not found." });
+
+            return Ok(updated);
         }
 
         /// <summary>

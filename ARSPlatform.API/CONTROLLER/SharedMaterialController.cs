@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -11,6 +13,7 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Route("api/LearningMaterialShare")]
     [Authorize]
     public class SharedMaterialController : ControllerBase
     {
@@ -21,22 +24,35 @@ namespace ARSPlatform.API.CONTROLLER
             _service = service;
         }
 
-        /// <summary>
-        /// Lấy toàn bộ danh sách tài liệu chia sẻ
-        /// </summary>
-        /// <returns>Danh sách tài liệu chia sẻ</returns>
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<SharedMaterialResponse>>> GetAll()
+        private int GetCurrentUserId()
         {
-            var items = await _service.GetAllAsync();
+            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(idClaim, out var id) ? id : 0;
+        }
+
+        private bool IsAdmin()
+        {
+            return User.IsInRole("Admin");
+        }
+
+        /// <summary>
+        /// Lấy danh sách tài liệu chia sẻ của người dùng hiện tại (bao gồm tài liệu tôi gửi hoặc nhận).
+        /// </summary>
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<SharedMaterialResponse>>> GetAll(
+            [FromQuery] string? role = null,
+            [FromQuery] bool includeExpired = false,
+            [FromQuery] string? status = null,
+            [FromQuery] int? learningMaterialId = null)
+        {
+            var userId = GetCurrentUserId();
+            var items = await _service.GetFeedAsync(userId, includeExpired, status, learningMaterialId);
             return Ok(items);
         }
 
         /// <summary>
-        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// Phân trang danh sách chia sẻ
         /// </summary>
-        /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
-        /// <returns>Danh sách tài liệu chia sẻ có phân trang</returns>
         [HttpGet("paged")]
         public async Task<ActionResult<PagedResult<SharedMaterialResponse>>> GetPaged([FromQuery] PaginationParams paginationParams)
         {
@@ -45,55 +61,110 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Chia sẻ tài liệu mới
+        /// Tạo lời mời chia sẻ tài liệu học tập với đồng nghiệp (thời hạn 30 ngày)
         /// </summary>
-        /// <param name="request">Thông tin tài liệu chia sẻ</param>
-        /// <returns>Bản ghi chia sẻ vừa tạo</returns>
         [HttpPost]
         public async Task<ActionResult<SharedMaterialResponse>> Create([FromBody] SharedMaterialCreateRequest request)
         {
-            var response = await _service.CreateAsync(request);
-            return Ok(response);
+            var userId = GetCurrentUserId();
+            var isAdmin = IsAdmin();
+
+            try
+            {
+                var response = await _service.CreateShareAsync(request, userId, isAdmin);
+                return StatusCode(201, response);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
 
         /// <summary>
-        /// Lấy chi tiết tài liệu chia sẻ theo ID
+        /// Lấy chi tiết bản ghi chia sẻ
         /// </summary>
-        /// <param name="id">ID bản ghi chia sẻ</param>
-        /// <returns>Chi tiết tài liệu chia sẻ</returns>
         [HttpGet("{id:int}")]
         public async Task<ActionResult<SharedMaterialResponse>> GetById(int id)
         {
-            var item = await _service.GetByIdAsync(id);
+            var userId = GetCurrentUserId();
+            var item = await _service.GetByIdAsync(id, userId);
             if (item == null) return NotFound(new { Message = "Shared material not found." });
             return Ok(item);
         }
 
         /// <summary>
-        /// Cập nhật thông tin chia sẻ tài liệu
+        /// Phản hồi lời mời chia sẻ (Accept / Decline bởi người nhận) hoặc chỉnh sửa
         /// </summary>
-        /// <param name="id">ID bản ghi chia sẻ</param>
-        /// <param name="request">Dữ liệu cập nhật</param>
-        /// <returns>Bản ghi chia sẻ sau khi cập nhật</returns>
+        [HttpPatch("{id:int}")]
         [HttpPut("{id:int}")]
         public async Task<ActionResult<SharedMaterialResponse>> Update(int id, [FromBody] SharedMaterialUpdateRequest request)
         {
-            var response = await _service.UpdateAsync(id, request);
-            if (response == null) return NotFound(new { Message = "Shared material not found." });
-            return Ok(response);
+            var userId = GetCurrentUserId();
+            var isAdmin = IsAdmin();
+
+            try
+            {
+                var response = await _service.UpdateAsync(id, request, userId, isAdmin);
+                if (response == null) return NotFound(new { Message = "Shared material not found." });
+                return Ok(response);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
 
         /// <summary>
-        /// Xóa một tài liệu chia sẻ
+        /// Thu hồi hoặc xóa lời mời chia sẻ tài liệu (Dành cho người gửi hoặc Admin)
         /// </summary>
-        /// <param name="id">ID bản ghi chia sẻ</param>
-        /// <returns>Thông báo kết quả xóa</returns>
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var success = await _service.DeleteAsync(id);
-            if (!success) return NotFound(new { Message = "Shared material not found." });
-            return Ok(new { Message = "Deleted successfully." });
+            var userId = GetCurrentUserId();
+            var isAdmin = IsAdmin();
+
+            try
+            {
+                var success = await _service.RevokeOrDeleteAsync(id, userId, isAdmin);
+                if (!success) return NotFound(new { Message = "Shared material not found." });
+                return NoContent();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
     }
 }

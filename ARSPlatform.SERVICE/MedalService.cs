@@ -74,6 +74,8 @@ namespace ARSPlatform.SERVICES
             var medal = _mapper.Map<Medal>(request);
             medal.Id = id;
             medal.Code = code;
+            if (string.IsNullOrWhiteSpace(medal.ImageUrl)) medal.ImageUrl = "/images/default-medal.png";
+            if (string.IsNullOrWhiteSpace(medal.CriteriaMetric)) medal.CriteriaMetric = "MANUAL";
             medal.CreatedAt = DateTime.UtcNow;
             medal.UpdatedAt = DateTime.UtcNow;
 

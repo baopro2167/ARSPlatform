@@ -11,6 +11,7 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Route("api/ViolationReport")]
     [Authorize]
     public class ReportController : ControllerBase
     {
@@ -79,6 +80,23 @@ namespace ARSPlatform.API.CONTROLLER
         public async Task<ActionResult<ReportResponse>> Update(int id, [FromBody] ReportUpdateRequest request)
         {
             var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Report not found." });
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Giải quyết báo cáo vi phạm
+        /// </summary>
+        [HttpPost("{id:int}/resolve")]
+        [HttpPatch("{id:int}/resolve")]
+        public async Task<ActionResult<ReportResponse>> Resolve(int id, [FromBody] ReportUpdateRequest? request = null)
+        {
+            var updateReq = request ?? new ReportUpdateRequest();
+            if (string.IsNullOrWhiteSpace(updateReq.Status))
+            {
+                updateReq.Status = "RESOLVED";
+            }
+            var response = await _service.UpdateAsync(id, updateReq);
             if (response == null) return NotFound(new { Message = "Report not found." });
             return Ok(response);
         }

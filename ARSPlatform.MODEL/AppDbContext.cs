@@ -734,6 +734,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.PaperId)
                 .HasConstraintName("FK__SharedMat__Paper__282DF8C2");
 
+            entity.HasOne(d => d.LearningMaterial).WithMany(p => p.SharedMaterials)
+                .HasForeignKey(d => d.LearningMaterialId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_SharedMaterials_LearningMaterials");
+
             entity.HasOne(d => d.SharedWithColleague).WithMany(p => p.SharedMaterialSharedWithColleagues)
                 .HasForeignKey(d => d.SharedWithColleagueId)
                 .HasConstraintName("FK__SharedMat__Share__29221CFB");

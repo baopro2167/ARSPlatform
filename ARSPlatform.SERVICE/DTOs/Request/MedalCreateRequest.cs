@@ -23,13 +23,10 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public int StageLevel { get; set; } = 1;
 
-        [Required]
-        public string ImageUrl { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
 
-        [Required]
-        public string CriteriaMetric { get; set; } = string.Empty;
+        public string? CriteriaMetric { get; set; }
 
-        [Range(1, int.MaxValue)]
         public int CriteriaThreshold { get; set; } = 1;
 
         public string? CriteriaUnit { get; set; }

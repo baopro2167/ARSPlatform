@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.MODEL.Entities;
@@ -22,4 +22,6 @@ public partial class LearningMaterial
     public virtual User? Lecturer { get; set; }
 
     public virtual SubField? SubField { get; set; }
+
+    public virtual ICollection<SharedMaterial> SharedMaterials { get; set; } = new List<SharedMaterial>();
 }

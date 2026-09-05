@@ -10,5 +10,9 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<SharedMaterial>> GetByLecturerIdPagedAsync(int lecturerId, int pageNumber, int pageSize);
         Task<PagedResult<SharedMaterial>> GetByPaperIdPagedAsync(int paperId, PaginationParams paginationParams);
         Task<PagedResult<SharedMaterial>> GetByPaperIdPagedAsync(int paperId, int pageNumber, int pageSize);
+
+        Task<List<SharedMaterial>> GetFeedAsync(int userId, bool includeExpired = false, string? status = null, int? learningMaterialId = null);
+        Task<SharedMaterial?> GetWithDetailsByIdAsync(int id);
+        Task<SharedMaterial?> FindPendingDuplicateAsync(int lecturerId, int colleagueId, int? learningMaterialId, int? paperId);
     }
 }
