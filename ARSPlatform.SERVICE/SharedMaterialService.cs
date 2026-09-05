@@ -207,10 +207,6 @@ namespace ARSPlatform.SERVICES
 
             var now = DateTime.UtcNow;
             var expiresAt = item.ExpiresAt ?? (item.SharedAt.HasValue ? item.SharedAt.Value.AddDays(30) : now.AddDays(30));
-            if (now > expiresAt)
-            {
-                throw new InvalidOperationException("This share invitation has expired.");
-            }
 
             var normalized = newStatus.Trim().ToUpperInvariant();
             var isSender = item.LecturerId == currentUserId;
@@ -222,17 +218,22 @@ namespace ARSPlatform.SERVICES
                 {
                     throw new UnauthorizedAccessException("Only the recipient can accept or decline this share invitation.");
                 }
+
+                if (now > expiresAt)
+                {
+                    throw new InvalidOperationException("This share invitation has expired.");
+                }
             }
-            else if (normalized is "REVOKED" or "CANCELLED")
+            else if (normalized is "ENDED" or "REVOKED" or "CANCELLED")
             {
                 if (!isSender && !isAdmin)
                 {
-                    throw new UnauthorizedAccessException("Only the sender can revoke this share invitation.");
+                    throw new UnauthorizedAccessException("Only the sender can end or revoke this share invitation.");
                 }
             }
             else
             {
-                throw new ArgumentException($"Invalid status: '{newStatus}'. Allowed: ACCEPTED, DECLINED, REVOKED.");
+                throw new ArgumentException($"Invalid status: '{newStatus}'. Allowed: ACCEPTED, DECLINED, ENDED, REVOKED, CANCELLED.");
             }
 
             item.Status = normalized;
@@ -283,16 +284,17 @@ namespace ARSPlatform.SERVICES
             var expiresAt = item.ExpiresAt ?? (item.SharedAt.HasValue ? item.SharedAt.Value.AddDays(30) : now.AddDays(30));
             var isExpired = now > expiresAt;
             var rawStatus = item.Status?.Trim().ToUpperInvariant() ?? "PENDING";
-            var effectiveStatus = isExpired ? "EXPIRED" : rawStatus;
+            var isTerminal = rawStatus is "ENDED" or "REVOKED" or "CANCELLED" or "DECLINED";
+            var effectiveStatus = isTerminal ? rawStatus : (isExpired ? "EXPIRED" : rawStatus);
 
             var isSender = item.LecturerId == currentUserId;
             var isRecipient = item.SharedWithColleagueId == currentUserId;
             var direction = isSender ? "outbound" : "inbound";
 
-            var canRevoke = isSender && !isExpired && (rawStatus == "PENDING" || rawStatus == "Pending");
-            var canRespond = isRecipient && !isExpired && (rawStatus == "PENDING" || rawStatus == "Pending");
+            var canRevoke = isSender && !isTerminal && (rawStatus is "PENDING" or "ACCEPTED" || isExpired);
+            var canRespond = isRecipient && !isTerminal && !isExpired && rawStatus is "PENDING";
 
-            var daysRemaining = isExpired ? 0 : Math.Max(0, (int)Math.Ceiling((expiresAt - now).TotalDays));
+            var daysRemaining = isExpired || isTerminal ? 0 : Math.Max(0, (int)Math.Ceiling((expiresAt - now).TotalDays));
 
             var learningMaterialId = item.LearningMaterialId ?? item.PaperId;
             var materialTitle = item.LearningMaterial?.Title ?? item.Paper?.Title ?? $"Material #{learningMaterialId}";
