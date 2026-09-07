@@ -13,6 +13,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public List<string> RequestedAdditionalRoles { get; set; } = new();
         public string? RequestType { get; set; }
         public List<string> RequestedRoles { get; set; } = new();
+        public string? RequestedRole { get; set; }
 
         public string? OrcidId { get; set; }
         public bool IsOrcidVerified { get; set; }
@@ -21,7 +22,9 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string ProofDocumentUrl { get; set; } = string.Empty;
         public bool? IsEmailVerified { get; set; }
         public DateTime? SubmissionDate { get; set; }
+        public DateTime? CreatedAt { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? Notes { get; set; }
+        public string? Reason { get; set; }
     }
 }

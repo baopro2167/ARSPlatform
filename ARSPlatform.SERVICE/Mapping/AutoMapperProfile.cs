@@ -21,7 +21,16 @@ namespace ARSPlatform.SERVICE.Mapping
                     src.UserRoles.Any() &&
                     src.UserRoles.First().Role != null
                         ? src.UserRoles.First().Role!.Name
-                        : string.Empty));
+                        : string.Empty))
+                .ForMember(dest => dest.Roles, opt => opt.MapFrom(src =>
+                    src.UserRoles != null
+                        ? src.UserRoles
+                            .Where(ur => ur.Role != null)
+                            .Select(ur => ur.Role!.Name)
+                            .Where(r => !string.IsNullOrWhiteSpace(r))
+                            .Distinct()
+                            .ToList()
+                        : new List<string>()));
 
             CreateMap<RegisterRequest, User>()
                 .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())

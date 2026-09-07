@@ -653,7 +653,7 @@ namespace ARSPlatform.SERVICES
 
                 var hasOnboarded = await _roleRequestRepository.ExistsAsync(rr =>
                     rr.User.UserId == user.UserId &&
-                    (rr.Status == "PENDING" || rr.Status == "APPROVED"));
+                    (rr.Status == "PENDING" || rr.Status == "APPROVED" || rr.Status == "ACCEPTED"));
                 var hasRoles = user.UserRoles != null && user.UserRoles.Any();
 
                 // If user has not submitted onboarding yet, force them to the onboarding page
@@ -1393,7 +1393,7 @@ namespace ARSPlatform.SERVICES
             {
                 var existingRequests = await _roleRequestRepository.ExistsAsync(rr =>
                     rr.User.UserId == user.UserId &&
-                    (rr.Status == "PENDING" || rr.Status == "APPROVED"));
+                    (rr.Status == "PENDING" || rr.Status == "APPROVED" || rr.Status == "ACCEPTED"));
 
                 if (existingRequests)
                 {

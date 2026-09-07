@@ -791,6 +791,18 @@ using (var scope = app.Services.CreateScope())
                     CONSTRAINT [UQ_UserMedals_UserId_MedalId] UNIQUE NONCLUSTERED ([UserId], [MedalId])
                 );
             END
+
+            IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_RoleRequests_Status')
+            BEGIN
+                ALTER TABLE [dbo].[RoleRequests] DROP CONSTRAINT [CK_RoleRequests_Status];
+                ALTER TABLE [dbo].[RoleRequests] ADD CONSTRAINT [CK_RoleRequests_Status] CHECK ([Status] IN ('PENDING', 'APPROVED', 'DENIED', 'ACCEPTED', 'REJECTED'));
+            END
+
+            IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_RoleRequests_RequestType')
+            BEGIN
+                ALTER TABLE [dbo].[RoleRequests] DROP CONSTRAINT [CK_RoleRequests_RequestType];
+                ALTER TABLE [dbo].[RoleRequests] ADD CONSTRAINT [CK_RoleRequests_RequestType] CHECK ([RequestType] IN ('INITIAL_REGISTRATION', 'ADDITIONAL_ROLE', 'ROLE_UPGRADE'));
+            END
         ");
 
         // Seed default medals if table is empty

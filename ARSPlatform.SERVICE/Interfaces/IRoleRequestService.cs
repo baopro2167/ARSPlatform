@@ -11,6 +11,10 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<PagedResult<RoleRequestResponse>> GetByUserIdAsync(int userId, int pageNumber, int pageSize);
         Task<PagedResult<RoleRequestResponse>> GetAllAsync(int pageNumber, int pageSize);
         Task<RoleRequestResponse?> GetByIdAsync(int id);
+        Task<RoleRequestResponse> CreateAdditionalRoleAsync(CreateAdditionalRoleRequest request, int callerUserId, bool isAdmin);
+        Task<RoleRequestResponse?> GetMyPendingAsync(int userId);
+        Task<bool> CancelRequestAsync(int requestId, int callerUserId, bool isAdmin);
+        Task<RoleRequestResponse> ReviewAsync(int id, int adminId, RoleRequestReviewRequest request);
         Task<RoleRequestResponse> ApproveAsync(
             int id,
             int adminId,

@@ -14,17 +14,23 @@ namespace ARSPlatform.SERVICES
         private readonly IUserRoleRepository _userRoleRepository;
         private readonly IProfessionalProfileRepository _professionalProfileRepository;
         private readonly INotificationRepository _notificationRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly IRoleRepository _roleRepository;
 
         public RoleRequestService(
             IRoleRequestRepository roleRequestRepository,
             IUserRoleRepository userRoleRepository,
             IProfessionalProfileRepository professionalProfileRepository,
-            INotificationRepository notificationRepository)
+            INotificationRepository notificationRepository,
+            IUserRepository userRepository,
+            IRoleRepository roleRepository)
         {
             _roleRequestRepository = roleRequestRepository;
             _userRoleRepository = userRoleRepository;
             _professionalProfileRepository = professionalProfileRepository;
             _notificationRepository = notificationRepository;
+            _userRepository = userRepository;
+            _roleRepository = roleRepository;
         }
 
         public async Task<IEnumerable<RoleRequestResponse>> GetAllAsync()
@@ -148,6 +154,7 @@ namespace ARSPlatform.SERVICES
                 };
 
                 await _userRoleRepository.AddAsync(userRole);
+                user.UserRoles.Add(userRole);
             }
 
             var professionalProfile = await _professionalProfileRepository
@@ -184,7 +191,7 @@ namespace ARSPlatform.SERVICES
                 user.UpdatedAt = now;
             }
 
-            roleRequest.Status = "APPROVED";
+            roleRequest.Status = "ACCEPTED";
             roleRequest.Notes = NormalizeNotes(request.Notes);
             roleRequest.ReviewedByAdminId = adminId;
             roleRequest.ReviewedAt = now;
@@ -205,8 +212,9 @@ namespace ARSPlatform.SERVICES
             }
             catch (DbUpdateException ex)
             {
+                var inner = ex.InnerException?.Message ?? ex.Message;
                 throw new InvalidOperationException(
-                    "The role request could not be approved because the database state changed. Please reload and try again.",
+                    $"The role request could not be approved: {inner}",
                     ex);
             }
 
@@ -227,11 +235,11 @@ namespace ARSPlatform.SERVICES
             }
 
             EnsurePending(roleRequest);
-            ValidateNotes(request.Notes, required: true);
+            ValidateNotes(request.Notes, required: false);
 
             var now = DateTime.UtcNow;
 
-            roleRequest.Status = "DENIED";
+            roleRequest.Status = "REJECTED";
             roleRequest.Notes = NormalizeNotes(request.Notes);
             roleRequest.ReviewedByAdminId = adminId;
             roleRequest.ReviewedAt = now;
@@ -260,6 +268,221 @@ namespace ARSPlatform.SERVICES
             await _roleRequestRepository.SaveChangesAsync();
 
             return MapResponse(roleRequest);
+        }
+
+        public async Task<RoleRequestResponse> CreateAdditionalRoleAsync(CreateAdditionalRoleRequest request, int callerUserId, bool isAdmin)
+        {
+            if (string.IsNullOrWhiteSpace(request.ProofDocumentUrl))
+            {
+                throw new ArgumentException("Proof document (PDF) is required for role verification.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.RequestedRole))
+            {
+                throw new ArgumentException("Requested role is required.");
+            }
+
+            int targetUserId = (isAdmin && request.UserId.HasValue && request.UserId.Value > 0)
+                ? request.UserId.Value
+                : callerUserId;
+
+            var user = await _userRepository.GetWithRoleByIdAsync(targetUserId);
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User {targetUserId} was not found.");
+            }
+
+            var roleEntity = await _roleRepository
+                .GetQueryable()
+                .FirstOrDefaultAsync(r => r.Name.ToLower() == request.RequestedRole.Trim().ToLower());
+
+            if (roleEntity == null)
+            {
+                throw new ArgumentException($"Role '{request.RequestedRole}' does not exist.");
+            }
+
+            var hasPending = await _roleRequestRepository
+                .GetQueryable()
+                .AnyAsync(r => r.UserId == targetUserId && (r.Status == "PENDING" || r.Status == "Pending"));
+
+            if (hasPending)
+            {
+                throw new InvalidOperationException("You already have a pending role request under review.");
+            }
+
+            var currentRoles = user.UserRoles
+                .Where(ur => ur.Role != null)
+                .Select(ur => ur.Role!.Name)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            ValidateRoleProgressionMatrix(currentRoles, roleEntity.Name);
+
+            var now = DateTime.UtcNow;
+            var roleRequest = new RoleRequest
+            {
+                UserId = targetUserId,
+                RequestedRoleId = roleEntity.RoleId,
+                PhoneNumber = !string.IsNullOrWhiteSpace(request.PhoneNumber)
+                    ? request.PhoneNumber.Trim()
+                    : string.Empty,
+                Affiliation = !string.IsNullOrWhiteSpace(request.Affiliation)
+                    ? request.Affiliation.Trim()
+                    : null,
+                Department = !string.IsNullOrWhiteSpace(request.Department)
+                    ? request.Department.Trim()
+                    : null,
+                ProofDocumentUrl = request.ProofDocumentUrl.Trim(),
+                Status = "PENDING",
+                RequestType = string.IsNullOrWhiteSpace(request.RequestType) ? "ADDITIONAL_ROLE" : request.RequestType.Trim(),
+                Notes = request.Reason?.Trim(),
+                CreatedAt = now,
+                UpdatedAt = now,
+                User = user,
+                RequestedRole = roleEntity
+            };
+
+            if (!string.IsNullOrWhiteSpace(request.OrcidId) && string.IsNullOrWhiteSpace(user.OrcidId))
+            {
+                var trimmedOrcid = request.OrcidId.Trim();
+                var existingUserWithOrcid = await _userRepository.GetByOrcidAsync(trimmedOrcid);
+                if (existingUserWithOrcid != null && existingUserWithOrcid.UserId != user.UserId)
+                {
+                    throw new ArgumentException("ORCID ID is already associated with another user.");
+                }
+                user.OrcidId = trimmedOrcid;
+                _userRepository.Update(user);
+            }
+
+            await _roleRequestRepository.AddAsync(roleRequest);
+            await _roleRequestRepository.SaveChangesAsync();
+
+            return MapResponse(roleRequest);
+        }
+
+        public async Task<RoleRequestResponse?> GetMyPendingAsync(int userId)
+        {
+            var roleRequest = await _roleRequestRepository
+                .GetQueryable()
+                .AsNoTracking()
+                .Include(x => x.User)
+                    .ThenInclude(x => x.UserRoles)
+                        .ThenInclude(x => x.Role)
+                .Include(x => x.RequestedRole)
+                .Where(x => x.UserId == userId && (x.Status == "PENDING" || x.Status == "Pending"))
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            return roleRequest == null ? null : MapResponse(roleRequest);
+        }
+
+        public async Task<bool> CancelRequestAsync(int requestId, int callerUserId, bool isAdmin)
+        {
+            var roleRequest = await _roleRequestRepository
+                .GetQueryable()
+                .FirstOrDefaultAsync(x => x.RoleRequestId == requestId);
+
+            if (roleRequest == null)
+            {
+                throw new KeyNotFoundException($"Role request {requestId} was not found.");
+            }
+
+            if (!isAdmin && roleRequest.UserId != callerUserId)
+            {
+                throw new UnauthorizedAccessException("You are not authorized to cancel this request.");
+            }
+
+            if (!string.Equals(roleRequest.Status, "PENDING", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Role request {requestId} is already {roleRequest.Status} and cannot be cancelled.");
+            }
+
+            _roleRequestRepository.Delete(roleRequest);
+            await _roleRequestRepository.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<RoleRequestResponse> ReviewAsync(int id, int adminId, RoleRequestReviewRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Status))
+            {
+                throw new ArgumentException("Status is required (ACCEPTED or REJECTED).");
+            }
+
+            var normalizedStatus = request.Status.Trim().ToUpperInvariant();
+            var notes = !string.IsNullOrWhiteSpace(request.AdminNotes) ? request.AdminNotes.Trim() : request.Notes?.Trim();
+
+            if (normalizedStatus == "ACCEPTED" || normalizedStatus == "APPROVED")
+            {
+                return await ApproveAsync(id, adminId, new RoleRequestDecisionRequest { Notes = notes });
+            }
+            else if (normalizedStatus == "REJECTED" || normalizedStatus == "DENIED")
+            {
+                return await DenyAsync(id, adminId, new RoleRequestDecisionRequest { Notes = notes });
+            }
+            else
+            {
+                throw new ArgumentException($"Invalid status '{request.Status}'. Status must be either ACCEPTED or REJECTED.");
+            }
+        }
+
+        private static void ValidateRoleProgressionMatrix(List<string> currentRoles, string requestedRole)
+        {
+            if (currentRoles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new ArgumentException("Admin users are not eligible to request additional roles.");
+            }
+
+            if (currentRoles.Any(r => string.Equals(r, requestedRole, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new ArgumentException("User already holds this role.");
+            }
+
+            bool isGraduateStudentOnly = currentRoles.All(r => string.Equals(r, "Graduate Student", StringComparison.OrdinalIgnoreCase));
+            if (isGraduateStudentOnly)
+            {
+                if (!string.Equals(requestedRole, "Researcher", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException("Graduate students are only eligible to apply for Researcher role.");
+                }
+                return;
+            }
+
+            if (string.Equals(requestedRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Cannot request Admin role.");
+            }
+
+            if (string.Equals(requestedRole, "Graduate Student", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Cannot request Graduate Student role.");
+            }
+
+            var allowedRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var role in currentRoles)
+            {
+                if (string.Equals(role, "Lecturer", StringComparison.OrdinalIgnoreCase))
+                {
+                    allowedRoles.Add("Researcher");
+                    allowedRoles.Add("Reviewer");
+                }
+                else if (string.Equals(role, "Researcher", StringComparison.OrdinalIgnoreCase))
+                {
+                    allowedRoles.Add("Lecturer");
+                    allowedRoles.Add("Reviewer");
+                }
+                else if (string.Equals(role, "Reviewer", StringComparison.OrdinalIgnoreCase))
+                {
+                    allowedRoles.Add("Lecturer");
+                    allowedRoles.Add("Researcher");
+                }
+            }
+
+            if (!allowedRoles.Contains(requestedRole))
+            {
+                throw new ArgumentException($"Role '{requestedRole}' is not allowed based on your current role(s).");
+            }
         }
 
         private async Task<RoleRequest?> LoadForDecisionAsync(int id)
@@ -319,13 +542,15 @@ namespace ARSPlatform.SERVICES
                 roleRequest.RequestedRole?.Name
                 ?? string.Empty;
 
-            var currentRoles = roleRequest.User.UserRoles
-                .Where(x => x.Role != null)
-                .Select(x => x.Role!.Name)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x)
-                .ToList();
+            var currentRoles = roleRequest.User?.UserRoles != null
+                ? roleRequest.User.UserRoles
+                    .Where(x => x.Role != null)
+                    .Select(x => x.Role!.Name)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x)
+                    .ToList()
+                : new List<string>();
 
             var isAdditionalRole = string.Equals(
                 roleRequest.RequestType,
@@ -336,8 +561,8 @@ namespace ARSPlatform.SERVICES
             {
                 Id = roleRequest.RoleRequestId,
                 UserId = roleRequest.UserId,
-                UserName = roleRequest.User.FullName,
-                Email = roleRequest.User.Email,
+                UserName = roleRequest.User?.FullName ?? string.Empty,
+                Email = roleRequest.User?.Email ?? string.Empty,
                 Phone = roleRequest.PhoneNumber,
                 Affiliation = roleRequest.Affiliation ?? string.Empty,
                 Department = roleRequest.Department ?? string.Empty,
@@ -351,15 +576,27 @@ namespace ARSPlatform.SERVICES
                     string.IsNullOrWhiteSpace(requestedRoleName)
                         ? new List<string>()
                         : new List<string> { requestedRoleName },
-                OrcidId = roleRequest.User.OrcidId,
-                IsOrcidVerified = roleRequest.User.IsOrcidVerified,
-                OrcidVerifiedAt = roleRequest.User.OrcidVerifiedAt,
+                RequestedRole = requestedRoleName,
+                OrcidId = roleRequest.User?.OrcidId,
+                IsOrcidVerified = roleRequest.User?.IsOrcidVerified ?? false,
+                OrcidVerifiedAt = roleRequest.User?.OrcidVerifiedAt,
                 ProofDocumentUrl = roleRequest.ProofDocumentUrl,
-                IsEmailVerified = roleRequest.User.IsEmailVerified,
+                IsEmailVerified = roleRequest.User?.IsEmailVerified,
                 SubmissionDate = roleRequest.CreatedAt,
-                Status = roleRequest.Status.ToUpperInvariant(),
-                Notes = roleRequest.Notes
+                CreatedAt = roleRequest.CreatedAt,
+                Status = NormalizeResponseStatus(roleRequest.Status),
+                Notes = roleRequest.Notes,
+                Reason = roleRequest.Notes
             };
+        }
+
+        private static string NormalizeResponseStatus(string? status)
+        {
+            if (string.IsNullOrWhiteSpace(status)) return string.Empty;
+            var upper = status.Trim().ToUpperInvariant();
+            if (upper == "APPROVED") return "ACCEPTED";
+            if (upper == "DENIED") return "REJECTED";
+            return upper;
         }
     }
 }
