@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
@@ -8,7 +8,18 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int SeminarId { get; set; }
         public int SeminarParticipantId { get; set; }
         public int? UserId { get; set; }
-        public SeminarFeedbackContentResponse Feedback { get; set; } = new();
+
+        /// <summary>
+        /// Chuỗi JSON câu trả lời động được lưu trong CSDL
+        /// </summary>
+        public string? FeedbackJson { get; set; }
+
+        /// <summary>
+        /// Danh sách câu trả lời đã parse
+        /// </summary>
+        public List<ARSPlatform.SERVICE.DTOs.Request.SeminarFeedbackAnswerDto>? Answers { get; set; }
+
+        public SeminarFeedbackContentResponse? Feedback { get; set; } = new();
 
         // Giữ tương thích response cũ; giá trị bằng Feedback.OverallComment.
         public string? ParticipantEvaluation { get; set; }

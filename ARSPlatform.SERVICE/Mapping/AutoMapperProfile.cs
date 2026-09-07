@@ -359,6 +359,7 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // SeminarParticipant
             CreateMap<SeminarParticipant, SeminarParticipantResponse>()
+                .ForMember(dest => dest.FeedbackJson, opt => opt.MapFrom(src => src.FeedbackJson))
                 .ForMember(dest => dest.UserFullName, opt => opt.MapFrom(src => src.User != null ? src.User.FullName : null))
                 .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src => src.User != null ? src.User.Email : src.InvitedEmail))
                 .ForMember(dest => dest.Feedback, opt => opt.MapFrom(src => DeserializeSeminarFeedback(src.FeedbackJson)))
@@ -524,7 +525,34 @@ namespace ARSPlatform.SERVICE.Mapping
 
         private static string? GetLegacyOverallComment(string? feedbackJson)
         {
-            return DeserializeSeminarFeedback(feedbackJson)?.OverallComment;
+            var legacy = DeserializeSeminarFeedback(feedbackJson)?.OverallComment;
+            if (!string.IsNullOrWhiteSpace(legacy))
+                return legacy;
+
+            if (string.IsNullOrWhiteSpace(feedbackJson))
+                return null;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(feedbackJson);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var el in doc.RootElement.EnumerateArray())
+                    {
+                        if (el.TryGetProperty("text", out var textProp) && textProp.ValueKind == JsonValueKind.String)
+                        {
+                            var txt = textProp.GetString();
+                            if (!string.IsNullOrWhiteSpace(txt)) return txt;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback quietly if not valid json
+            }
+
+            return null;
         }
     }
 }

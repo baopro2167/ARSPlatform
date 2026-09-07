@@ -128,6 +128,7 @@ namespace ARSPlatform.SERVICES
                 if (!isCurrentParticipant)
                 {
                     participant.Feedback = null;
+                    participant.FeedbackJson = null;
                     participant.ParticipantEvaluation = null;
                     participant.FeedbackSubmittedAt = null;
                     participant.FeedbackUpdatedAt = null;
@@ -663,7 +664,11 @@ namespace ARSPlatform.SERVICES
 
             var generatedAt = DateTime.UtcNow;
 
-            seminar.Feedback = JsonSerializer.Serialize(aiFeedback);
+            // Chỉ ghi đè seminar.Feedback nếu chưa có danh sách câu hỏi khảo sát động
+            if (string.IsNullOrWhiteSpace(seminar.Feedback) || !seminar.Feedback.TrimStart().StartsWith("["))
+            {
+                seminar.Feedback = JsonSerializer.Serialize(aiFeedback);
+            }
             seminar.AiFeedbackGeneratedAt = generatedAt;
 
             _seminarRepository.Update(seminar);
@@ -819,6 +824,203 @@ namespace ARSPlatform.SERVICES
     <p>Vui lòng đăng nhập vào hệ thống để gửi feedback của bạn.</p>
 </body>
 </html>";
+        }
+
+        public async Task<SeminarFeedbackFormResponse> UpdateFeedbackFormAsync(int seminarId, int organizerId, object rawPayload, bool isAdmin = false)
+        {
+            var seminar = await _seminarRepository.GetByIdAsync(seminarId);
+            if (seminar == null)
+                throw new KeyNotFoundException($"Seminar with ID {seminarId} not found.");
+
+            if (!isAdmin && seminar.OrganizerId != organizerId)
+                throw new UnauthorizedAccessException("You are not authorized to configure feedback form for this seminar.");
+
+            var (jsonString, questions) = ParseAndNormalizeQuestions(rawPayload);
+
+            seminar.Feedback = jsonString;
+            _seminarRepository.Update(seminar);
+            await _seminarRepository.SaveChangesAsync();
+
+            return new SeminarFeedbackFormResponse
+            {
+                SeminarId = seminarId,
+                Feedback = jsonString,
+                Questions = questions,
+                Message = "Feedback form updated successfully."
+            };
+        }
+
+        public async Task<SeminarFeedbackFormResponse?> GetFeedbackFormAsync(int seminarId)
+        {
+            var seminar = await _seminarRepository.GetByIdAsync(seminarId);
+            if (seminar == null)
+                return null;
+
+            var questions = new List<SeminarFeedbackQuestionDto>();
+            if (!string.IsNullOrWhiteSpace(seminar.Feedback))
+            {
+                try
+                {
+                    questions = JsonSerializer.Deserialize<List<SeminarFeedbackQuestionDto>>(seminar.Feedback, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    }) ?? new List<SeminarFeedbackQuestionDto>();
+                }
+                catch
+                {
+                    // Trả về danh sách rỗng nếu feedback không phải danh sách câu hỏi
+                }
+            }
+
+            return new SeminarFeedbackFormResponse
+            {
+                SeminarId = seminarId,
+                Feedback = seminar.Feedback,
+                Questions = questions,
+                Message = "Feedback form retrieved successfully."
+            };
+        }
+
+        private static (string jsonString, List<SeminarFeedbackQuestionDto> questions) ParseAndNormalizeQuestions(object rawPayload)
+        {
+            if (rawPayload == null)
+                throw new ArgumentException("Feedback questions payload is required.");
+
+            string? candidateJson = null;
+            List<SeminarFeedbackQuestionDto>? candidateList = null;
+
+            if (rawPayload is string str)
+            {
+                candidateJson = str.Trim();
+            }
+            else if (rawPayload is JsonElement jsonElement)
+            {
+                if (jsonElement.ValueKind == JsonValueKind.String)
+                {
+                    candidateJson = jsonElement.GetString()?.Trim();
+                }
+                else if (jsonElement.ValueKind == JsonValueKind.Array)
+                {
+                    candidateJson = jsonElement.GetRawText();
+                }
+                else if (jsonElement.ValueKind == JsonValueKind.Object)
+                {
+                    if (jsonElement.TryGetProperty("feedback", out var fbProp))
+                    {
+                        if (fbProp.ValueKind == JsonValueKind.String)
+                            candidateJson = fbProp.GetString()?.Trim();
+                        else if (fbProp.ValueKind == JsonValueKind.Array)
+                            candidateJson = fbProp.GetRawText();
+                    }
+                    else if (jsonElement.TryGetProperty("questions", out var qProp) && qProp.ValueKind == JsonValueKind.Array)
+                    {
+                        candidateJson = qProp.GetRawText();
+                    }
+                }
+            }
+            else if (rawPayload is SeminarFeedbackFormRequest formRequest)
+            {
+                if (formRequest.Questions != null && formRequest.Questions.Count > 0)
+                {
+                    candidateList = formRequest.Questions;
+                }
+                else if (formRequest.Feedback is string fbStr)
+                {
+                    candidateJson = fbStr.Trim();
+                }
+                else if (formRequest.Feedback is JsonElement fbEl)
+                {
+                    if (fbEl.ValueKind == JsonValueKind.String)
+                        candidateJson = fbEl.GetString()?.Trim();
+                    else
+                        candidateJson = fbEl.GetRawText();
+                }
+                else if (formRequest.Feedback != null)
+                {
+                    candidateJson = JsonSerializer.Serialize(formRequest.Feedback);
+                }
+            }
+            else if (rawPayload is IEnumerable<SeminarFeedbackQuestionDto> list)
+            {
+                candidateList = list.ToList();
+            }
+            else
+            {
+                candidateJson = JsonSerializer.Serialize(rawPayload);
+            }
+
+            if (candidateList == null)
+            {
+                if (string.IsNullOrWhiteSpace(candidateJson))
+                    throw new ArgumentException("Feedback questions payload cannot be empty.");
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(candidateJson);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        if (doc.RootElement.TryGetProperty("feedback", out var fb))
+                        {
+                            if (fb.ValueKind == JsonValueKind.String)
+                                candidateJson = fb.GetString()?.Trim();
+                            else if (fb.ValueKind == JsonValueKind.Array)
+                                candidateJson = fb.GetRawText();
+                        }
+                        else if (doc.RootElement.TryGetProperty("questions", out var qs) && qs.ValueKind == JsonValueKind.Array)
+                        {
+                            candidateJson = qs.GetRawText();
+                        }
+                    }
+                }
+                catch
+                {
+                    // Tiếp tục thử parse dạng danh sách câu hỏi
+                }
+
+                try
+                {
+                    candidateList = JsonSerializer.Deserialize<List<SeminarFeedbackQuestionDto>>(candidateJson, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch (JsonException ex)
+                {
+                    throw new ArgumentException($"Invalid JSON format for feedback questions: {ex.Message}");
+                }
+            }
+
+            if (candidateList == null || candidateList.Count == 0)
+                throw new ArgumentException("At least one feedback question is required.");
+
+            var normalizedQuestions = new List<SeminarFeedbackQuestionDto>();
+            for (int i = 0; i < candidateList.Count; i++)
+            {
+                var q = candidateList[i];
+                var type = string.Equals(q.Type, "rating", StringComparison.OrdinalIgnoreCase) ? "rating" : "text";
+                var id = !string.IsNullOrWhiteSpace(q.Id) ? q.Id.Trim() : $"q_{i + 1}";
+                var text = q.QuestionText?.Trim() ?? string.Empty;
+                var maxStar = type == "rating" ? (q.MaxStar.HasValue && q.MaxStar.Value > 0 ? q.MaxStar.Value : 5) : (int?)null;
+
+                normalizedQuestions.Add(new SeminarFeedbackQuestionDto
+                {
+                    Id = id,
+                    OrderIndex = q.OrderIndex >= 0 ? q.OrderIndex : i,
+                    Type = type,
+                    QuestionText = text,
+                    IsRequired = q.IsRequired,
+                    MaxStar = maxStar
+                });
+            }
+
+            var finalJson = JsonSerializer.Serialize(normalizedQuestions, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+
+            return (finalJson, normalizedQuestions);
         }
     }
 }

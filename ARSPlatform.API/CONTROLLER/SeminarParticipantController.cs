@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
@@ -53,15 +54,17 @@ namespace ARSPlatform.API.CONTROLLER
         /// Nộp form đánh giá / feedback cho buổi Seminar theo ID Seminar
         /// </summary>
         /// <param name="seminarId">ID buổi Seminar</param>
-        /// <param name="request">Nội dung đánh giá</param>
+        /// <param name="rawBody">Nội dung đánh giá động hoặc cấu trúc cũ</param>
         /// <returns>Kết quả nộp feedback</returns>
         [HttpPost("feedback/{seminarId:int}")]
         [HttpPost("{seminarId:int}/feedback")]
+        [HttpPost("{seminarId:int}/feedback-answers")]
         [Authorize]
-        public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int seminarId, [FromBody] SeminarFeedbackRequest request)
+        public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int seminarId, [FromBody] JsonElement rawBody)
         {
             if (!TryGetCurrentUserId(out var currentUserId)) return Unauthorized();
-            if (request == null) return BadRequest(new { message = "Feedback request is required." });
+
+            var request = SeminarController.ConvertToFeedbackRequest(rawBody);
 
             try
             {

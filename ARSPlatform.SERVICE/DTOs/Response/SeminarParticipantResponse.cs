@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -11,6 +11,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? UserEmail { get; set; }
         public string? InvitedEmail { get; set; }
         public string? InvitationStatus { get; set; }
+        public string? FeedbackJson { get; set; }
         public SeminarFeedbackContentResponse? Feedback { get; set; }
 
         // Giữ tương thích response cũ; giá trị bằng Feedback.OverallComment.

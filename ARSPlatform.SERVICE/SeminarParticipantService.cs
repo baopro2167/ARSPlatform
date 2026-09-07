@@ -24,7 +24,8 @@ namespace ARSPlatform.SERVICES
 
         private static readonly JsonSerializerOptions FeedbackJsonOptions = new()
         {
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
 
         public SeminarParticipantService(ISeminarParticipantRepository repository, ISeminarRepository seminarRepository, IUserRepository userRepository, INotificationRepository notificationRepository, IMapper mapper)
@@ -42,10 +43,10 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<IEnumerable<SeminarParticipantResponse>>(items);
         }
 
-        public async Task<IEnumerable<SeminarParticipantResponse>?> GetFeedbackBySeminarIdAsync(int seminarId, int organizerId)
+        public async Task<IEnumerable<SeminarParticipantResponse>?> GetFeedbackBySeminarIdAsync(int seminarId, int organizerId, bool isAdmin = false)
         {
             var seminar = await _seminarRepository.GetByIdAsync(seminarId);
-            if (seminar == null || seminar.OrganizerId != organizerId)
+            if (seminar == null || (!isAdmin && seminar.OrganizerId != organizerId))
                 return null;
 
             var items = await _repository.GetBySeminarIdWithUserAsync(seminarId);
@@ -232,10 +233,28 @@ namespace ARSPlatform.SERVICES
 
         public async Task<SeminarFeedbackResponse> SubmitFeedbackAsync(int seminarId, SeminarFeedbackRequest request, int currentUserId)
         {
-            var normalizedFeedback = NormalizeFeedback(request.Feedback, request.ParticipantEvaluation);
             var currentUser = await _userRepository.GetByIdAsync(currentUserId);
             if (currentUser == null)
                 throw new UnauthorizedAccessException("User not found.");
+
+            string finalFeedbackJson;
+            SeminarFeedbackContentResponse? legacyFeedback = null;
+            List<SeminarFeedbackAnswerDto>? parsedAnswers = null;
+
+            if (HasDynamicFeedbackPayload(request, out var dynamicJson, out parsedAnswers))
+            {
+                finalFeedbackJson = dynamicJson;
+                var firstText = parsedAnswers?.FirstOrDefault(a => !string.IsNullOrWhiteSpace(a.Text))?.Text;
+                legacyFeedback = new SeminarFeedbackContentResponse
+                {
+                    OverallComment = firstText
+                };
+            }
+            else
+            {
+                legacyFeedback = NormalizeFeedback(request.Feedback, request.ParticipantEvaluation);
+                finalFeedbackJson = SerializeFeedback(legacyFeedback);
+            }
 
             var participant = await _repository.GetBySeminarAndUserAsync(seminarId, currentUserId, currentUser.Email);
             if (participant == null)
@@ -251,7 +270,7 @@ namespace ARSPlatform.SERVICES
                 participant.UserId = currentUserId;
 
             var now = DateTime.UtcNow;
-            participant.FeedbackJson = SerializeFeedback(normalizedFeedback);
+            participant.FeedbackJson = finalFeedbackJson;
             participant.FeedbackSubmittedAt ??= now;
             participant.FeedbackUpdatedAt = now;
             participant.InvitationStatus = "SUBMITTED";
@@ -267,8 +286,10 @@ namespace ARSPlatform.SERVICES
                 SeminarId = seminarId,
                 SeminarParticipantId = participant.SeminarParticipantId,
                 UserId = participant.UserId,
-                Feedback = normalizedFeedback,
-                ParticipantEvaluation = normalizedFeedback.OverallComment,
+                FeedbackJson = participant.FeedbackJson,
+                Answers = parsedAnswers,
+                Feedback = legacyFeedback,
+                ParticipantEvaluation = legacyFeedback?.OverallComment,
                 FeedbackSubmittedAt = participant.FeedbackSubmittedAt.Value,
                 FeedbackUpdatedAt = participant.FeedbackUpdatedAt,
                 InvitationStatus = participant.InvitationStatus ?? "SUBMITTED",
@@ -397,6 +418,142 @@ namespace ARSPlatform.SERVICES
             if (value is "submitted" or "complete" or "completed") return "SUBMITTED";
             if (value is "declined" or "rejected") return "DECLINED";
             throw new ArgumentException("InvitationStatus must be PENDING, INVITED, SUBMITTED, or DECLINED.");
+        }
+
+        private static bool HasDynamicFeedbackPayload(SeminarFeedbackRequest request, out string jsonResult, out List<SeminarFeedbackAnswerDto>? answers)
+        {
+            jsonResult = string.Empty;
+            answers = null;
+
+            if (request == null)
+                return false;
+
+            if (request.Answers != null && request.Answers.Count > 0)
+            {
+                answers = request.Answers;
+                jsonResult = JsonSerializer.Serialize(answers, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    WriteIndented = false,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+                return true;
+            }
+
+            if (request.FeedbackJson == null)
+                return false;
+
+            if (request.FeedbackJson is string str)
+            {
+                var trimmed = str.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                    return false;
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(trimmed);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(trimmed, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                        jsonResult = trimmed;
+                        return true;
+                    }
+                    else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        if (doc.RootElement.TryGetProperty("feedbackJson", out var innerFj))
+                        {
+                            if (innerFj.ValueKind == JsonValueKind.String)
+                            {
+                                var innerStr = innerFj.GetString()?.Trim() ?? string.Empty;
+                                answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(innerStr, new JsonSerializerOptions
+                                {
+                                    PropertyNameCaseInsensitive = true
+                                });
+                                jsonResult = innerStr;
+                                return true;
+                            }
+                            else if (innerFj.ValueKind == JsonValueKind.Array)
+                            {
+                                jsonResult = innerFj.GetRawText();
+                                answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(jsonResult, new JsonSerializerOptions
+                                {
+                                    PropertyNameCaseInsensitive = true
+                                });
+                                return true;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback to accepting trimmed string
+                }
+
+                jsonResult = trimmed;
+                return true;
+            }
+
+            if (request.FeedbackJson is JsonElement el)
+            {
+                if (el.ValueKind == JsonValueKind.String)
+                {
+                    var inner = el.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(inner))
+                    {
+                        try
+                        {
+                            answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(inner, new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            });
+                        }
+                        catch { }
+                        jsonResult = inner;
+                        return true;
+                    }
+                }
+                else if (el.ValueKind == JsonValueKind.Array)
+                {
+                    jsonResult = el.GetRawText();
+                    try
+                    {
+                        answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(jsonResult, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                    }
+                    catch { }
+                    return true;
+                }
+                else if (el.ValueKind == JsonValueKind.Object)
+                {
+                    if (el.TryGetProperty("feedbackJson", out var innerFj))
+                    {
+                        if (innerFj.ValueKind == JsonValueKind.String)
+                        {
+                            jsonResult = innerFj.GetString()?.Trim() ?? string.Empty;
+                        }
+                        else
+                        {
+                            jsonResult = innerFj.GetRawText();
+                        }
+                        try
+                        {
+                            answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(jsonResult, new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            });
+                        }
+                        catch { }
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }

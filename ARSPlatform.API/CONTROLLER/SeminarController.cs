@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using ARSPlatform.REPO.PAGINATION;
@@ -199,7 +200,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID buổi Seminar</param>
         /// <returns>Danh sách người tham dự kèm điểm đánh giá và nội dung feedback</returns>
         [HttpGet("{id:int}/feedback")]
-        [Authorize(Roles = "Lecturer,Researcher")]
+        [Authorize(Roles = "Lecturer,Researcher,Admin")]
         [ProducesResponseType(typeof(IEnumerable<SeminarParticipantResponse>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<SeminarParticipantResponse>>> GetFeedback(int id)
         {
@@ -208,7 +209,7 @@ namespace ARSPlatform.API.CONTROLLER
                 return Unauthorized();
             }
 
-            var response = await _participantService.GetFeedbackBySeminarIdAsync(id, organizerId);
+            var response = await _participantService.GetFeedbackBySeminarIdAsync(id, organizerId, IsAdmin());
             if (response == null)
             {
                 return NotFound();
@@ -218,24 +219,81 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Nộp form đánh giá / feedback cho buổi Seminar
+        /// Cấu hình danh sách câu hỏi khảo sát động cho buổi Seminar
         /// </summary>
         /// <param name="id">ID buổi Seminar</param>
-        /// <param name="request">Nội dung đánh giá</param>
+        /// <param name="payload">Payload chứa câu hỏi (JSON string, object, hoặc array)</param>
+        /// <returns>Cấu hình câu hỏi đã lưu</returns>
+        [HttpPut("{id:int}/feedback-form")]
+        [HttpPost("{id:int}/feedback-form")]
+        [Authorize(Roles = "Lecturer,Researcher,Admin")]
+        [ProducesResponseType(typeof(SeminarFeedbackFormResponse), StatusCodes.Status200OK)]
+        public async Task<ActionResult<SeminarFeedbackFormResponse>> UpdateFeedbackForm(int id, [FromBody] JsonElement payload)
+        {
+            if (!TryGetCurrentUserId(out var organizerId))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                var response = await _seminarService.UpdateFeedbackFormAsync(id, organizerId, payload, IsAdmin());
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lấy danh sách câu hỏi khảo sát động của buổi Seminar
+        /// </summary>
+        /// <param name="id">ID buổi Seminar</param>
+        /// <returns>Cấu hình câu hỏi của Seminar</returns>
+        [HttpGet("{id:int}/feedback-form")]
+        [Authorize]
+        [ProducesResponseType(typeof(SeminarFeedbackFormResponse), StatusCodes.Status200OK)]
+        public async Task<ActionResult<SeminarFeedbackFormResponse>> GetFeedbackForm(int id)
+        {
+            var response = await _seminarService.GetFeedbackFormAsync(id);
+            if (response == null)
+            {
+                return NotFound(new { message = $"Seminar with ID {id} not found." });
+            }
+
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Nộp form đánh giá / feedback động cho buổi Seminar
+        /// </summary>
+        /// <param name="id">ID buổi Seminar</param>
+        /// <param name="rawBody">Nội dung đánh giá động (hoặc cấu trúc feedback cũ)</param>
         /// <returns>Kết quả nộp đánh giá</returns>
         [HttpPost("{id:int}/feedback")]
+        [HttpPost("{id:int}/feedback-answers")]
         [Authorize]
-        public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int id, [FromBody] SeminarFeedbackRequest request)
+        public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int id, [FromBody] JsonElement rawBody)
         {
             if (!TryGetCurrentUserId(out var currentUserId))
             {
                 return Unauthorized();
             }
 
-            if (request == null)
-            {
-                return BadRequest(new { message = "Feedback request is required." });
-            }
+            var request = ConvertToFeedbackRequest(rawBody);
 
             try
             {
@@ -550,6 +608,86 @@ namespace ARSPlatform.API.CONTROLLER
         {
             var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
             return int.TryParse(userIdValue, out userId);
+        }
+
+        private bool IsAdmin() => User.IsInRole("Admin");
+
+        internal static SeminarFeedbackRequest ConvertToFeedbackRequest(JsonElement element)
+        {
+            var request = new SeminarFeedbackRequest();
+
+            if (element.ValueKind == JsonValueKind.Array)
+            {
+                request.FeedbackJson = element.GetRawText();
+                try
+                {
+                    request.Answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(element.GetRawText(), new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch { }
+                return request;
+            }
+
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (element.TryGetProperty("feedbackJson", out var fjProp))
+                {
+                    if (fjProp.ValueKind == JsonValueKind.String)
+                    {
+                        request.FeedbackJson = fjProp.GetString();
+                    }
+                    else
+                    {
+                        request.FeedbackJson = fjProp.GetRawText();
+                    }
+                }
+
+                if (element.TryGetProperty("answers", out var ansProp) && ansProp.ValueKind == JsonValueKind.Array)
+                {
+                    try
+                    {
+                        request.Answers = JsonSerializer.Deserialize<List<SeminarFeedbackAnswerDto>>(ansProp.GetRawText(), new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                    }
+                    catch { }
+                }
+
+                if (element.TryGetProperty("feedback", out var fbProp) && fbProp.ValueKind == JsonValueKind.Object)
+                {
+                    try
+                    {
+                        request.Feedback = JsonSerializer.Deserialize<SeminarFeedbackContentRequest>(fbProp.GetRawText(), new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                    }
+                    catch { }
+                }
+
+                if (element.TryGetProperty("participantEvaluation", out var peProp) && peProp.ValueKind == JsonValueKind.String)
+                {
+                    request.ParticipantEvaluation = peProp.GetString();
+                }
+
+                if (element.TryGetProperty("invitationStatus", out var isProp) && isProp.ValueKind == JsonValueKind.String)
+                {
+                    request.InvitationStatus = isProp.GetString();
+                }
+
+                return request;
+            }
+
+            if (element.ValueKind == JsonValueKind.String)
+            {
+                request.FeedbackJson = element.GetString();
+                return request;
+            }
+
+            return request;
         }
     }
 }

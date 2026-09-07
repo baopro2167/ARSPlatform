@@ -740,17 +740,32 @@ using (var scope = app.Services.CreateScope())
                     ALTER TABLE [PhasedReport] ADD [StartDate] datetime2 NULL;
             END
 
-            -- Seminars SubFieldId
+            -- Seminars SubFieldId & feedback
             IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Seminars')
             BEGIN
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Seminars') AND name = 'SubFieldId')
                     ALTER TABLE [Seminars] ADD [SubFieldId] int NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Seminars') AND name = 'feedback')
+                    ALTER TABLE [Seminars] ADD [feedback] nvarchar(max) NULL;
             END
 
             IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Seminar')
             BEGIN
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Seminar') AND name = 'SubFieldId')
                     ALTER TABLE [Seminar] ADD [SubFieldId] int NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Seminar') AND name = 'feedback')
+                    ALTER TABLE [Seminar] ADD [feedback] nvarchar(max) NULL;
+            END
+
+            -- SeminarParticipants FeedbackJson & Timestamps
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'SeminarParticipants')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SeminarParticipants') AND name = 'FeedbackJson')
+                    ALTER TABLE [SeminarParticipants] ADD [FeedbackJson] nvarchar(max) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SeminarParticipants') AND name = 'FeedbackSubmittedAt')
+                    ALTER TABLE [SeminarParticipants] ADD [FeedbackSubmittedAt] datetime2 NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SeminarParticipants') AND name = 'FeedbackUpdatedAt')
+                    ALTER TABLE [SeminarParticipants] ADD [FeedbackUpdatedAt] datetime2 NULL;
             END
 
             -- 7. Medals and UserMedals Tables
