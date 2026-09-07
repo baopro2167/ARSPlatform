@@ -434,19 +434,30 @@ namespace ARSPlatform.SERVICES
                 throw new ArgumentException("Admin users are not eligible to request additional roles.");
             }
 
-            if (currentRoles.Any(r => string.Equals(r, requestedRole, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new ArgumentException("User already holds this role.");
-            }
+            // Kiểm tra nếu tài khoản là Graduate Student
+            bool isGraduateStudent = currentRoles.Any(r => string.Equals(r, "Graduate Student", StringComparison.OrdinalIgnoreCase));
+            bool alreadyHasResearcher = currentRoles.Any(r => string.Equals(r, "Researcher", StringComparison.OrdinalIgnoreCase));
 
-            bool isGraduateStudentOnly = currentRoles.All(r => string.Equals(r, "Graduate Student", StringComparison.OrdinalIgnoreCase));
-            if (isGraduateStudentOnly)
+            if (isGraduateStudent)
             {
+                // Nếu đã có Researcher rồi thì KHÔNG được xin thêm bất kỳ vai trò nào khác
+                if (alreadyHasResearcher)
+                {
+                    throw new ArgumentException("Graduate students who advanced to Researcher are not eligible to request further roles.");
+                }
+
+                // Nếu chưa có Researcher thì CHỈ được xin đúng Researcher
                 if (!string.Equals(requestedRole, "Researcher", StringComparison.OrdinalIgnoreCase))
                 {
                     throw new ArgumentException("Graduate students are only eligible to apply for Researcher role.");
                 }
+
                 return;
+            }
+
+            if (currentRoles.Any(r => string.Equals(r, requestedRole, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new ArgumentException("User already holds this role.");
             }
 
             if (string.Equals(requestedRole, "Admin", StringComparison.OrdinalIgnoreCase))
