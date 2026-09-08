@@ -110,6 +110,7 @@ namespace ARSPlatform.SERVICES
                 item.LecturerId = lecturerId.Value;
             }
             item.CreatedAt = DateTime.UtcNow;
+            item.IsActive = request.IsActive ?? true;
 
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
@@ -122,7 +123,31 @@ namespace ARSPlatform.SERVICES
             var item = await _repository.GetByIdAsync(id);
             if (item == null) return null;
 
+            /*
+                If the request omits IsActive, preserve the existing value.
+                Only overwrite IsActive when the caller explicitly sends it.
+            */
+            var preserveIsActive = !request.IsActive.HasValue;
+            var existingIsActive = item.IsActive;
+
             _mapper.Map(request, item);
+
+            if (preserveIsActive)
+            {
+                item.IsActive = existingIsActive;
+            }
+
+            _repository.Update(item);
+            await _repository.SaveChangesAsync();
+            return _mapper.Map<ResearchGroupResponse>(item);
+        }
+
+        public async Task<ResearchGroupResponse?> ToggleActiveAsync(int id, bool isActive)
+        {
+            var item = await _repository.GetByIdAsync(id);
+            if (item == null) return null;
+
+            item.IsActive = isActive;
             _repository.Update(item);
             await _repository.SaveChangesAsync();
             return _mapper.Map<ResearchGroupResponse>(item);

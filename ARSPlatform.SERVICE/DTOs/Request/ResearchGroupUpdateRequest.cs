@@ -17,5 +17,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public DateTime? AssignedAt { get; set; }
 
         public string? MaterialsUrl { get; set; }
+
+        public bool? IsActive { get; set; }
     }
 }

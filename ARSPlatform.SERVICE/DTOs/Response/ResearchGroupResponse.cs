@@ -28,6 +28,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public int MemberCount { get; set; }
 
+        public bool IsActive { get; set; }
+
         public System.Collections.Generic.List<GroupMemberResponse>? Members { get; set; }
     }
 }

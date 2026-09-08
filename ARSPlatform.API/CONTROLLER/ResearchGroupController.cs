@@ -128,7 +128,39 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpPut("{id:int}")]
         public async Task<ActionResult<ResearchGroupResponse>> Update(int id, [FromBody] ResearchGroupUpdateRequest request)
         {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            var existing = await _service.GetByIdAsync(id);
+            if (existing == null) return NotFound(new { Message = "Research group not found." });
+
+            if (existing.LecturerId != currentUserId.Value)
+                return StatusCode(403, new { Message = "You are not authorized to update this research group." });
+
             var response = await _service.UpdateAsync(id, request);
+            if (response == null) return NotFound(new { Message = "Research group not found." });
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Bật/tắt trạng thái active của nhóm nghiên cứu
+        /// </summary>
+        /// <param name="id">ID nhóm nghiên cứu</param>
+        /// <param name="isActive">Trạng thái active mới</param>
+        /// <returns>Nhóm nghiên cứu sau khi cập nhật</returns>
+        [HttpPatch("{id:int}/active")]
+        public async Task<ActionResult<ResearchGroupResponse>> ToggleActive(int id, [FromBody] ToggleActiveRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            var existing = await _service.GetByIdAsync(id);
+            if (existing == null) return NotFound(new { Message = "Research group not found." });
+
+            if (existing.LecturerId != currentUserId.Value)
+                return StatusCode(403, new { Message = "You are not authorized to update this research group." });
+
+            var response = await _service.ToggleActiveAsync(id, request.IsActive);
             if (response == null) return NotFound(new { Message = "Research group not found." });
             return Ok(response);
         }
