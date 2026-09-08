@@ -591,6 +591,7 @@ public partial class AppDbContext : DbContext
         modelBuilder.Entity<ResearchGroup>(entity =>
         {
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.IsActive).HasColumnName("IsActive");
             entity.Property(e => e.Name).HasMaxLength(255);
             entity.Property(e => e.MaterialsUrl).HasMaxLength(1000);
 

@@ -1141,6 +1141,11 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<int?>("LecturerId")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("MaterialsUrl")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");

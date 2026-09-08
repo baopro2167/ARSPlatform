@@ -24,6 +24,8 @@ public partial class ResearchGroup
 
     public string? MaterialsUrl { get; set; }
 
+    public bool IsActive { get; set; } = true;
+
     [JsonIgnore]
     public virtual ICollection<GroupMember> GroupMembers { get; set; } = new List<GroupMember>();
 

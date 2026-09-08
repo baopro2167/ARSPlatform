@@ -17,6 +17,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<ResearchGroupResponse?> GetByIdAsync(int id);
         Task<ResearchGroupResponse> CreateAsync(ResearchGroupCreateRequest request, int? lecturerId = null);
         Task<ResearchGroupResponse?> UpdateAsync(int id, ResearchGroupUpdateRequest request);
+        Task<ResearchGroupResponse?> ToggleActiveAsync(int id, bool isActive);
         Task<bool> DeleteAsync(int id);
         Task<ResearchGroupInviteResponse> InviteStudentsAsync(int researchGroupId, ResearchGroupInviteRequest request, int currentUserId);
     }
