@@ -685,6 +685,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.IsReminderSent).HasDefaultValue(false);
             entity.Property(e => e.MaxParticipants).HasDefaultValue(0);
             entity.Property(e => e.AiFeedbackGeneratedAt).HasColumnType("datetime2(7)");
+            entity.Property(e => e.FeedbackJson).HasColumnType("nvarchar(max)");
             entity.Property(e => e.OnlineLink).HasMaxLength(255);
             entity.Property(e => e.Status)
                 .HasMaxLength(50)

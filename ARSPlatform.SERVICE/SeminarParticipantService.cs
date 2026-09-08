@@ -190,32 +190,23 @@ namespace ARSPlatform.SERVICES
                 return null;
 
             var hasFeedbackPayload = HasFeedbackPayload(request.Feedback, request.ParticipantEvaluation);
-            if (isOrganizer && hasFeedbackPayload)
-                throw new UnauthorizedAccessException("Seminar owner cannot submit or edit feedback on behalf of a participant.");
+            if (hasFeedbackPayload)
+            {
+                if (isOrganizer)
+                    throw new UnauthorizedAccessException("Seminar owner cannot submit or edit feedback on behalf of a participant.");
+
+                if (isParticipant)
+                    throw new ArgumentException("Participant feedback must be submitted through POST /api/Seminar/{seminarId}/feedback.");
+            }
 
             if (request.InvitationStatus != null)
                 item.InvitationStatus = NormalizeParticipantStatus(request.InvitationStatus);
-
-            var submittedFeedback = false;
-            if (isParticipant && hasFeedbackPayload)
-            {
-                var normalizedFeedback = NormalizeFeedback(request.Feedback, request.ParticipantEvaluation);
-                var now = DateTime.UtcNow;
-                item.FeedbackJson = SerializeFeedback(normalizedFeedback);
-                item.FeedbackSubmittedAt ??= now;
-                item.FeedbackUpdatedAt = now;
-                item.InvitationStatus = "SUBMITTED";
-                submittedFeedback = true;
-            }
 
             if (isParticipant && item.UserId == null)
                 item.UserId = currentUserId;
 
             _repository.Update(item);
             await _repository.SaveChangesAsync();
-
-            if (isParticipant && submittedFeedback && item.Seminar?.OrganizerId != null)
-                await TryCreateFeedbackNotificationAsync(item.Seminar.OrganizerId.Value, currentUser, item.Seminar.Content);
 
             return _mapper.Map<SeminarParticipantResponse>(item);
         }
@@ -237,14 +228,36 @@ namespace ARSPlatform.SERVICES
             if (currentUser == null)
                 throw new UnauthorizedAccessException("User not found.");
 
+            var seminar = await _seminarRepository.GetByIdAsync(seminarId);
+            if (seminar == null)
+                throw new KeyNotFoundException($"Seminar with ID {seminarId} not found.");
+
+            var participant = await _repository.GetBySeminarAndUserAsync(seminarId, currentUserId, currentUser.Email);
+            if (participant == null)
+                throw new InvalidOperationException("You are not registered or invited to this seminar.");
+
+            if (NormalizeParticipantStatus(participant.InvitationStatus ?? "PENDING") == "DECLINED")
+                throw new InvalidOperationException("Declined participant cannot submit feedback.");
+
             string finalFeedbackJson;
             SeminarFeedbackContentResponse? legacyFeedback = null;
             List<SeminarFeedbackAnswerDto>? parsedAnswers = null;
 
-            if (HasDynamicFeedbackPayload(request, out var dynamicJson, out parsedAnswers))
+            if (HasDynamicFeedbackPayload(request, out _, out parsedAnswers))
             {
-                finalFeedbackJson = dynamicJson;
-                var firstText = parsedAnswers?.FirstOrDefault(a => !string.IsNullOrWhiteSpace(a.Text))?.Text;
+                if (parsedAnswers == null || parsedAnswers.Count == 0)
+                    throw new ArgumentException("Feedback answers must be a valid JSON array.");
+
+                if (string.IsNullOrWhiteSpace(seminar.Feedback))
+                    throw new InvalidOperationException("Feedback form has not been configured for this seminar.");
+
+                parsedAnswers = ValidateAndNormalizeDynamicAnswers(seminar.Feedback, parsedAnswers);
+                finalFeedbackJson = SerializeDynamicFeedback(parsedAnswers);
+
+                var firstText = parsedAnswers.FirstOrDefault(a =>
+                    string.Equals(a.Type, "text", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(a.Text))?.Text;
+
                 legacyFeedback = new SeminarFeedbackContentResponse
                 {
                     OverallComment = firstText
@@ -252,18 +265,11 @@ namespace ARSPlatform.SERVICES
             }
             else
             {
+                if (!string.IsNullOrWhiteSpace(seminar.Feedback))
+                    throw new ArgumentException("This seminar uses a dynamic feedback form. Submit feedback through the Answers or FeedbackJson field.");
+
                 legacyFeedback = NormalizeFeedback(request.Feedback, request.ParticipantEvaluation);
                 finalFeedbackJson = SerializeFeedback(legacyFeedback);
-            }
-
-            var participant = await _repository.GetBySeminarAndUserAsync(seminarId, currentUserId, currentUser.Email);
-            if (participant == null)
-            {
-                var seminarExists = await _seminarRepository.GetByIdAsync(seminarId);
-                if (seminarExists == null)
-                    throw new KeyNotFoundException($"Seminar with ID {seminarId} not found.");
-
-                throw new InvalidOperationException("You are not registered or invited to this seminar.");
             }
 
             if (participant.UserId == null)
@@ -278,8 +284,8 @@ namespace ARSPlatform.SERVICES
             _repository.Update(participant);
             await _repository.SaveChangesAsync();
 
-            if (participant.Seminar?.OrganizerId != null)
-                await TryCreateFeedbackNotificationAsync(participant.Seminar.OrganizerId.Value, currentUser, participant.Seminar.Content);
+            if (seminar.OrganizerId != null)
+                await TryCreateFeedbackNotificationAsync(seminar.OrganizerId.Value, currentUser, seminar.Content);
 
             return new SeminarFeedbackResponse
             {
@@ -418,6 +424,138 @@ namespace ARSPlatform.SERVICES
             if (value is "submitted" or "complete" or "completed") return "SUBMITTED";
             if (value is "declined" or "rejected") return "DECLINED";
             throw new ArgumentException("InvitationStatus must be PENDING, INVITED, SUBMITTED, or DECLINED.");
+        }
+
+        private static List<SeminarFeedbackAnswerDto> ValidateAndNormalizeDynamicAnswers(string feedbackFormJson, List<SeminarFeedbackAnswerDto> answers)
+        {
+            List<SeminarFeedbackQuestionDto>? questions;
+
+            try
+            {
+                questions = JsonSerializer.Deserialize<List<SeminarFeedbackQuestionDto>>(feedbackFormJson, FeedbackJsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException("Feedback form configuration is invalid.", ex);
+            }
+
+            if (questions == null || questions.Count == 0)
+                throw new InvalidOperationException("Feedback form has no questions.");
+
+            if (questions.Any(q => string.IsNullOrWhiteSpace(q.Id)))
+                throw new InvalidOperationException("Feedback form contains a question without an ID.");
+
+            var duplicateQuestionId = questions
+                .GroupBy(q => q.Id!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(group => group.Count() > 1);
+
+            if (duplicateQuestionId != null)
+                throw new InvalidOperationException($"Feedback form contains duplicate question ID '{duplicateQuestionId.Key}'.");
+
+            var questionsById = questions.ToDictionary(q => q.Id!.Trim(), StringComparer.OrdinalIgnoreCase);
+            var submittedAnswers = new Dictionary<string, SeminarFeedbackAnswerDto>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var answer in answers)
+            {
+                if (answer == null)
+                    throw new ArgumentException("Feedback answers cannot contain null items.");
+
+                var questionId = answer.QuestionId?.Trim();
+                if (string.IsNullOrWhiteSpace(questionId))
+                    throw new ArgumentException("Each feedback answer must contain questionId.");
+
+                if (!questionsById.ContainsKey(questionId))
+                    throw new ArgumentException($"Question '{questionId}' does not exist in this seminar feedback form.");
+
+                if (!submittedAnswers.TryAdd(questionId, answer))
+                    throw new ArgumentException($"Question '{questionId}' was answered more than once.");
+            }
+
+            var normalizedAnswers = new List<SeminarFeedbackAnswerDto>();
+
+            foreach (var question in questions.OrderBy(q => q.OrderIndex))
+            {
+                var questionId = question.Id!.Trim();
+                var questionType = question.Type?.Trim().ToLowerInvariant();
+
+                if (questionType != "rating" && questionType != "text")
+                    throw new InvalidOperationException($"Feedback form question '{questionId}' has unsupported type '{question.Type}'.");
+
+                if (!submittedAnswers.TryGetValue(questionId, out var answer))
+                {
+                    if (question.IsRequired)
+                        throw new ArgumentException($"Question '{questionId}' is required.");
+
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(answer.Type)
+                    && !string.Equals(answer.Type.Trim(), questionType, StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException($"Question '{questionId}' must have type '{questionType}'.");
+
+                if (questionType == "rating")
+                {
+                    if (!string.IsNullOrWhiteSpace(answer.Text))
+                        throw new ArgumentException($"Rating question '{questionId}' cannot contain text.");
+
+                    if (!answer.Rating.HasValue)
+                    {
+                        if (question.IsRequired)
+                            throw new ArgumentException($"Question '{questionId}' requires a rating.");
+
+                        continue;
+                    }
+
+                    var maxStar = question.MaxStar.HasValue && question.MaxStar.Value > 0
+                        ? question.MaxStar.Value
+                        : 5;
+
+                    if (answer.Rating.Value < 1 || answer.Rating.Value > maxStar)
+                        throw new ArgumentException($"Rating for question '{questionId}' must be between 1 and {maxStar}.");
+
+                    normalizedAnswers.Add(new SeminarFeedbackAnswerDto
+                    {
+                        QuestionId = questionId,
+                        OrderIndex = question.OrderIndex,
+                        Type = "rating",
+                        Rating = answer.Rating.Value,
+                        Text = null
+                    });
+
+                    continue;
+                }
+
+                if (answer.Rating.HasValue)
+                    throw new ArgumentException($"Text question '{questionId}' cannot contain a rating.");
+
+                var text = answer.Text?.Trim();
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    if (question.IsRequired)
+                        throw new ArgumentException($"Question '{questionId}' requires a text answer.");
+
+                    continue;
+                }
+
+                normalizedAnswers.Add(new SeminarFeedbackAnswerDto
+                {
+                    QuestionId = questionId,
+                    OrderIndex = question.OrderIndex,
+                    Type = "text",
+                    Rating = null,
+                    Text = text
+                });
+            }
+
+            if (normalizedAnswers.Count == 0)
+                throw new ArgumentException("Feedback must contain at least one valid answer.");
+
+            return normalizedAnswers;
+        }
+
+        private static string SerializeDynamicFeedback(List<SeminarFeedbackAnswerDto> answers)
+        {
+            return JsonSerializer.Serialize(answers, FeedbackJsonOptions);
         }
 
         private static bool HasDynamicFeedbackPayload(SeminarFeedbackRequest request, out string jsonResult, out List<SeminarFeedbackAnswerDto>? answers)

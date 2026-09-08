@@ -7,6 +7,6 @@ namespace ARSPlatform.SERVICE.ExternalServices
 {
     public interface ISeminarFeedbackAiService
     {
-        Task<SeminarFeedbackAiSummaryContentResponse> SummarizeFeedbackAsync(string seminarContent, IReadOnlyCollection<string> feedbackJsons, CancellationToken cancellationToken = default);
+        Task<SeminarFeedbackAiSummaryContentResponse> SummarizeFeedbackAsync(string seminarContent, string? feedbackFormJson, IReadOnlyCollection<string> feedbackJsons, CancellationToken cancellationToken = default);
     }
 }

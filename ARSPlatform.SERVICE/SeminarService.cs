@@ -659,16 +659,13 @@ namespace ARSPlatform.SERVICES
 
             var aiFeedback = await _seminarFeedbackAiService.SummarizeFeedbackAsync(
                 seminar.Content,
+                seminar.Feedback,
                 feedbackJsons,
                 cancellationToken);
 
             var generatedAt = DateTime.UtcNow;
 
-            // Chỉ ghi đè seminar.Feedback nếu chưa có danh sách câu hỏi khảo sát động
-            if (string.IsNullOrWhiteSpace(seminar.Feedback) || !seminar.Feedback.TrimStart().StartsWith("["))
-            {
-                seminar.Feedback = JsonSerializer.Serialize(aiFeedback);
-            }
+            seminar.FeedbackJson = JsonSerializer.Serialize(aiFeedback);
             seminar.AiFeedbackGeneratedAt = generatedAt;
 
             _seminarRepository.Update(seminar);
@@ -850,11 +847,26 @@ namespace ARSPlatform.SERVICES
             };
         }
 
-        public async Task<SeminarFeedbackFormResponse?> GetFeedbackFormAsync(int seminarId)
+        public async Task<SeminarFeedbackFormResponse?> GetFeedbackFormAsync(int seminarId, int currentUserId, bool isAdmin = false)
         {
-            var seminar = await _seminarRepository.GetByIdAsync(seminarId);
+            var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
             if (seminar == null)
                 return null;
+
+            if (!isAdmin && seminar.OrganizerId != currentUserId)
+            {
+                var currentUser = await _userRepository.GetByIdAsync(currentUserId);
+                var currentUserEmail = currentUser?.Email;
+
+                var isParticipant = seminar.SeminarParticipants.Any(participant =>
+                    NormalizeParticipantStatus(participant.InvitationStatus) != "DECLINED"
+                    && (participant.UserId == currentUserId
+                        || (!string.IsNullOrWhiteSpace(currentUserEmail)
+                            && string.Equals(participant.InvitedEmail, currentUserEmail, StringComparison.OrdinalIgnoreCase))));
+
+                if (!isParticipant)
+                    return null;
+            }
 
             var questions = new List<SeminarFeedbackQuestionDto>();
             if (!string.IsNullOrWhiteSpace(seminar.Feedback))
@@ -880,7 +892,6 @@ namespace ARSPlatform.SERVICES
                 Message = "Feedback form retrieved successfully."
             };
         }
-
         private static (string jsonString, List<SeminarFeedbackQuestionDto> questions) ParseAndNormalizeQuestions(object rawPayload)
         {
             if (rawPayload == null)

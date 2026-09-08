@@ -35,6 +35,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
 
         public async Task<SeminarFeedbackAiSummaryContentResponse> SummarizeFeedbackAsync(
             string seminarContent,
+            string? feedbackFormJson,
             IReadOnlyCollection<string> feedbackJsons,
             CancellationToken cancellationToken = default)
         {
@@ -62,14 +63,33 @@ namespace ARSPlatform.SERVICE.ExternalServices
             if (string.IsNullOrWhiteSpace(cleanModel))
                 throw new InvalidOperationException("GeminiSettings:Model không hợp lệ.");
 
-            var normalizedFeedbacks = new List<JsonElement>();
+            var questionTextById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(feedbackFormJson))
+            {
+                try
+                {
+                    questionTextById = ExtractQuestionTextMap(feedbackFormJson);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Không thể đọc Seminar feedback form khi tổng hợp AI. Tiếp tục tổng hợp theo text feedback.");
+                }
+            }
+
+            var normalizedFeedbacks = new List<FeedbackTextItem>();
 
             foreach (var feedbackJson in feedbackJsons.Where(x => !string.IsNullOrWhiteSpace(x)))
             {
                 try
                 {
                     using var document = JsonDocument.Parse(feedbackJson);
-                    normalizedFeedbacks.Add(document.RootElement.Clone());
+                    normalizedFeedbacks.AddRange(
+                        ExtractTextFeedback(
+                            document.RootElement,
+                            questionTextById));
                 }
                 catch (JsonException ex)
                 {
@@ -79,10 +99,32 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 }
             }
 
-            if (normalizedFeedbacks.Count == 0)
-                throw new ArgumentException("Không có FeedbackJson hợp lệ để tổng hợp.", nameof(feedbackJsons));
+            normalizedFeedbacks = normalizedFeedbacks
+                .Where(x => !string.IsNullOrWhiteSpace(x.Answer))
+                .Select(x => new FeedbackTextItem
+                {
+                    Question = string.IsNullOrWhiteSpace(x.Question)
+                        ? null
+                        : x.Question.Trim(),
+                    Answer = x.Answer.Trim()
+                })
+                .ToList();
 
-            var feedbackPayload = JsonSerializer.Serialize(normalizedFeedbacks, JsonOptions);
+            if (normalizedFeedbacks.Count == 0)
+            {
+                throw new ArgumentException(
+                    "Không có nội dung feedback dạng text hợp lệ để tổng hợp.",
+                    nameof(feedbackJsons));
+            }
+
+            var feedbackPayload = JsonSerializer.Serialize(
+                normalizedFeedbacks.Select(x => new
+                {
+                    question = x.Question,
+                    answer = x.Answer
+                }),
+                JsonOptions);
+
             var prompt = BuildPrompt(seminarContent, feedbackPayload);
 
             var requestBody = new
@@ -198,6 +240,185 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 $"Không thể tổng hợp Seminar feedback bằng Gemini model '{cleanModel}'.");
         }
 
+        private static Dictionary<string, string> ExtractQuestionTextMap(string feedbackFormJson)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            using var document = JsonDocument.Parse(feedbackFormJson);
+            var rootElement = document.RootElement;
+
+            if (rootElement.ValueKind != JsonValueKind.Array)
+                return result;
+
+            foreach (var question in rootElement.EnumerateArray())
+            {
+                if (question.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var questionId = GetStringPropertyIgnoreCase(question, "id");
+                var questionText = GetStringPropertyIgnoreCase(question, "questionText");
+
+                if (string.IsNullOrWhiteSpace(questionId)
+                    || string.IsNullOrWhiteSpace(questionText))
+                {
+                    continue;
+                }
+
+                result[questionId.Trim()] = questionText.Trim();
+            }
+
+            return result;
+        }
+
+        private static List<FeedbackTextItem> ExtractTextFeedback(
+            JsonElement rootElement,
+            IReadOnlyDictionary<string, string> questionTextById)
+        {
+            var texts = new List<FeedbackTextItem>();
+
+            if (rootElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var answer in rootElement.EnumerateArray())
+                {
+                    if (answer.ValueKind != JsonValueKind.Object)
+                        continue;
+
+                    var type = GetStringPropertyIgnoreCase(answer, "type");
+
+                    if (string.Equals(type, "rating", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var text = GetStringPropertyIgnoreCase(answer, "text");
+
+                    if (string.IsNullOrWhiteSpace(text))
+                        continue;
+
+                    var questionId = GetStringPropertyIgnoreCase(answer, "questionId");
+                    string? questionText = null;
+
+                    if (!string.IsNullOrWhiteSpace(questionId)
+                        && questionTextById.TryGetValue(questionId.Trim(), out var mappedQuestionText))
+                    {
+                        questionText = mappedQuestionText;
+                    }
+
+                    texts.Add(new FeedbackTextItem
+                    {
+                        Question = questionText,
+                        Answer = text
+                    });
+                }
+
+                return texts;
+            }
+
+            if (rootElement.ValueKind == JsonValueKind.Object)
+            {
+                var directText = GetStringPropertyIgnoreCase(rootElement, "text");
+
+                if (!string.IsNullOrWhiteSpace(directText))
+                {
+                    texts.Add(new FeedbackTextItem
+                    {
+                        Question = null,
+                        Answer = directText
+                    });
+                }
+
+                AddStringProperty(rootElement, "overallComment", texts);
+                AddStringArrayProperty(rootElement, "strengths", texts);
+                AddStringArrayProperty(rootElement, "improvements", texts);
+                AddStringArrayProperty(rootElement, "suggestions", texts);
+
+                return texts;
+            }
+
+            if (rootElement.ValueKind == JsonValueKind.String)
+            {
+                var text = rootElement.GetString();
+
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    texts.Add(new FeedbackTextItem
+                    {
+                        Question = null,
+                        Answer = text
+                    });
+                }
+            }
+
+            return texts;
+        }
+
+        private static void AddStringProperty(JsonElement element, string propertyName, List<FeedbackTextItem> target)
+        {
+            var value = GetStringPropertyIgnoreCase(element, propertyName);
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                target.Add(new FeedbackTextItem
+                {
+                    Question = null,
+                    Answer = value
+                });
+            }
+        }
+
+        private static void AddStringArrayProperty(JsonElement element, string propertyName, List<FeedbackTextItem> target)
+        {
+            if (!TryGetPropertyIgnoreCase(element, propertyName, out var property)
+                || property.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
+
+            foreach (var item in property.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                    continue;
+
+                var value = item.GetString();
+
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    target.Add(new FeedbackTextItem
+                    {
+                        Question = null,
+                        Answer = value
+                    });
+                }
+            }
+        }
+
+        private static string? GetStringPropertyIgnoreCase(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyIgnoreCase(element, propertyName, out var property)
+                || property.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            return property.GetString();
+        }
+
+        private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement property)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var item in element.EnumerateObject())
+                {
+                    if (string.Equals(item.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        property = item.Value;
+                        return true;
+                    }
+                }
+            }
+
+            property = default;
+            return false;
+        }
+
         private static string BuildPrompt(string seminarContent, string feedbackPayload)
         {
             return $$"""
@@ -206,14 +427,21 @@ Bạn là trợ lý AI chuyên tổng hợp phản hồi sau seminar học thu�
 Chủ đề/nội dung Seminar:
 {{seminarContent}}
 
-Danh sách feedback ẩn danh của người tham dự ở dạng JSON:
+Danh sách feedback dạng text đã được ẩn danh và loại bỏ hoàn toàn rating/số sao:
 {{feedbackPayload}}
 
+Mỗi phần tử có:
+- question: nội dung câu hỏi của feedback form nếu xác định được; có thể null đối với dữ liệu feedback cũ.
+- answer: câu trả lời dạng text của participant.
+
 Yêu cầu:
-- Chỉ sử dụng thông tin có trong các feedback được cung cấp, không suy đoán danh tính hoặc thông tin ngoài dữ liệu.
+- Chỉ sử dụng thông tin có trong các câu trả lời text được cung cấp, không suy đoán danh tính hoặc thông tin ngoài dữ liệu.
+- Dùng question để hiểu đúng ngữ cảnh của answer; question chỉ là ngữ cảnh, không phải ý kiến của participant.
+- Không suy luận điểm đánh giá, rating hoặc số sao vì dữ liệu đó không được cung cấp cho bạn.
 - Không liệt kê lại từng participant và không copy nguyên văn hàng loạt feedback.
 - Chỉ gọi một ý là phổ biến/common khi nhiều feedback thực sự cùng thể hiện ý đó.
-- Nếu các feedback có quan điểm trái ngược, ghi riêng trong conflictingFeedback thay vì tạo kết luận đồng thuận giả.
+- Không coi việc nhiều participant trả lời các câu hỏi khác nhau là các ý kiến mâu thuẫn chỉ vì nội dung khác nhau.
+- Nếu các feedback trả lời cùng một vấn đề nhưng có quan điểm trái ngược, ghi riêng trong conflictingFeedback thay vì tạo kết luận đồng thuận giả.
 - recommendedActions phải là hành động cải thiện có căn cứ trực tiếp từ feedback.
 - Viết bằng tiếng Việt tự nhiên, ngắn gọn, chuyên nghiệp.
 - Trả về đúng một JSON object hợp lệ, không Markdown, không code fence, không thêm lời giải thích ngoài JSON.
@@ -282,6 +510,12 @@ JSON schema bắt buộc:
                 value = value[..lastFence];
 
             return value.Trim();
+        }
+
+        private sealed class FeedbackTextItem
+        {
+            public string? Question { get; set; }
+            public string Answer { get; set; } = string.Empty;
         }
     }
 }

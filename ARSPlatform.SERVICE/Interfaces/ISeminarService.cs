@@ -26,6 +26,6 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<List<SuggestedInviteeDto>> GetSuggestedInviteesAsync(int subFieldId, int currentUserId);
         Task<SeminarFeedbackAiSummaryResponse> SummarizeFeedbackAsync(int seminarId, int organizerId, CancellationToken cancellationToken = default);
         Task<SeminarFeedbackFormResponse> UpdateFeedbackFormAsync(int seminarId, int organizerId, object rawPayload, bool isAdmin = false);
-        Task<SeminarFeedbackFormResponse?> GetFeedbackFormAsync(int seminarId);
+        Task<SeminarFeedbackFormResponse?> GetFeedbackFormAsync(int seminarId, int currentUserId, bool isAdmin = false);
     }
 }

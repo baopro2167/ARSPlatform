@@ -30,8 +30,11 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         // Existing AI feature
         public string? AiSummary { get; set; }
 
-        // Existing feedback feature - AI aggregate feedback JSON
+        // Existing feedback form configuration JSON
         public string? Feedback { get; set; }
+
+        // AI aggregate feedback JSON generated from participant feedback
+        public string? FeedbackJson { get; set; }
 
         public DateTime? AiFeedbackGeneratedAt { get; set; }
 

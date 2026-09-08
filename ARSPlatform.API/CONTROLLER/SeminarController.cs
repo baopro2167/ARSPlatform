@@ -268,10 +268,15 @@ namespace ARSPlatform.API.CONTROLLER
         [ProducesResponseType(typeof(SeminarFeedbackFormResponse), StatusCodes.Status200OK)]
         public async Task<ActionResult<SeminarFeedbackFormResponse>> GetFeedbackForm(int id)
         {
-            var response = await _seminarService.GetFeedbackFormAsync(id);
+            if (!TryGetCurrentUserId(out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _seminarService.GetFeedbackFormAsync(id, currentUserId, IsAdmin());
             if (response == null)
             {
-                return NotFound(new { message = $"Seminar with ID {id} not found." });
+                return NotFound(new { message = $"Seminar with ID {id} not found or access denied." });
             }
 
             return Ok(response);
@@ -303,6 +308,10 @@ namespace ARSPlatform.API.CONTROLLER
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
