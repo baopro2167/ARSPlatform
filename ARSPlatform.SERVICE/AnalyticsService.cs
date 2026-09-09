@@ -90,25 +90,9 @@ namespace ARSPlatform.SERVICES
 
         private async Task<List<AnalyticsTimeseriesPointResponse>> GetRevenuePointsAsync(string range, CancellationToken cancellationToken)
         {
-            var purchases = await _dbContext.MembershipPurchases
-                .AsNoTracking()
-                .Where(purchase => purchase.PurchasedAt.HasValue)
-                .Select(purchase => new
-                {
-                    Date = purchase.PurchasedAt!.Value,
-                    purchase.PricePaid
-                })
-                .ToListAsync(cancellationToken);
-
-            return purchases
-                .GroupBy(purchase => BucketDate(purchase.Date, range))
-                .OrderBy(group => group.Key)
-                .Select(group => new AnalyticsTimeseriesPointResponse
-                {
-                    Date = group.Key,
-                    Value = group.Sum(item => item.PricePaid)
-                })
-                .ToList();
+            // MembershipPurchases table has been removed;
+            // revenue analytics endpoint returns empty data.
+            return new List<AnalyticsTimeseriesPointResponse>();
         }
 
         private static DateTime BucketDate(DateTime date, string range)

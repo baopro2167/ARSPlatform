@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Text.Json.Serialization;
-
 namespace ARSPlatform.MODEL.Entities;
 
 public partial class Transaction
 {
     public int TransactionId { get; set; }
-
-    public int? WalletId { get; set; }
 
     public string? Type { get; set; }
 
@@ -26,7 +20,4 @@ public partial class Transaction
     public string? PaymentTransactionId { get; set; }
 
     public string? PaymentResponseCode { get; set; }
-
-    [JsonIgnore]
-    public virtual Wallet? Wallet { get; set; }
 }

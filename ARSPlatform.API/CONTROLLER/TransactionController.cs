@@ -24,27 +24,24 @@ namespace ARSPlatform.API.CONTROLLER
         /// <summary>
         /// Lấy toàn bộ danh sách giao dịch
         /// </summary>
-        /// <param name="walletId">Lọc theo ID ví (tùy chọn)</param>
         /// <returns>Danh sách giao dịch</returns>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<TransactionResponse>>> GetAll([FromQuery] int? walletId = null)
+        public async Task<ActionResult<IEnumerable<TransactionResponse>>> GetAll()
         {
-            var items = await _service.GetAllAsync(walletId);
+            var items = await _service.GetAllAsync();
             return Ok(items);
         }
 
         /// <summary>
-        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG 
+        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>
-        /// <param name="walletId">Lọc theo ID ví (tùy chọn)</param>
         /// <returns>Danh sách giao dịch có phân trang</returns>
         [HttpGet("paged")]
         public async Task<ActionResult<PagedResult<TransactionResponse>>> GetPaged(
-            [FromQuery] PaginationParams paginationParams,
-            [FromQuery] int? walletId = null)
+            [FromQuery] PaginationParams paginationParams)
         {
-            var result = await _service.GetPagedAsync(paginationParams, walletId);
+            var result = await _service.GetPagedAsync(paginationParams);
             return Ok(result);
         }
 

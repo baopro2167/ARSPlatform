@@ -86,20 +86,8 @@ public partial class User
         = new List<GroupMember>();
 
     [JsonIgnore]
-    public virtual ICollection<GuidanceProject> GuidanceProjectLecturers { get; set; }
-        = new List<GuidanceProject>();
-
-    [JsonIgnore]
-    public virtual ICollection<GuidanceProject> GuidanceProjectStudents { get; set; }
-        = new List<GuidanceProject>();
-
-    [JsonIgnore]
     public virtual ICollection<LearningMaterial> LearningMaterials { get; set; }
         = new List<LearningMaterial>();
-
-    [JsonIgnore]
-    public virtual ICollection<MembershipPurchase> MembershipPurchases { get; set; }
-        = new List<MembershipPurchase>();
 
     [JsonIgnore]
     public virtual ICollection<Notification> Notifications { get; set; }
@@ -158,13 +146,6 @@ public partial class User
     [JsonIgnore]
     public virtual ICollection<UserToken> UserTokens { get; set; }
         = new List<UserToken>();
-
-    [JsonIgnore]
-    public virtual Wallet? Wallet { get; set; }
-
-    [JsonIgnore]
-    public virtual ICollection<WithdrawalRequest> WithdrawalRequests { get; set; }
-        = new List<WithdrawalRequest>();
 
     [JsonIgnore]
     public virtual ICollection<UserMedal> UserMedals { get; set; }

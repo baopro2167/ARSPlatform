@@ -14,18 +14,15 @@ public class PaymentService : IPaymentService
 {
     private readonly PayOSSettings _payOSSettings;
     private readonly ITransactionRepository _transactionRepository;
-    private readonly IWalletRepository _walletRepository;
     private readonly HttpClient _httpClient;
 
     public PaymentService(
         IOptions<PayOSSettings> payOSSettings,
         ITransactionRepository transactionRepository,
-        IWalletRepository walletRepository,
         HttpClient httpClient)
     {
         _payOSSettings = payOSSettings.Value;
         _transactionRepository = transactionRepository;
-        _walletRepository = walletRepository;
         _httpClient = httpClient;
     }
 
@@ -40,7 +37,6 @@ public class PaymentService : IPaymentService
         // Create transaction record first
         var transaction = new Transaction
         {
-            WalletId = request.WalletId,
             Type = "PAYOS",
             Amount = request.Amount,
             Status = "PENDING",
@@ -125,19 +121,6 @@ public class PaymentService : IPaymentService
         {
             transaction.Status = "SUCCESS";
             transaction.PaymentResponseCode = "00"; // PayOS success code
-            
-            // Update wallet balance
-            if (transaction.WalletId.HasValue && transaction.Amount.HasValue)
-            {
-                var wallet = await _walletRepository.GetByIdAsync(transaction.WalletId.Value);
-                if (wallet != null)
-                {
-                    wallet.Balance += transaction.Amount.Value;
-                    wallet.UpdatedAt = DateTime.UtcNow;
-                    _walletRepository.Update(wallet);
-                    await _walletRepository.SaveChangesAsync();
-                }
-            }
         }
         else
         {

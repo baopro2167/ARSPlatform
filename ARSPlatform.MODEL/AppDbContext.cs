@@ -28,17 +28,11 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
 
-    public virtual DbSet<GuidanceProject> GuidanceProjects { get; set; }
-
     public virtual DbSet<LearningMaterial> LearningMaterials { get; set; }
 
     public virtual DbSet<MajorField> MajorFields { get; set; }
 
     public virtual DbSet<Medal> Medals { get; set; }
-
-    public virtual DbSet<MembershipPackage> MembershipPackages { get; set; }
-
-    public virtual DbSet<MembershipPurchase> MembershipPurchases { get; set; }
 
     public virtual DbSet<Notification> Notifications { get; set; }
 
@@ -83,10 +77,6 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
     public virtual DbSet<UserToken> UserTokens { get; set; }
-
-    public virtual DbSet<Wallet> Wallets { get; set; }
-
-    public virtual DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -241,28 +231,6 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK__GroupMemb__Stude__151B244E");
         });
 
-        modelBuilder.Entity<GuidanceProject>(entity =>
-        {
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.Status)
-                .HasMaxLength(50)
-                .IsUnicode(false);
-            entity.Property(e => e.Title).HasMaxLength(255);
-
-            entity.HasOne(d => d.Lecturer).WithMany(p => p.GuidanceProjectLecturers)
-                .HasForeignKey(d => d.LecturerId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("FK__GuidanceP__Lectu__1DB06A4F");
-
-            entity.HasOne(d => d.Student).WithMany(p => p.GuidanceProjectStudents)
-                .HasForeignKey(d => d.StudentId)
-                .HasConstraintName("FK__GuidanceP__Stude__1F98B2C1");
-
-            entity.HasOne(d => d.ResearchGroup).WithMany(p => p.GuidanceProjects)
-                .HasForeignKey(d => d.ResearchGroupId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
         modelBuilder.Entity<LearningMaterial>(entity =>
         {
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
@@ -283,32 +251,6 @@ public partial class AppDbContext : DbContext
         {
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Name).HasMaxLength(255);
-        });
-
-        modelBuilder.Entity<MembershipPackage>(entity =>
-        {
-            entity.HasKey(e => e.PackageId);
-
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.Name).HasMaxLength(255);
-            entity.Property(e => e.Price).HasColumnType("decimal(15, 2)");
-        });
-
-        modelBuilder.Entity<MembershipPurchase>(entity =>
-        {
-            entity.HasKey(e => e.PurchasesId);
-
-            entity.Property(e => e.PricePaid).HasColumnType("decimal(15, 2)");
-            entity.Property(e => e.PurchasedAt).HasDefaultValueSql("(getutcdate())");
-
-            entity.HasOne(d => d.Package).WithMany(p => p.MembershipPurchases)
-                .HasForeignKey(d => d.PackageId)
-                .HasConstraintName("FK__Membershi__Packa__6A30C649");
-
-            entity.HasOne(d => d.User).WithMany(p => p.MembershipPurchases)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK__Membershi__UserI__693CA210");
         });
 
         modelBuilder.Entity<Notification>(entity =>
@@ -767,11 +709,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Type)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.HasOne(d => d.Wallet).WithMany(p => p.Transactions)
-                .HasForeignKey(d => d.WalletId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK__Transacti__Walle__619B8048");
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -851,46 +788,6 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__UserToken__UserI__3587F3E0");
-        });
-
-        modelBuilder.Entity<Wallet>(entity =>
-        {
-            entity.ToTable(tb => tb.HasTrigger("trg_Wallets_update"));
-
-            entity.HasIndex(e => e.UserId, "UQ__Wallets__1788CC4D1AA07263").IsUnique();
-
-            entity.Property(e => e.Balance)
-                .HasDefaultValue(0.00m)
-                .HasColumnType("decimal(15, 2)");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
-
-            entity.HasOne(d => d.User).WithOne(p => p.Wallet)
-                .HasForeignKey<Wallet>(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK__Wallets__UserId__5CD6CB2B");
-        });
-
-        modelBuilder.Entity<WithdrawalRequest>(entity =>
-        {
-            entity.ToTable("WithdrawalRequests");
-            entity.HasKey(e => e.WithdrawalRequestId);
-
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.Amount).HasColumnType("decimal(15, 2)");
-            entity.Property(e => e.BankName).HasMaxLength(255);
-            entity.Property(e => e.AccountNumber).HasMaxLength(100);
-            entity.Property(e => e.AccountName).HasMaxLength(255);
-            entity.Property(e => e.Status).HasMaxLength(50).IsUnicode(false).HasDefaultValue("PENDING");
-
-            entity.HasOne(d => d.User).WithMany(p => p.WithdrawalRequests)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK_WithdrawalRequests_User");
-
-            entity.HasOne(d => d.Wallet).WithMany(p => p.WithdrawalRequests)
-                .HasForeignKey(d => d.WalletId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_WithdrawalRequests_Wallet");
         });
 
         modelBuilder.Entity<Medal>(entity =>

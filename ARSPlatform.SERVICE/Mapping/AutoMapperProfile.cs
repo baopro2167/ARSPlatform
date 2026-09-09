@@ -175,15 +175,6 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.GroupMemberId, opt => opt.Ignore())
                 .ForMember(dest => dest.JoinedAt, opt => opt.Ignore());
 
-            // GuidanceProject
-            CreateMap<GuidanceProject, GuidanceProjectResponse>()
-                .ForMember(dest => dest.ResearchGroupName, opt => opt.MapFrom(src =>
-                    src.ResearchGroup != null ? src.ResearchGroup.Name : null));
-            CreateMap<GuidanceProjectCreateRequest, GuidanceProject>();
-            CreateMap<GuidanceProjectUpdateRequest, GuidanceProject>()
-                .ForMember(dest => dest.GuidanceProjectId, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
-
             // LearningMaterial
             CreateMap<LearningMaterial, LearningMaterialResponse>();
             CreateMap<LearningMaterialCreateRequest, LearningMaterial>();
@@ -197,20 +188,6 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<MajorFieldUpdateRequest, MajorField>()
                 .ForMember(dest => dest.MajorFieldId, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
-
-            // MembershipPackage
-            CreateMap<MembershipPackage, MembershipPackageResponse>();
-            CreateMap<MembershipPackageCreateRequest, MembershipPackage>();
-            CreateMap<MembershipPackageUpdateRequest, MembershipPackage>()
-                .ForMember(dest => dest.PackageId, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
-
-            // MembershipPurchase
-            CreateMap<MembershipPurchase, MembershipPurchaseResponse>();
-            CreateMap<MembershipPurchaseCreateRequest, MembershipPurchase>();
-            CreateMap<MembershipPurchaseUpdateRequest, MembershipPurchase>()
-                .ForMember(dest => dest.PurchasesId, opt => opt.Ignore())
-                .ForMember(dest => dest.PurchasedAt, opt => opt.Ignore());
 
             // Notification
             CreateMap<Notification, NotificationResponse>();
@@ -432,29 +409,6 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<UserTokenUpdateRequest, UserToken>()
                 .ForMember(dest => dest.TokenId, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
-
-            // Wallet
-            CreateMap<Wallet, WalletResponse>();
-            CreateMap<WalletCreateRequest, Wallet>();
-            CreateMap<WalletUpdateRequest, Wallet>()
-                .ForMember(dest => dest.WalletId, opt => opt.Ignore())
-                .ForMember(dest => dest.UserId, opt =>
-                {
-                    opt.PreCondition(src => src.UserId.HasValue);
-                    opt.MapFrom(src => src.UserId);
-                })
-                .ForMember(dest => dest.Balance, opt =>
-                {
-                    opt.PreCondition(src => src.Balance.HasValue);
-                    opt.MapFrom(src => src.Balance);
-                });
-
-            // WithdrawalRequest
-            CreateMap<WithdrawalRequest, WithdrawalRequestResponse>();
-            CreateMap<WithdrawalRequestCreateRequest, WithdrawalRequest>()
-                .ForMember(dest => dest.WithdrawalRequestId, opt => opt.Ignore())
-                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => "PENDING"))
-                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow));
 
             // Medal & UserMedal
             CreateMap<Medal, MedalResponse>()

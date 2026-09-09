@@ -8,9 +8,8 @@ namespace ARSPlatform.SERVICE.Interfaces
 {
     public interface ITransactionService
     {
-        Task<IEnumerable<TransactionResponse>> GetAllAsync(int? walletId = null);
-        Task<PagedResult<TransactionResponse>> GetPagedAsync(PaginationParams paginationParams, int? walletId = null);
-        Task<PagedResult<TransactionResponse>> GetByWalletIdAsync(int walletId, int pageNumber, int pageSize);
+        Task<IEnumerable<TransactionResponse>> GetAllAsync();
+        Task<PagedResult<TransactionResponse>> GetPagedAsync(PaginationParams paginationParams);
         Task<PagedResult<TransactionResponse>> GetAllAsync(int pageNumber, int pageSize);
         Task<TransactionResponse?> GetByIdAsync(int id);
         Task<TransactionResponse> CreateAsync(TransactionCreateRequest request);

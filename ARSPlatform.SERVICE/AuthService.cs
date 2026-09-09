@@ -27,7 +27,6 @@ namespace ARSPlatform.SERVICES
         private readonly IUserRepository _userRepository;
         private readonly IRoleRepository _roleRepository;
         private readonly IRoleRequestRepository _roleRequestRepository;
-        private readonly IWalletRepository _walletRepository;
         private readonly IProfessionalProfileRepository _professionalProfileRepository;
         private readonly IUserRoleRepository _userRoleRepository;
         private readonly IOrcidLinkSessionRepository _orcidLinkSessionRepository;
@@ -39,7 +38,6 @@ namespace ARSPlatform.SERVICES
             IUserRepository userRepository,
             IRoleRepository roleRepository,
             IRoleRequestRepository roleRequestRepository,
-            IWalletRepository walletRepository,
             IProfessionalProfileRepository professionalProfileRepository,
             IUserRoleRepository userRoleRepository,
             IOrcidLinkSessionRepository orcidLinkSessionRepository,
@@ -50,7 +48,6 @@ namespace ARSPlatform.SERVICES
             _userRepository = userRepository;
             _roleRepository = roleRepository;
             _roleRequestRepository = roleRequestRepository;
-            _walletRepository = walletRepository;
             _professionalProfileRepository = professionalProfileRepository;
             _userRoleRepository = userRoleRepository;
             _orcidLinkSessionRepository = orcidLinkSessionRepository;
@@ -329,15 +326,6 @@ namespace ARSPlatform.SERVICES
                 }
 
                 await _userRepository.AddAsync(user);
-
-                var wallet = new Wallet
-                {
-                    User = user,
-                    Balance = 0,
-                    UpdatedAt = now
-                };
-
-                await _walletRepository.AddAsync(wallet);
             }
 
             // Create pending role request for Admin review.
@@ -612,14 +600,6 @@ namespace ARSPlatform.SERVICES
                     UpdatedAt = now
                 };
                 await _professionalProfileRepository.AddAsync(professionalProfile);
-
-                var wallet = new Wallet
-                {
-                    User = user,
-                    Balance = 0,
-                    UpdatedAt = now
-                };
-                await _walletRepository.AddAsync(wallet);
 
                 await _userRepository.SaveChangesAsync();
 
@@ -1380,14 +1360,6 @@ namespace ARSPlatform.SERVICES
                     UpdatedAt = now
                 };
                 await _professionalProfileRepository.AddAsync(professionalProfile);
-
-                var wallet = new Wallet
-                {
-                    User = user,
-                    Balance = 0,
-                    UpdatedAt = now
-                };
-                await _walletRepository.AddAsync(wallet);
             }
             else
             {
