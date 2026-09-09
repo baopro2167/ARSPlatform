@@ -13,6 +13,7 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? AvatarUrl { get; set; }
 
         public string? Role { get; set; }
+        public System.Collections.Generic.List<string> Roles { get; set; } = new();
 
         public int? SubFieldId { get; set; }
 

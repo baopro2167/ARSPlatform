@@ -45,12 +45,8 @@ namespace ARSPlatform.API.CONTROLLER
 
             if (!isAdmin)
             {
-                // Non-admins can only view active users, defaulting role to Lecturer if not provided, and excluding themselves
+                // Non-admins can only view active users and excluding themselves
                 isActive = true;
-                if (string.IsNullOrWhiteSpace(role))
-                {
-                    role = "Lecturer";
-                }
                 var result = await _userService.GetUsersAsync(paginationParams, role, isActive, excludeUserId: currentUserId);
                 return Ok(result);
             }

@@ -625,18 +625,28 @@ namespace ARSPlatform.SERVICES
                          && !string.IsNullOrEmpty(u.Email))
                 .ToListAsync();
 
-            return users.Select(u => new SuggestedInviteeDto
+            return users.Select(u =>
             {
-                UserId = u.UserId,
-                FullName = u.FullName,
-                Email = u.Email,
-                AvatarUrl = u.AvatarUrl,
-                Role = u.UserRoles.FirstOrDefault(ur => ur.Role != null)?.Role?.Name ?? "Researcher",
-                SubFieldId = u.ProfessionalProfile?.SubFieldId,
-                SubFieldName = u.ProfessionalProfile?.SubField?.Name,
-                OrcidId = u.ProfessionalProfile?.OrcidId,
-                Hindex = u.ProfessionalProfile?.Hindex,
-                PublicationCount = u.ProfessionalProfile?.PublicationCount
+                var userRoles = u.UserRoles
+                    .Where(ur => ur.Role != null && !string.IsNullOrWhiteSpace(ur.Role.Name))
+                    .Select(ur => ur.Role!.Name)
+                    .Distinct()
+                    .ToList();
+
+                return new SuggestedInviteeDto
+                {
+                    UserId = u.UserId,
+                    FullName = u.FullName,
+                    Email = u.Email,
+                    AvatarUrl = u.AvatarUrl,
+                    Role = userRoles.Count > 0 ? string.Join(" • ", userRoles) : "Researcher",
+                    Roles = userRoles,
+                    SubFieldId = u.ProfessionalProfile?.SubFieldId,
+                    SubFieldName = u.ProfessionalProfile?.SubField?.Name,
+                    OrcidId = u.ProfessionalProfile?.OrcidId,
+                    Hindex = u.ProfessionalProfile?.Hindex,
+                    PublicationCount = u.ProfessionalProfile?.PublicationCount
+                };
             }).ToList();
         }
 

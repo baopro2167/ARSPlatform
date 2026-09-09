@@ -51,7 +51,16 @@ namespace ARSPlatform.SERVICES
             if (!string.IsNullOrWhiteSpace(role) && !role.Equals("ALL", StringComparison.OrdinalIgnoreCase))
             {
                 var roleTrimmed = role.Trim();
-                query = query.Where(u => u.UserRoles.Any(ur => ur.Role != null && ur.Role.Name == roleTrimmed));
+                if (roleTrimmed.Equals("GraduateStudent", StringComparison.OrdinalIgnoreCase) ||
+                    roleTrimmed.Equals("Graduate Student", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(u => u.UserRoles.Any(ur => ur.Role != null &&
+                        (ur.Role.Name == "Graduate Student" || ur.Role.Name == "GraduateStudent")));
+                }
+                else
+                {
+                    query = query.Where(u => u.UserRoles.Any(ur => ur.Role != null && ur.Role.Name == roleTrimmed));
+                }
             }
 
             if (excludeUserId.HasValue && excludeUserId.Value > 0)
