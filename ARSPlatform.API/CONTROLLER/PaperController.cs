@@ -315,6 +315,64 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// ============================================================
+        /// [TEST API] Cập nhật Paper KHÔNG CẦN OpenAlex + ORCID verify
+        /// ------------------------------------------------------------
+        /// Route: PUT /api/Paper/test-update-no-verify/{id}
+        ///
+        /// ⚠️ CHỈ DÙNG ĐỂ FE TEST LUỒNG DUYỆT PAPER.
+        /// Endpoint này BYPASS toàn bộ cơ chế chống gian lận:
+        ///   - Không kiểm tra OpenAlex Work ID
+        ///   - Không kiểm tra AuthorshipVerificationStatus = VERIFIED
+        ///   - Không reset verification status khi sửa metadata
+        ///
+        /// KHÔNG dùng cho production logic. Chỉ Admin mới được gọi.
+        /// ============================================================
+        /// </summary>
+        /// <param name="id">ID của Paper cần cập nhật</param>
+        /// <param name="request">Dữ liệu cập nhật</param>
+        /// <returns>Paper sau khi cập nhật (test only)</returns>
+        [HttpPut("test-update-no-verify/{id:int}")]
+        [Authorize]
+        public async Task<ActionResult<PaperResponse>> UpdatePaperTestNoVerify(
+            int id,
+            [FromBody] PaperUpdateRequest request)
+        {
+            // Chỉ Admin được dùng endpoint test này.
+            var currentUserRole =
+                User.FindFirst(
+                    ClaimTypes.Role)
+                    ?.Value;
+
+            if (currentUserRole != "Admin")
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                var updatedPaper =
+                    await _paperService
+                        .UpdatePaperForTestingAsync(
+                            id,
+                            request);
+
+                if (updatedPaper == null)
+                    return NotFound();
+
+                return Ok(updatedPaper);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        Message = ex.Message
+                    });
+            }
+        }
+
+        /// <summary>
         /// Lấy danh sách bài báo được phân công cho 1 phản biện viên (Reviewer).
         /// Truyền vào <c>reviewerId</c> sẽ list tất cả paper đã được phân công,
         /// response gồm <c>ReviewerId</c> và <c>ReviewerName</c> (= User.FullName).

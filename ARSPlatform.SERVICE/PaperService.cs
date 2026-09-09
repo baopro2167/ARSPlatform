@@ -508,6 +508,146 @@ namespace ARSPlatform.SERVICES
                 : _mapper.Map<PaperResponse>(updatedPaper);
         }
 
+        /*
+         * ============================================================
+         * [TEST API] UpdatePaperForTestingAsync
+         * ------------------------------------------------------------
+         * Cập nhật Paper y hệt UpdatePaperAsync nhưng KHÔNG áp dụng
+         * check OpenAlex + ORCID khi đổi Status sang "Approved".
+         *
+         * Chỉ dùng để FE test luồng duyệt paper không cần verify.
+         * KHÔNG dùng cho production logic — bỏ qua cơ chế chống
+         * gian lận tác giả.
+         * ============================================================
+         */
+        public async Task<PaperResponse?> UpdatePaperForTestingAsync(
+            int id,
+            PaperUpdateRequest request)
+        {
+            var paper =
+                await _paperRepository
+                    .GetWithAuthorByIdAsync(id);
+
+            if (paper == null)
+                return null;
+
+            var normalizedWorkId =
+                request.OpenAlexWorkId == null
+                    ? paper.OpenAlexWorkId
+                    : NormalizeCanonicalWorkIdOrNull(
+                        request.OpenAlexWorkId);
+
+            var updatedDoi =
+                request.Doi == null
+                    ? paper.Doi
+                    : NormalizeOptionalText(request.Doi);
+
+            var updatedPublicationDate =
+                request.PublicationDate
+                ?? paper.PublicationDate;
+
+            var updatedSourceName =
+                request.SourceName == null
+                    ? paper.SourceName
+                    : NormalizeOptionalText(request.SourceName);
+
+            var updatedIssnValue =
+                request.IssnValue == null
+                    ? paper.IssnValue
+                    : NormalizeOptionalText(request.IssnValue);
+
+            var updatedPaperType =
+                string.IsNullOrWhiteSpace(request.PaperType)
+                    ? paper.PaperType
+                    : NormalizePaperType(request.PaperType);
+
+            var authorsChanged =
+                request.Authors != null &&
+                AuthorsChanged(
+                    paper.PaperAuthors,
+                    request.Authors);
+
+            // [TEST] BỎ QUA toàn bộ block reset AuthorshipVerificationStatus
+            // vì test endpoint này không phụ thuộc verify.
+
+            paper.Title =
+                request.Title;
+
+            paper.Abstract =
+                request.Abstract;
+
+            paper.FileUrl =
+                request.FileUrl;
+
+            paper.Issn =
+                request.Issn;
+
+            paper.IsOpenAccess =
+                request.IsOpenAccess;
+
+            paper.Quartile =
+                request.Quartile;
+
+            paper.SubFieldId =
+                request.SubFieldId;
+
+            paper.OpenAlexWorkId =
+                normalizedWorkId;
+
+            paper.Doi =
+                updatedDoi;
+
+            paper.PublicationDate =
+                updatedPublicationDate;
+
+            paper.SourceName =
+                updatedSourceName;
+
+            paper.IssnValue =
+                updatedIssnValue;
+
+            paper.PaperType =
+                updatedPaperType;
+
+            if (request.Authors != null)
+            {
+                ReplaceAuthors(
+                    paper,
+                    request.Authors,
+                    normalizedWorkId != null
+                        ? "OPENALEX"
+                        : "MANUAL");
+            }
+
+            /*
+                [TEST] Đổi Status TRỰC TIẾP nếu FE gửi lên,
+                KHÔNG check OpenAlex + ORCID. Đây là điểm khác
+                biệt duy nhất so với UpdatePaperAsync chuẩn.
+            */
+            if (!string.IsNullOrWhiteSpace(request.Status))
+            {
+                paper.Status =
+                    request.Status.Trim();
+            }
+
+            paper.UpdatedAt =
+                DateTime.UtcNow;
+
+            _paperRepository
+                .Update(paper);
+
+            await _paperRepository
+                .SaveChangesAsync();
+
+            var updatedPaper =
+                await _paperRepository
+                    .GetWithAuthorByIdAsync(id);
+
+            return updatedPaper == null
+                ? null
+                : _mapper.Map<PaperResponse>(updatedPaper);
+        }
+
         public async Task<bool> DeletePaperAsync(
             int id)
         {

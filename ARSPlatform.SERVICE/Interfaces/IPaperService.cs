@@ -35,6 +35,15 @@ namespace ARSPlatform.SERVICE.Interfaces
             PaperUpdateRequest request,
             bool allowStatusUpdate = false);
 
+        /// <summary>
+        /// [TEST API] Cập nhật Paper giống <see cref="UpdatePaperAsync"/>
+        /// nhưng KHÔNG kiểm tra OpenAlex + ORCID khi duyệt.
+        /// Chỉ dùng để FE test, không dùng cho production logic.
+        /// </summary>
+        Task<PaperResponse?> UpdatePaperForTestingAsync(
+            int id,
+            PaperUpdateRequest request);
+
         Task<bool> DeletePaperAsync(int id);
 
         Task<PaperAuthorshipVerificationResponse?>
