@@ -24,6 +24,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
         private readonly IConfiguration _configuration;
         private readonly ILogger<AudioSummaryService> _logger;
         private readonly ISeminarRepository _seminarRepository;
+        private readonly IOpenAiAudioSummaryService _openAiAudioSummaryService;
 
         private const long MaxUploadSizeBytes = 524_288_000;
         private const double MaxMediaDurationSeconds = 7200;
@@ -49,12 +50,14 @@ namespace ARSPlatform.SERVICE.ExternalServices
             HttpClient httpClient,
             IConfiguration configuration,
             ILogger<AudioSummaryService> logger,
-            ISeminarRepository seminarRepository)
+            ISeminarRepository seminarRepository,
+            IOpenAiAudioSummaryService openAiAudioSummaryService)
         {
             _httpClient = httpClient;
             _configuration = configuration;
             _logger = logger;
             _seminarRepository = seminarRepository;
+            _openAiAudioSummaryService = openAiAudioSummaryService;
         }
 
         public async Task<SeminarAudioSummaryResponse> SummarizeSeminarAudioAsync(
@@ -85,14 +88,11 @@ namespace ARSPlatform.SERVICE.ExternalServices
 
             var model = _configuration["GeminiSettings:Model"] ?? "gemini-3.7-flash";
 
-            if (string.IsNullOrWhiteSpace(apiKey) ||
-                string.Equals(apiKey, "REPLACE_WITH_GEMINI_API_KEY", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    "Thiếu GEMINI_API_KEY hợp lệ trong Environment hoặc GeminiSettings:ApiKey.");
-            }
+            var geminiConfigured = !string.IsNullOrWhiteSpace(apiKey)
+                && !string.Equals(apiKey, "REPLACE_WITH_GEMINI_API_KEY", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(apiKey, "YOUR_GEMINI_API_KEY", StringComparison.OrdinalIgnoreCase);
 
-            if (string.IsNullOrWhiteSpace(model))
+            if (geminiConfigured && string.IsNullOrWhiteSpace(model))
                 throw new InvalidOperationException("Thiếu GeminiSettings:Model.");
 
             var seminar = await _seminarRepository.GetByIdAsync(seminarId);
@@ -154,40 +154,75 @@ namespace ARSPlatform.SERVICE.ExternalServices
                     new FileInfo(tempCompressedPath).Length,
                     diagnosticTimer.ElapsedMilliseconds);
 
-                currentStage = "GOOGLE_UPLOAD";
+                string summaryMarkdown;
 
-                var (fileUri, uploadedResourceName) =
-                    await UploadToGoogleFilesApiAsync(tempCompressedPath, apiKey, cancellationToken);
+                if (!geminiConfigured)
+                {
+                    currentStage = "OPENAI_FALLBACK";
 
-                resourceName = uploadedResourceName;
+                    _logger.LogWarning(
+                        "Gemini API key is not configured. Switching to OpenAI fallback. SeminarId={SeminarId}",
+                        seminarId);
 
-                _logger.LogInformation(
-                    "AI Summary Google upload completed. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
-                    seminarId,
-                    diagnosticTimer.ElapsedMilliseconds);
+                    summaryMarkdown = await _openAiAudioSummaryService.SummarizeAsync(
+                        tempCompressedPath,
+                        seminar,
+                        cancellationToken);
+                }
+                else
+                {
+                    try
+                    {
+                        currentStage = "GOOGLE_UPLOAD";
 
-                currentStage = "GOOGLE_FILE_PROCESSING";
+                        var (fileUri, uploadedResourceName) =
+                            await UploadToGoogleFilesApiAsync(tempCompressedPath, apiKey!, cancellationToken);
 
-                await WaitForFileActiveAsync(resourceName, apiKey, cancellationToken);
+                        resourceName = uploadedResourceName;
 
-                _logger.LogInformation(
-                    "AI Summary Google file ACTIVE. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
-                    seminarId,
-                    diagnosticTimer.ElapsedMilliseconds);
+                        _logger.LogInformation(
+                            "AI Summary Google upload completed. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
+                            seminarId,
+                            diagnosticTimer.ElapsedMilliseconds);
 
-                currentStage = "GEMINI";
+                        currentStage = "GOOGLE_FILE_PROCESSING";
 
-                var summaryMarkdown = await GenerateSummaryTextAsync(
-                    fileUri,
-                    apiKey,
-                    model,
-                    cancellationToken);
+                        await WaitForFileActiveAsync(resourceName, apiKey!, cancellationToken);
 
-                _logger.LogInformation(
-                    "AI Summary Gemini completed. SeminarId={SeminarId}, SummaryLength={SummaryLength}, ElapsedMs={ElapsedMs}",
-                    seminarId,
-                    summaryMarkdown.Length,
-                    diagnosticTimer.ElapsedMilliseconds);
+                        _logger.LogInformation(
+                            "AI Summary Google file ACTIVE. SeminarId={SeminarId}, ElapsedMs={ElapsedMs}",
+                            seminarId,
+                            diagnosticTimer.ElapsedMilliseconds);
+
+                        currentStage = "GEMINI";
+
+                        summaryMarkdown = await GenerateSummaryTextAsync(
+                            fileUri,
+                            apiKey!,
+                            model,
+                            cancellationToken);
+
+                        _logger.LogInformation(
+                            "AI Summary Gemini completed. SeminarId={SeminarId}, SummaryLength={SummaryLength}, ElapsedMs={ElapsedMs}",
+                            seminarId,
+                            summaryMarkdown.Length,
+                            diagnosticTimer.ElapsedMilliseconds);
+                    }
+                    catch (Exception ex) when (ShouldFallbackToOpenAi(ex, cancellationToken))
+                    {
+                        currentStage = "OPENAI_FALLBACK";
+
+                        _logger.LogWarning(
+                            ex,
+                            "Gemini unavailable. Switching to OpenAI fallback. SeminarId={SeminarId}",
+                            seminarId);
+
+                        summaryMarkdown = await _openAiAudioSummaryService.SummarizeAsync(
+                            tempCompressedPath,
+                            seminar,
+                            cancellationToken);
+                    }
+                }
 
                 seminar.AiSummary = summaryMarkdown;
                 _seminarRepository.Update(seminar);
@@ -226,7 +261,7 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 DeleteLocalFile(tempInputPath);
                 DeleteLocalFile(tempCompressedPath);
 
-                if (!string.IsNullOrWhiteSpace(resourceName))
+                if (!string.IsNullOrWhiteSpace(resourceName) && !string.IsNullOrWhiteSpace(apiKey))
                     _ = DeleteGoogleFileAsync(resourceName, apiKey);
             }
         }
@@ -374,7 +409,9 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 var errorBody = await initResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 throw new HttpRequestException(
-                    $"Google Files API khởi tạo upload thất bại. StatusCode={(int)initResponse.StatusCode}. Response={errorBody}");
+                    $"Google Files API khởi tạo upload thất bại. StatusCode={(int)initResponse.StatusCode}. Response={errorBody}",
+                    null,
+                    initResponse.StatusCode);
             }
 
             if (!initResponse.Headers.TryGetValues("X-Goog-Upload-URL", out var uploadUrls))
@@ -402,7 +439,9 @@ namespace ARSPlatform.SERVICE.ExternalServices
                 var errorBody = await uploadResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 throw new HttpRequestException(
-                    $"Google Files API upload file thất bại. StatusCode={(int)uploadResponse.StatusCode}. Response={errorBody}");
+                    $"Google Files API upload file thất bại. StatusCode={(int)uploadResponse.StatusCode}. Response={errorBody}",
+                    null,
+                    uploadResponse.StatusCode);
             }
 
             var responseJson = await uploadResponse.Content.ReadAsStringAsync(cancellationToken);
@@ -467,6 +506,14 @@ namespace ARSPlatform.SERVICE.ExternalServices
                         resourceName,
                         (int)response.StatusCode,
                         errorBody);
+
+                    if ((int)response.StatusCode == 401 || (int)response.StatusCode == 403)
+                    {
+                        throw new HttpRequestException(
+                            $"Google Files API status check thất bại. StatusCode={(int)response.StatusCode}. Response={errorBody}",
+                            null,
+                            response.StatusCode);
+                    }
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
@@ -696,7 +743,9 @@ Write a brief closing paragraph that captures the seminar’s overall conclusion
                         errorBody);
 
                     throw new HttpRequestException(
-                        $"Gemini model '{cleanModel}' tạm thời không khả dụng sau 3 lần thử. StatusCode={statusCode}.");
+                        $"Gemini model '{cleanModel}' tạm thời không khả dụng sau 3 lần thử. StatusCode={statusCode}.",
+                        null,
+                        response.StatusCode);
                 }
 
                 if (statusCode == 404)
@@ -707,7 +756,9 @@ Write a brief closing paragraph that captures the seminar’s overall conclusion
                         errorBody);
 
                     throw new HttpRequestException(
-                        $"Gemini model cấu hình '{cleanModel}' không tồn tại hoặc không hỗ trợ generateContent.");
+                        $"Gemini model cấu hình '{cleanModel}' không tồn tại hoặc không hỗ trợ generateContent.",
+                        null,
+                        response.StatusCode);
                 }
 
                 _logger.LogWarning(
@@ -717,7 +768,9 @@ Write a brief closing paragraph that captures the seminar’s overall conclusion
                     errorBody);
 
                 throw new HttpRequestException(
-                    $"Gemini API trả lỗi {statusCode} khi sử dụng model '{cleanModel}'.");
+                    $"Gemini API trả lỗi {statusCode} khi sử dụng model '{cleanModel}'.",
+                    null,
+                    response.StatusCode);
             }
 
             throw new HttpRequestException(
@@ -758,6 +811,29 @@ Write a brief closing paragraph that captures the seminar’s overall conclusion
             }
 
             return null;
+        }
+
+        private static bool ShouldFallbackToOpenAi(
+            Exception exception,
+            CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested || exception is OperationCanceledException)
+                return false;
+
+            if (exception is TimeoutException)
+                return true;
+
+            if (exception is not HttpRequestException httpException || !httpException.StatusCode.HasValue)
+                return false;
+
+            var statusCode = (int)httpException.StatusCode.Value;
+
+            return statusCode == 401
+                || statusCode == 403
+                || statusCode == 408
+                || statusCode == 409
+                || statusCode == 429
+                || statusCode >= 500;
         }
 
         private async Task DeleteGoogleFileAsync(string resourceName, string apiKey)
