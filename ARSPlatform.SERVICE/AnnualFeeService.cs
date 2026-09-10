@@ -578,7 +578,7 @@ public class AnnualFeeService : IAnnualFeeService
         {
             UserSubscriptionId = s.Id,
             UserId = s.UserId,
-            Username = s.User?.UserName,
+            Username = s.User?.FullName,
             UserRole = s.UserRole,
             ExpiresAt = s.ExpiresAt,
             LatestTransactionId = s.LatestTransactionId,
