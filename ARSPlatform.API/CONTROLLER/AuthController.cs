@@ -664,32 +664,5 @@ namespace ARSPlatform.API.CONTROLLER
                     "not configured",
                     StringComparison.OrdinalIgnoreCase);
         }
-
-        /// <summary>
-        /// Cập nhật thời hạn trải nghiệm (ExpiresAt) cho tài khoản người dùng
-        /// </summary>
-        /// <param name="request">UserId và ExpiresAt mới</param>
-        /// <returns>Thông báo kết quả</returns>
-        [HttpPut("update-expires-at")]
-        // [Authorize(Policy = "AdminOnly")]
-        public async Task<IActionResult> UpdateExpiresAt([FromBody] UpdateExpiresAtRequest request)
-        {
-            try
-            {
-                var result = await _authService.UpdateExpiresAtAsync(request.UserId, request.ExpiresAt);
-                if (!result)
-                    return BadRequest(new { Message = "Failed to update ExpiresAt." });
-
-                return Ok(new { Message = "ExpiresAt updated successfully.", ExpiresAt = request.ExpiresAt });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { Message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { Message = ex.Message });
-            }
-        }
     }
 }

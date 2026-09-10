@@ -158,13 +158,18 @@ public class AnnualFeeController : ControllerBase
     // ─────────────────────────────────────────────
 
     /// <summary>
-    /// List gói đang bật (Auth — FE Subscription tab)
+    /// List gói đang bật (Auth — FE Subscription tab).
+    /// Tự động filter theo role của user:
+    ///   - Researcher → chỉ thấy plan Researcher
+    ///   - Lecturer   → chỉ thấy plan Lecturer
+    ///   - Role khác (Guest/Admin/Reviewer/Graduate Student) → trả rỗng
     /// </summary>
     [HttpGet("active")]
     public async Task<ActionResult<PagedResult<AnnualFeeResponse>>> GetActive(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _service.GetActiveAsync(page, pageSize);
+        var role = GetUserRole();
+        var result = await _service.GetActiveForRoleAsync(role, page, pageSize);
         return Ok(result);
     }
 

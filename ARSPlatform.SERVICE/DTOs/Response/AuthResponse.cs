@@ -15,6 +15,11 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public System.Collections.Generic.List<string>? Roles { get; set; }
         public bool? RequiresOnboarding { get; set; }
         public string? EffectiveRole { get; set; }
-        public DateTime? ExpiresAt { get; set; }
+
+        /// <summary>
+        /// Ngày hết hạn subscription từ UserSubscriptions theo EffectiveRole.
+        /// NULL = chưa có / không áp dụng (Guest, Admin, Onboarding, Pending).
+        /// </summary>
+        public DateTime? SubscriptionExpiresAt { get; set; }
     }
 }

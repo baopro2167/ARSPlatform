@@ -13,7 +13,7 @@ using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-namespace ARSPlatform.SERVICES;
+namespace ARSPlatform.SERVICE;
 
 public class AnnualFeeService : IAnnualFeeService
 {
@@ -212,6 +212,34 @@ public class AnnualFeeService : IAnnualFeeService
             PageNumber = page,
             PageSize = pageSize,
             Status = true
+        });
+    }
+
+    /// <summary>
+    /// Public: chỉ trả plan matching role user.
+    /// Researcher → plan UserRole = "Researcher"
+    /// Lecturer   → plan UserRole = "Lecturer"
+    /// Role khác  (Guest/Admin/Reviewer/Graduate Student) → trả rỗng
+    /// </summary>
+    public async Task<PagedResult<AnnualFeeResponse>> GetActiveForRoleAsync(
+        string userRole, int page = 1, int pageSize = 20)
+    {
+        // Chỉ 2 role được phép mua gói 6/12 tháng
+        if (string.IsNullOrWhiteSpace(userRole) ||
+            (userRole != "Researcher" && userRole != "Lecturer"))
+        {
+            return new PagedResult<AnnualFeeResponse>(
+                new List<AnnualFeeResponse>(), 0,
+                page < 1 ? 1 : page,
+                pageSize < 1 ? 20 : pageSize);
+        }
+
+        return await GetAllPagedAsync(new AnnualFeeFilterParams
+        {
+            PageNumber = page,
+            PageSize = pageSize,
+            Status = true,
+            UserRole = userRole
         });
     }
 

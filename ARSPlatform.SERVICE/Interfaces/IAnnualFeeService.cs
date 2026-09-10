@@ -19,6 +19,9 @@ public interface IAnnualFeeService
     Task<PagedResult<AnnualFeeResponse>> GetActiveAsync(int page = 1, int pageSize = 20);
     Task<AnnualFeeResponse?> GetActiveByIdAsync(int id);
 
+    // Public: chỉ trả plan theo role user (Researcher | Lecturer); role khác → trả rỗng
+    Task<PagedResult<AnnualFeeResponse>> GetActiveForRoleAsync(string userRole, int page = 1, int pageSize = 20);
+
     // User subscription
     Task<MySubscriptionResponse?> GetMySubscriptionAsync(int userId, string userRole);
     Task<PagedResult<AnnualFeePurchaseResponse>> GetMyPurchasesAsync(int userId, string userRole, int page, int pageSize);

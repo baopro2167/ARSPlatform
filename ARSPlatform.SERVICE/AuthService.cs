@@ -30,6 +30,7 @@ namespace ARSPlatform.SERVICES
         private readonly IProfessionalProfileRepository _professionalProfileRepository;
         private readonly IUserRoleRepository _userRoleRepository;
         private readonly IOrcidLinkSessionRepository _orcidLinkSessionRepository;
+        private readonly IUserSubscriptionRepository _userSubscriptionRepository;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
@@ -41,6 +42,7 @@ namespace ARSPlatform.SERVICES
             IProfessionalProfileRepository professionalProfileRepository,
             IUserRoleRepository userRoleRepository,
             IOrcidLinkSessionRepository orcidLinkSessionRepository,
+            IUserSubscriptionRepository userSubscriptionRepository,
             IMapper mapper,
             IConfiguration configuration,
             IEmailService emailService)
@@ -51,9 +53,76 @@ namespace ARSPlatform.SERVICES
             _professionalProfileRepository = professionalProfileRepository;
             _userRoleRepository = userRoleRepository;
             _orcidLinkSessionRepository = orcidLinkSessionRepository;
+            _userSubscriptionRepository = userSubscriptionRepository;
             _mapper = mapper;
             _configuration = configuration;
             _emailService = emailService;
+        }
+
+        // ─────────────────────────────────────────────
+        // SUBSCRIPTION HELPERS
+        // ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Map role từ FE/Token sang UserSubscriptions.UserRole.
+        /// Reviewer / Graduate Student đi cùng gói Researcher.
+        /// </summary>
+        private static string? MapRoleToSubscriptionRole(string? role)
+        {
+            if (string.IsNullOrWhiteSpace(role)) return null;
+            return role.Trim() switch
+            {
+                "Researcher"        => "Researcher",
+                "Reviewer"          => "Researcher",
+                "Graduate Student"  => "Researcher",
+                "Lecturer"          => "Lecturer",
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Lấy ExpiresAt từ UserSubscriptions theo role.
+        /// Trả null nếu role không có subscription (Guest, Admin, ...).
+        /// </summary>
+        private async Task<DateTime?> GetSubscriptionExpiresAsync(int userId, string? effectiveRole)
+        {
+            var subRole = MapRoleToSubscriptionRole(effectiveRole);
+            if (subRole == null) return null;
+
+            var sub = await _userSubscriptionRepository
+                .GetByUserAndRoleAsync(userId, subRole);
+
+            return sub?.ExpiresAt;
+        }
+
+        /// <summary>
+        /// Insert trial 7 ngày vào UserSubscriptions cho role cụ thể.
+        /// Nếu đã có row → update ExpiresAt (khi re-register cùng email).
+        /// </summary>
+        private async Task CreateTrialSubscriptionAsync(int userId, string subRole, DateTime expiresAt)
+        {
+            var existing = await _userSubscriptionRepository
+                .GetByUserAndRoleAsync(userId, subRole);
+
+            if (existing != null)
+            {
+                existing.ExpiresAt = expiresAt;
+                existing.UpdatedAt = DateTime.UtcNow;
+                _userSubscriptionRepository.Update(existing);
+            }
+            else
+            {
+                await _userSubscriptionRepository.AddAsync(new UserSubscription
+                {
+                    UserId = userId,
+                    UserRole = subRole,
+                    ExpiresAt = expiresAt,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+
+            await _userSubscriptionRepository.SaveChangesAsync();
         }
 
         public async Task<AuthResponse?> RegisterAsync(RegisterRequest request)
@@ -246,9 +315,6 @@ namespace ARSPlatform.SERVICES
                 user.ExpiresOtpAt =
                     now.AddMinutes(5);
 
-                user.ExpiresAt =
-                    now.AddDays(7);
-
                 /*
                     Only a verified OAuth ticket is allowed
                     to write these fields.
@@ -294,9 +360,6 @@ namespace ARSPlatform.SERVICES
 
                 user.ExpiresOtpAt =
                     now.AddMinutes(5);
-
-                user.ExpiresAt =
-                    now.AddDays(7);
 
                 user.UserRoles =
                     new List<UserRole>();
@@ -369,6 +432,14 @@ namespace ARSPlatform.SERVICES
             // Persist registration atomically.
             await _userRepository.SaveChangesAsync();
 
+            // Insert trial 7-day subscription cho role đã đăng ký
+            var trialSubRole = MapRoleToSubscriptionRole(requestedRoleName);
+            if (trialSubRole != null)
+            {
+                await CreateTrialSubscriptionAsync(
+                    user.UserId, trialSubRole, now.AddDays(7));
+            }
+
             // Send OTP email
             try
             {
@@ -415,7 +486,7 @@ namespace ARSPlatform.SERVICES
                 IsActive = createdUser.IsActive,
                 VerificationStatus =
                     createdUser.VerificationStatus,
-                ExpiresAt = createdUser.ExpiresAt
+                SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(createdUser.UserId, "Guest")
             };
         }
 
@@ -456,7 +527,7 @@ namespace ARSPlatform.SERVICES
                     RequiresOnboarding = false,
                     EffectiveRole = "Guest",
                     Roles = new List<string> { "Guest" },
-                    ExpiresAt = user.ExpiresAt
+                SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, "Guest")
                 };
             }
 
@@ -521,7 +592,7 @@ namespace ARSPlatform.SERVICES
                 RequiresOnboarding = false,
                 EffectiveRole = effectiveRole,
                 Roles = rolesList,
-                ExpiresAt = user.ExpiresAt
+                SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, effectiveRole)
             };
         }
 
@@ -620,7 +691,7 @@ namespace ARSPlatform.SERVICES
                     RequiresOnboarding = true,
                     EffectiveRole = null,
                     Roles = new List<string>(),
-                    ExpiresAt = user.ExpiresAt
+                SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, "Guest")
                 };
             }
             else
@@ -655,7 +726,7 @@ namespace ARSPlatform.SERVICES
                         RequiresOnboarding = true,
                         EffectiveRole = null,
                         Roles = new List<string>(),
-                        ExpiresAt = user.ExpiresAt
+                    SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, "Guest")
                     };
                 }
 
@@ -678,7 +749,7 @@ namespace ARSPlatform.SERVICES
                         RequiresOnboarding = false,
                         EffectiveRole = "Guest",
                         Roles = new List<string>(),
-                        ExpiresAt = user.ExpiresAt
+                    SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, "Guest")
                     };
                 }
 
@@ -703,7 +774,7 @@ namespace ARSPlatform.SERVICES
                 RequiresOnboarding = false,
                 EffectiveRole = effectiveRole,
                 Roles = rolesList,
-                ExpiresAt = user.ExpiresAt
+                SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, effectiveRole)
             };
         }
 
@@ -1393,6 +1464,14 @@ namespace ARSPlatform.SERVICES
 
             await _userRepository.SaveChangesAsync();
 
+            // Insert trial 7-day subscription cho role Google
+            var trialSubRole = MapRoleToSubscriptionRole(requestedRoleName);
+            if (trialSubRole != null)
+            {
+                await CreateTrialSubscriptionAsync(
+                    user.UserId, trialSubRole, now.AddDays(7));
+            }
+
             var token = GenerateJwtToken(user, "Guest");
 
             return new AuthResponse
@@ -1410,7 +1489,7 @@ namespace ARSPlatform.SERVICES
                 RequiresOnboarding = false,
                 EffectiveRole = "Guest",
                 Roles = new List<string>(),
-                ExpiresAt = user.ExpiresAt
+                SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, "Guest")
             };
         }
 
@@ -1456,7 +1535,7 @@ namespace ARSPlatform.SERVICES
                 RequiresOnboarding = false,
                 EffectiveRole = chosenRole,
                 Roles = rolesList,
-                ExpiresAt = user.ExpiresAt
+                SubscriptionExpiresAt = await GetSubscriptionExpiresAsync(user.UserId, chosenRole)
             };
         }
 
@@ -1510,19 +1589,6 @@ namespace ARSPlatform.SERVICES
             }
 
             return audiences.Distinct();
-        }
-
-        public async Task<bool> UpdateExpiresAtAsync(int userId, DateTime expiresAt)
-        {
-            var user = await _userRepository.GetByIdAsync(userId);
-            if (user == null)
-                throw new KeyNotFoundException("User not found.");
-
-            user.ExpiresAt = expiresAt;
-            user.UpdatedAt = DateTime.UtcNow;
-            _userRepository.Update(user);
-            await _userRepository.SaveChangesAsync();
-            return true;
         }
     }
 }

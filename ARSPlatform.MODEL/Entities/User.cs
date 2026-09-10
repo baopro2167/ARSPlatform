@@ -51,8 +51,6 @@ public partial class User
 
     public bool? IsOtpUsed { get; set; }
 
-    public DateTime? ExpiresAt { get; set; }
-
     [JsonIgnore]
     public virtual ICollection<CommentVote> CommentVotes { get; set; }
         = new List<CommentVote>();
