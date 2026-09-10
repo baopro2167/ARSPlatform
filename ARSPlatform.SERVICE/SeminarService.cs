@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -782,19 +783,50 @@ namespace ARSPlatform.SERVICES
         {
             var content = WebUtility.HtmlEncode(seminar.Content);
             var link = WebUtility.HtmlEncode(seminar.OnlineLink ?? string.Empty);
+            var safeTitle = HtmlEncoder.Default.Encode(seminar.Content ?? "Hội thảo khoa học");
+            var startTime = seminar.StartTime.ToString("dd/MM/yyyy HH:mm");
+            var endTime = seminar.EndTime.ToString("dd/MM/yyyy HH:mm");
+            var joinUrl = !string.IsNullOrWhiteSpace(seminar.OnlineLink) ? seminar.OnlineLink : "#";
+            var safeJoinUrl = HtmlEncoder.Default.Encode(joinUrl);
 
             return $@"
-<html>
-<body style='font-family: Arial, sans-serif; line-height: 1.6;'>
-    <h2>Thư mời tham dự hội thảo</h2>
-    <p>Bạn nhận được lời mời tham dự hội thảo với chủ đề:</p>
-    <p><strong>{content}</strong></p>
-    <ul>
-        <li><strong>Thời gian bắt đầu:</strong> {seminar.StartTime:dd/MM/yyyy HH:mm}</li>
-        <li><strong>Thời gian kết thúc:</strong> {seminar.EndTime:dd/MM/yyyy HH:mm}</li>
-        <li><strong>Link tham dự:</strong> <a href='{link}'>{link}</a></li>
-    </ul>
-    <p>Rất mong sự góp mặt của bạn!</p>
+<!doctype html>
+<html lang=""en"">
+<head>
+  <meta charset=""utf-8"">
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><!--[if mso]>
+  <style type=""text/css"">
+    body, table, td, p, a, h1, h2, h3 {{ font-family: Arial, Helvetica, sans-serif !important; }}
+  </style>
+  <![endif]-->
+  <style type=""text/css"">
+    @media screen and (max-width: 620px) {{
+      .email-shell {{ width: 100% !important; }}
+      .email-gutter {{ padding-left: 24px !important; padding-right: 24px !important; }}
+      .info-box {{ padding-left: 20px !important; padding-right: 20px !important; }}
+    }}
+  </style>
+</head>
+<body style=""margin:0; padding:0; background-color:#f5f1e8; color:#1d1c19; font-family:Arial, Helvetica, sans-serif;""><span style=""display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;"">You are invited to an ARS academic seminar.</span>
+  <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#f5f1e8;""><tr><td align=""center"" style=""padding:36px 16px;"">
+    <table role=""presentation"" class=""email-shell"" width=""600"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""width:100%; max-width:600px; background-color:#ffffff; border:1px solid #ded9cf;""><tr><td>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#1d1c19;""><tr><td class=""email-gutter"" style=""padding:26px 40px 24px;"">
+        <div style=""font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:30px; font-weight:bold; color:#fffdf8;"">ARS<span style=""color:#e2ad2f;"">.</span></div>
+        <div style=""padding-top:7px; font-size:10px; line-height:14px; letter-spacing:2px; color:#d7d2c8;"">ACADEMIC RESEARCH SHARING</div>
+      </td></tr></table>
+      <div style=""height:4px; line-height:4px; font-size:4px; background-color:#e2ad2f;"">&nbsp;</div>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0""><tr><td class=""email-gutter"" style=""padding:40px;"">
+        <div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Seminar invitation</div>
+        <h1 style=""margin:9px 0 18px; font-family:Georgia, 'Times New Roman', serif; font-size:28px; line-height:34px; font-weight:bold; color:#1d1c19;"">Thư mời tham dự hội thảo</h1>
+        <p style=""margin:0 0 18px; font-size:16px; line-height:26px; color:#4f4b42;"">Bạn nhận được lời mời tham dự hội thảo với chủ đề:</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:6px 0 22px;""><tr><td class=""info-box"" style=""padding:22px 28px; background-color:#fff9e8; border:1px solid #e2ad2f;""><div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Chủ đề hội thảo</div><div style=""padding-top:8px; font-family:Georgia, 'Times New Roman', serif; font-size:20px; line-height:28px; font-weight:bold; color:#1d1c19;"">{content}</div></td></tr></table>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:0 0 18px;""><tr><td style=""padding:14px 18px; background-color:#fffdf8; border:1px solid #ded9cf;""><p style=""margin:0 0 6px; font-size:14px; line-height:20px; color:#1d1c19;""><strong style=""color:#6f695d; letter-spacing:1px; text-transform:uppercase; font-size:11px;"">Thời gian bắt đầu:</strong> <span style=""margin-left:6px;"">{startTime}</span></p><p style=""margin:0 0 6px; font-size:14px; line-height:20px; color:#1d1c19;""><strong style=""color:#6f695d; letter-spacing:1px; text-transform:uppercase; font-size:11px;"">Thời gian kết thúc:</strong> <span style=""margin-left:6px;"">{endTime}</span></p><p style=""margin:0; font-size:14px; line-height:20px; color:#1d1c19;""><strong style=""color:#6f695d; letter-spacing:1px; text-transform:uppercase; font-size:11px;"">Link tham dự:</strong> <a href=""{safeJoinUrl}"" style=""margin-left:6px; color:#1d1c19; word-break:break-all;"">{link}</a></p></td></tr></table>
+        <p style=""margin:0; text-align:center; font-size:15px; line-height:24px; color:#4f4b42;"">Rất mong sự góp mặt của bạn!</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin-top:30px;""><tr><td style=""padding:16px; background-color:#f6f8f5; border:1px solid #d7ded7;""><p style=""margin:0 0 6px; font-size:13px; line-height:19px; font-weight:bold; color:#4f765d;"">Lưu ý</p><p style=""margin:0; font-size:13px; line-height:20px; color:#4f4b42;"">Vui lòng đăng nhập vào hệ thống ARS để xem chi tiết và xác nhận tham dự.</p></td></tr></table>
+      </td></tr></table>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""border-top:1px solid #ded9cf; background-color:#fffdf8;""><tr><td class=""email-gutter"" align=""center"" style=""padding:20px 40px;""><p style=""margin:0; font-size:12px; line-height:19px; color:#6f695d;"">Academic Research Sharing Platform</p><p style=""margin:5px 0 0; font-size:12px; line-height:19px; color:#6f695d;"">This message was sent automatically. Please do not reply.</p></td></tr></table>
+    </td></tr></table>
+  </td></tr></table>
 </body>
 </html>";
         }
@@ -803,17 +835,48 @@ namespace ARSPlatform.SERVICES
         {
             var content = WebUtility.HtmlEncode(seminar.Content);
             var link = WebUtility.HtmlEncode(seminar.OnlineLink ?? string.Empty);
+            var startTime = seminar.StartTime.ToString("dd/MM/yyyy HH:mm");
+            var joinUrl = !string.IsNullOrWhiteSpace(seminar.OnlineLink) ? seminar.OnlineLink : "#";
+            var safeJoinUrl = HtmlEncoder.Default.Encode(joinUrl);
 
             return $@"
-<html>
-<body style='font-family: Arial, sans-serif; line-height: 1.6;'>
-    <h2>Nhắc nhở: Hội thảo sắp diễn ra</h2>
-    <p>Hội thảo <strong>{content}</strong> sắp sửa diễn ra.</p>
-    <ul>
-        <li><strong>Thời gian:</strong> {seminar.StartTime:dd/MM/yyyy HH:mm}</li>
-        <li><strong>Link tham dự:</strong> <a href='{link}'>{link}</a></li>
-    </ul>
-    <p>Vui lòng sắp xếp thời gian để tham dự đúng giờ!</p>
+<!doctype html>
+<html lang=""en"">
+<head>
+  <meta charset=""utf-8"">
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><!--[if mso]>
+  <style type=""text/css"">
+    body, table, td, p, a, h1, h2, h3 {{ font-family: Arial, Helvetica, sans-serif !important; }}
+  </style>
+  <![endif]-->
+  <style type=""text/css"">
+    @media screen and (max-width: 620px) {{
+      .email-shell {{ width: 100% !important; }}
+      .email-gutter {{ padding-left: 24px !important; padding-right: 24px !important; }}
+      .info-box {{ padding-left: 20px !important; padding-right: 20px !important; }}
+    }}
+  </style>
+</head>
+<body style=""margin:0; padding:0; background-color:#f5f1e8; color:#1d1c19; font-family:Arial, Helvetica, sans-serif;""><span style=""display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;"">Reminder: an ARS academic seminar is starting soon.</span>
+  <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#f5f1e8;""><tr><td align=""center"" style=""padding:36px 16px;"">
+    <table role=""presentation"" class=""email-shell"" width=""600"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""width:100%; max-width:600px; background-color:#ffffff; border:1px solid #ded9cf;""><tr><td>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#1d1c19;""><tr><td class=""email-gutter"" style=""padding:26px 40px 24px;"">
+        <div style=""font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:30px; font-weight:bold; color:#fffdf8;"">ARS<span style=""color:#e2ad2f;"">.</span></div>
+        <div style=""padding-top:7px; font-size:10px; line-height:14px; letter-spacing:2px; color:#d7d2c8;"">ACADEMIC RESEARCH SHARING</div>
+      </td></tr></table>
+      <div style=""height:4px; line-height:4px; font-size:4px; background-color:#e2ad2f;"">&nbsp;</div>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0""><tr><td class=""email-gutter"" style=""padding:40px;"">
+        <div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Seminar reminder</div>
+        <h1 style=""margin:9px 0 18px; font-family:Georgia, 'Times New Roman', serif; font-size:28px; line-height:34px; font-weight:bold; color:#1d1c19;"">Nhắc nhở: Hội thảo sắp diễn ra</h1>
+        <p style=""margin:0 0 18px; font-size:16px; line-height:26px; color:#4f4b42;"">Hội thảo dưới đây sắp sửa diễn ra. Vui lòng sắp xếp thời gian để tham dự đúng giờ.</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:6px 0 22px;""><tr><td class=""info-box"" style=""padding:22px 28px; background-color:#fff9e8; border:1px solid #e2ad2f;""><div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Chủ đề hội thảo</div><div style=""padding-top:8px; font-family:Georgia, 'Times New Roman', serif; font-size:20px; line-height:28px; font-weight:bold; color:#1d1c19;"">{content}</div></td></tr></table>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:0 0 18px;""><tr><td style=""padding:14px 18px; background-color:#fffdf8; border:1px solid #ded9cf;""><p style=""margin:0 0 6px; font-size:14px; line-height:20px; color:#1d1c19;""><strong style=""color:#6f695d; letter-spacing:1px; text-transform:uppercase; font-size:11px;"">Thời gian:</strong> <span style=""margin-left:6px;"">{startTime}</span></p><p style=""margin:0; font-size:14px; line-height:20px; color:#1d1c19;""><strong style=""color:#6f695d; letter-spacing:1px; text-transform:uppercase; font-size:11px;"">Link tham dự:</strong> <a href=""{safeJoinUrl}"" style=""margin-left:6px; color:#1d1c19; word-break:break-all;"">{link}</a></p></td></tr></table>
+        <p style=""margin:0; text-align:center; font-size:15px; line-height:24px; color:#4f4b42;"">Đừng bỏ lỡ buổi hội thảo này nhé!</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin-top:30px;""><tr><td style=""padding:16px; background-color:#f6f8f5; border:1px solid #d7ded7;""><p style=""margin:0 0 6px; font-size:13px; line-height:19px; font-weight:bold; color:#4f765d;"">Mẹo nhỏ</p><p style=""margin:0; font-size:13px; line-height:20px; color:#4f4b42;"">Hãy đăng nhập ARS trước giờ bắt đầu khoảng 5 phút để kiểm tra âm thanh và đường truyền.</p></td></tr></table>
+      </td></tr></table>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""border-top:1px solid #ded9cf; background-color:#fffdf8;""><tr><td class=""email-gutter"" align=""center"" style=""padding:20px 40px;""><p style=""margin:0; font-size:12px; line-height:19px; color:#6f695d;"">Academic Research Sharing Platform</p><p style=""margin:5px 0 0; font-size:12px; line-height:19px; color:#6f695d;"">This message was sent automatically. Please do not reply.</p></td></tr></table>
+    </td></tr></table>
+  </td></tr></table>
 </body>
 </html>";
         }
@@ -821,14 +884,46 @@ namespace ARSPlatform.SERVICES
         private static string BuildFeedbackReminderEmailBody(Seminar seminar)
         {
             var content = WebUtility.HtmlEncode(seminar.Content);
+            var endTime = seminar.EndTime.ToString("dd/MM/yyyy HH:mm");
 
             return $@"
-<html>
-<body style='font-family: Arial, sans-serif; line-height: 1.6;'>
-    <h2>Khảo sát hội thảo</h2>
-    <p>Bạn hiện còn feedback/evaluation chưa gửi cho hội thảo <strong>{content}</strong>.</p>
-    <p>Chúng tôi rất mong nhận được những đánh giá, góp ý của bạn để các chương trình tiếp theo diễn ra tốt đẹp hơn.</p>
-    <p>Vui lòng đăng nhập vào hệ thống để gửi feedback của bạn.</p>
+<!doctype html>
+<html lang=""en"">
+<head>
+  <meta charset=""utf-8"">
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><!--[if mso]>
+  <style type=""text/css"">
+    body, table, td, p, a, h1, h2, h3 {{ font-family: Arial, Helvetica, sans-serif !important; }}
+  </style>
+  <![endif]-->
+  <style type=""text/css"">
+    @media screen and (max-width: 620px) {{
+      .email-shell {{ width: 100% !important; }}
+      .email-gutter {{ padding-left: 24px !important; padding-right: 24px !important; }}
+      .info-box {{ padding-left: 20px !important; padding-right: 20px !important; }}
+    }}
+  </style>
+</head>
+<body style=""margin:0; padding:0; background-color:#f5f1e8; color:#1d1c19; font-family:Arial, Helvetica, sans-serif;""><span style=""display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;"">Please share your feedback for the ARS seminar you attended.</span>
+  <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#f5f1e8;""><tr><td align=""center"" style=""padding:36px 16px;"">
+    <table role=""presentation"" class=""email-shell"" width=""600"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""width:100%; max-width:600px; background-color:#ffffff; border:1px solid #ded9cf;""><tr><td>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""background-color:#1d1c19;""><tr><td class=""email-gutter"" style=""padding:26px 40px 24px;"">
+        <div style=""font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:30px; font-weight:bold; color:#fffdf8;"">ARS<span style=""color:#e2ad2f;"">.</span></div>
+        <div style=""padding-top:7px; font-size:10px; line-height:14px; letter-spacing:2px; color:#d7d2c8;"">ACADEMIC RESEARCH SHARING</div>
+      </td></tr></table>
+      <div style=""height:4px; line-height:4px; font-size:4px; background-color:#e2ad2f;"">&nbsp;</div>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0""><tr><td class=""email-gutter"" style=""padding:40px;"">
+        <div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Feedback reminder</div>
+        <h1 style=""margin:9px 0 18px; font-family:Georgia, 'Times New Roman', serif; font-size:28px; line-height:34px; font-weight:bold; color:#1d1c19;"">Khảo sát hội thảo</h1>
+        <p style=""margin:0 0 18px; font-size:16px; line-height:26px; color:#4f4b42;"">Cảm ơn bạn đã tham dự hội thảo. Bạn hiện còn feedback chưa gửi cho buổi hội thảo dưới đây.</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:6px 0 22px;""><tr><td class=""info-box"" style=""padding:22px 28px; background-color:#fff9e8; border:1px solid #e2ad2f;""><div style=""font-size:11px; line-height:16px; letter-spacing:1.5px; text-transform:uppercase; color:#6f695d;"">Chủ đề hội thảo</div><div style=""padding-top:8px; font-family:Georgia, 'Times New Roman', serif; font-size:20px; line-height:28px; font-weight:bold; color:#1d1c19;"">{content}</div></td></tr></table>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin:0 0 18px;""><tr><td style=""padding:14px 18px; background-color:#fffdf8; border:1px solid #ded9cf;""><p style=""margin:0; font-size:14px; line-height:20px; color:#1d1c19;""><strong style=""color:#6f695d; letter-spacing:1px; text-transform:uppercase; font-size:11px;"">Thời gian kết thúc:</strong> <span style=""margin-left:6px;"">{endTime}</span></p></td></tr></table>
+        <p style=""margin:0; text-align:center; font-size:15px; line-height:24px; color:#4f4b42;"">Vui lòng đăng nhập vào hệ thống để gửi feedback của bạn.</p>
+        <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""margin-top:30px;""><tr><td style=""padding:16px; background-color:#f6f8f5; border:1px solid #d7ded7;""><p style=""margin:0 0 6px; font-size:13px; line-height:19px; font-weight:bold; color:#4f765d;"">Vì sao cần feedback?</p><p style=""margin:0; font-size:13px; line-height:20px; color:#4f4b42;"">Những đánh giá, góp ý của bạn sẽ giúp các chương trình tiếp theo diễn ra tốt đẹp hơn.</p></td></tr></table>
+      </td></tr></table>
+      <table role=""presentation"" width=""100%"" border=""0"" cellspacing=""0"" cellpadding=""0"" style=""border-top:1px solid #ded9cf; background-color:#fffdf8;""><tr><td class=""email-gutter"" align=""center"" style=""padding:20px 40px;""><p style=""margin:0; font-size:12px; line-height:19px; color:#6f695d;"">Academic Research Sharing Platform</p><p style=""margin:5px 0 0; font-size:12px; line-height:19px; color:#6f695d;"">This message was sent automatically. Please do not reply.</p></td></tr></table>
+    </td></tr></table>
+  </td></tr></table>
 </body>
 </html>";
         }
