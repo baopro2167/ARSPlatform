@@ -14,6 +14,10 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<MedalResponse?> UpdateAsync(string id, MedalUpdateRequest request);
         Task<bool> DeleteAsync(string id);
         Task<IEnumerable<MedalResponse>> ResetToDefaultsAsync();
+        Task<IEnumerable<MedalDropdownCategoryDto>> GetMedalsDropdownAsync(string? role = null);
+        Task<MedalAnalyticsResponse> GetMedalsAnalyticsAsync();
+        Task<IEnumerable<MedalUserDetailDto>> GetMedalUsersAsync(string medalId);
+        Task<UserMedalProgressDto> GetUserMedalProgressAsync(int userId, string medalId);
 
         // User Endpoints
         Task<IEnumerable<UserMedalResponse>> GetMyMedalsAsync(int userId);

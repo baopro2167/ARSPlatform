@@ -17,6 +17,9 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? DescriptionVi { get; set; }
 
         public List<string>? Roles { get; set; }
+        public List<string>? ApplicableRoles { get; set; }
+        public string? MetricCode { get; set; }
+        public string? Rules { get; set; }
 
         [Required]
         public string Tier { get; set; } = "Bronze";
