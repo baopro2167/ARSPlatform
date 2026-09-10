@@ -73,7 +73,7 @@ public class AnnualFeeController : ControllerBase
     /// <summary>
     /// Danh sách user đang sử dụng 1 gói AnnualFee (Admin) — có phân trang
     /// </summary>
-    /// GET /api/AnnualFees/{id}/subscribers?page=1&pageSize=10
+    
     [HttpGet("{id:int}/subscribers")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<PagedResult<AnnualFeeSubscriberResponse>>> GetSubscribers(
