@@ -74,3 +74,18 @@ public class MySubscriptionResponse
     public int? DaysRemaining { get; set; }
     public bool IsExpired { get; set; }
 }
+
+/// <summary>
+/// Danh sách user đang sử dụng 1 gói AnnualFee (Admin — phân trang)
+/// </summary>
+public class AnnualFeeSubscriberResponse
+{
+    public int UserSubscriptionId { get; set; }
+    public int UserId { get; set; }
+    public string? Username { get; set; }
+    public string UserRole { get; set; } = null!;
+    public DateTime? ExpiresAt { get; set; }
+    public int? LatestTransactionId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}

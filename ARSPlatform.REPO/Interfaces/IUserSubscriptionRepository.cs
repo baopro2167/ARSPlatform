@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using ARSPlatform.MODEL.Entities;
+using ARSPlatform.REPO.PAGINATION;
 
 namespace ARSPlatform.REPO.Interfaces;
 
@@ -24,4 +25,10 @@ public interface IUserSubscriptionRepository : IGenericRepository<UserSubscripti
     /// Kiểm tra user có subscription active theo role không
     /// </summary>
     Task<bool> IsActiveAsync(int userId, string userRole);
+
+    /// <summary>
+    /// Lấy danh sách subscribers (UserSubscription + User) của 1 gói AnnualFee, có phân trang.
+    /// Join qua: UserSubscription → Transaction → AnnualFee (theo LatestTransactionId)
+    /// </summary>
+    Task<PagedResult<UserSubscription>> GetSubscribersByAnnualFeeIdAsync(int annualFeeId, PaginationParams paginationParams);
 }

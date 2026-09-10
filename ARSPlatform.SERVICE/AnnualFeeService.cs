@@ -565,6 +565,31 @@ public class AnnualFeeService : IAnnualFeeService
         return Convert.ToHexString(hash).ToLower();
     }
 
+    // ─────────────────────────────────────────────
+    // ADMIN: Subscribers by AnnualFee
+    // ─────────────────────────────────────────────
+
+    public async Task<PagedResult<AnnualFeeSubscriberResponse>> GetSubscribersByAnnualFeeIdAsync(
+        int annualFeeId, PaginationParams paginationParams)
+    {
+        var paged = await _subscriptionRepo.GetSubscribersByAnnualFeeIdAsync(annualFeeId, paginationParams);
+
+        var items = paged.Items.Select(s => new AnnualFeeSubscriberResponse
+        {
+            UserSubscriptionId = s.Id,
+            UserId = s.UserId,
+            Username = s.User?.UserName,
+            UserRole = s.UserRole,
+            ExpiresAt = s.ExpiresAt,
+            LatestTransactionId = s.LatestTransactionId,
+            CreatedAt = s.CreatedAt,
+            UpdatedAt = s.UpdatedAt
+        }).ToList();
+
+        return new PagedResult<AnnualFeeSubscriberResponse>(
+            items, paged.TotalCount, paged.PageNumber, paged.PageSize);
+    }
+
     private static AnnualFeeResponse MapToResponse(AnnualFee entity)
     {
         return new AnnualFeeResponse

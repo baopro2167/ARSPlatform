@@ -31,4 +31,7 @@ public interface IAnnualFeeService
 
     // Webhook
     Task<bool> ProcessPayOSWebhookAsync(AnnualFeePayOSWebhookRequest webhook);
+
+    // Admin: danh sách user đang sử dụng 1 gói AnnualFee (phân trang)
+    Task<PagedResult<AnnualFeeSubscriberResponse>> GetSubscribersByAnnualFeeIdAsync(int annualFeeId, PaginationParams paginationParams);
 }

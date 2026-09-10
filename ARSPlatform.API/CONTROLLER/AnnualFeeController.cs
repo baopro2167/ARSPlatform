@@ -71,6 +71,29 @@ public class AnnualFeeController : ControllerBase
     }
 
     /// <summary>
+    /// Danh sách user đang sử dụng 1 gói AnnualFee (Admin) — có phân trang
+    /// </summary>
+    /// GET /api/AnnualFees/{id}/subscribers?page=1&pageSize=10
+    [HttpGet("{id:int}/subscribers")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<PagedResult<AnnualFeeSubscriberResponse>>> GetSubscribers(
+        int id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        // Verify AnnualFee exists
+        var annualFee = await _service.GetByIdAsync(id);
+        if (annualFee == null) return NotFound(new { message = "AnnualFee not found." });
+
+        var paginationParams = new ARSPlatform.REPO.PAGINATION.PaginationParams
+        {
+            PageNumber = page,
+            PageSize = pageSize
+        };
+
+        var result = await _service.GetSubscribersByAnnualFeeIdAsync(id, paginationParams);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Tạo gói AnnualFee mới (Admin)
     /// </summary>
     [HttpPost]

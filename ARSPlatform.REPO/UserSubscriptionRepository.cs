@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
+using ARSPlatform.REPO.PAGINATION;
 using Microsoft.EntityFrameworkCore;
 
 namespace ARSPlatform.REPOSITORIES;
@@ -53,5 +54,33 @@ public class UserSubscriptionRepository : GenericRepository<UserSubscription>, I
                 s.UserRole == userRole &&
                 s.ExpiresAt != null &&
                 s.ExpiresAt > now);
+    }
+
+    public async Task<PagedResult<UserSubscription>> GetSubscribersByAnnualFeeIdAsync(
+        int annualFeeId, PaginationParams paginationParams)
+    {
+        var page = paginationParams.PageNumber < 1 ? 1 : paginationParams.PageNumber;
+        var size = paginationParams.PageSize < 1 ? 10 : paginationParams.PageSize;
+
+        // Lấy LatestTransactionId của tất cả transaction thuộc annualFeeId đang ACTIVE
+        var validTxIds = await _context.Set<Transaction>()
+            .AsNoTracking()
+            .Where(t => t.AnnualFeeId == annualFeeId && t.Status == "ACTIVE")
+            .Select(t => t.TransactionId)
+            .ToListAsync();
+
+        var query = _dbSet.AsNoTracking()
+            .Include(s => s.User)
+            .Where(s => s.LatestTransactionId != null && validTxIds.Contains(s.LatestTransactionId.Value));
+
+        var total = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(s => s.UpdatedAt)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync();
+
+        return new PagedResult<UserSubscription>(items, total, page, size);
     }
 }
