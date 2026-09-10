@@ -10,6 +10,9 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? DescriptionVi { get; set; }
         public string Tier { get; set; } = null!;
         public int StageLevel { get; set; }
+        public string MetricCode { get; set; } = string.Empty;
+        public string? Rules { get; set; }
+        public System.Collections.Generic.List<string> ApplicableRoles { get; set; } = new();
         public string ImageUrl { get; set; } = null!;
         public string CriteriaMetric { get; set; } = null!;
         public int CriteriaThreshold { get; set; }

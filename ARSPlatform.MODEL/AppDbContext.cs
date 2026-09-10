@@ -807,6 +807,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.DescriptionVi).HasMaxLength(500);
             entity.Property(e => e.Roles).HasMaxLength(255);
+            entity.Property(e => e.ApplicableRoles).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.MetricCode).HasConversion<string>().HasMaxLength(50).IsUnicode(false).HasDefaultValue(MedalMetricCode.PROLIFIC_AUTHOR);
+            entity.Property(e => e.Rules).HasColumnType("nvarchar(max)");
             entity.Property(e => e.Tier).HasMaxLength(20).IsUnicode(false);
             entity.Property(e => e.StageLevel).HasDefaultValue(1);
             entity.Property(e => e.ImageUrl).HasMaxLength(1000);
@@ -826,7 +829,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MedalId).HasMaxLength(100);
             entity.Property(e => e.CurrentProgress).HasDefaultValue(0);
             entity.Property(e => e.AwardedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.CriteriaUnit).HasMaxLength(100);
             entity.Property(e => e.AwardedReason).HasMaxLength(500);
             entity.Property(e => e.CorrelationId).HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");

@@ -418,12 +418,28 @@ namespace ARSPlatform.SERVICE.Mapping
                         : (src.Roles.Trim().StartsWith("[")
                             ? (JsonSerializer.Deserialize<List<string>>(src.Roles, (JsonSerializerOptions?)null) ?? new List<string>())
                             : new List<string> { src.Roles })))
+                .ForMember(dest => dest.ApplicableRoles, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.ApplicableRoles)
+                        ? (string.IsNullOrWhiteSpace(src.Roles) ? new List<string> { "All" } : (src.Roles.Trim().StartsWith("[") ? (JsonSerializer.Deserialize<List<string>>(src.Roles, (JsonSerializerOptions?)null) ?? new List<string>()) : new List<string> { src.Roles }))
+                        : (src.ApplicableRoles.Trim().StartsWith("[")
+                            ? (JsonSerializer.Deserialize<List<string>>(src.ApplicableRoles, (JsonSerializerOptions?)null) ?? new List<string>())
+                            : new List<string> { src.ApplicableRoles })))
+                .ForMember(dest => dest.MetricCode, opt => opt.MapFrom(src => src.MetricCode.ToString()))
+                .ForMember(dest => dest.Rules, opt => opt.MapFrom(src => src.Rules))
                 .ForMember(dest => dest.TitleVi, opt => opt.MapFrom(src =>
                     string.IsNullOrWhiteSpace(src.TitleVi) ? src.Title : src.TitleVi))
                 .ForMember(dest => dest.DescriptionVi, opt => opt.MapFrom(src =>
                     string.IsNullOrWhiteSpace(src.DescriptionVi) ? src.Description : src.DescriptionVi));
 
             CreateMap<Medal, MedalSummaryDto>()
+                .ForMember(dest => dest.MetricCode, opt => opt.MapFrom(src => src.MetricCode.ToString()))
+                .ForMember(dest => dest.Rules, opt => opt.MapFrom(src => src.Rules))
+                .ForMember(dest => dest.ApplicableRoles, opt => opt.MapFrom(src =>
+                    string.IsNullOrWhiteSpace(src.ApplicableRoles)
+                        ? (string.IsNullOrWhiteSpace(src.Roles) ? new List<string> { "All" } : (src.Roles.Trim().StartsWith("[") ? (JsonSerializer.Deserialize<List<string>>(src.Roles, (JsonSerializerOptions?)null) ?? new List<string>()) : new List<string> { src.Roles }))
+                        : (src.ApplicableRoles.Trim().StartsWith("[")
+                            ? (JsonSerializer.Deserialize<List<string>>(src.ApplicableRoles, (JsonSerializerOptions?)null) ?? new List<string>())
+                            : new List<string> { src.ApplicableRoles })))
                 .ForMember(dest => dest.TitleVi, opt => opt.MapFrom(src =>
                     string.IsNullOrWhiteSpace(src.TitleVi) ? src.Title : src.TitleVi))
                 .ForMember(dest => dest.DescriptionVi, opt => opt.MapFrom(src =>
@@ -445,7 +461,17 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.Roles, opt => opt.MapFrom(src =>
                     src.Roles != null && src.Roles.Any()
                         ? JsonSerializer.Serialize(src.Roles, (JsonSerializerOptions?)null)
-                        : "[\"All\"]"))
+                        : (src.ApplicableRoles != null && src.ApplicableRoles.Any()
+                            ? JsonSerializer.Serialize(src.ApplicableRoles, (JsonSerializerOptions?)null)
+                            : "[\"All\"]")))
+                .ForMember(dest => dest.ApplicableRoles, opt => opt.MapFrom(src =>
+                    src.ApplicableRoles != null && src.ApplicableRoles.Any()
+                        ? JsonSerializer.Serialize(src.ApplicableRoles, (JsonSerializerOptions?)null)
+                        : (src.Roles != null && src.Roles.Any()
+                            ? JsonSerializer.Serialize(src.Roles, (JsonSerializerOptions?)null)
+                            : "[\"All\"]")))
+                .ForMember(dest => dest.MetricCode, opt => opt.MapFrom(src => ParseMedalMetricCode(src.MetricCode)))
+                .ForMember(dest => dest.Rules, opt => opt.MapFrom(src => src.Rules))
                 .ForMember(dest => dest.CriteriaUnit, opt => opt.MapFrom(src =>
                     string.IsNullOrWhiteSpace(src.CriteriaUnit) ? "lần" : src.CriteriaUnit))
                 .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive ?? true))
@@ -455,13 +481,19 @@ namespace ARSPlatform.SERVICE.Mapping
             CreateMap<UserMedal, UserMedalResponse>()
                 .ForMember(dest => dest.Medal, opt => opt.MapFrom(src => src.Medal))
                 .ForMember(dest => dest.Code, opt => opt.MapFrom(src => src.Medal != null ? src.Medal.Code : string.Empty))
-                .ForMember(dest => dest.CriteriaThreshold, opt => opt.MapFrom(src => src.CriteriaThreshold ?? (src.Medal != null ? src.Medal.CriteriaThreshold : 0)))
-                .ForMember(dest => dest.CriteriaUnit, opt => opt.MapFrom(src => src.CriteriaUnit ?? (src.Medal != null ? src.Medal.CriteriaUnit : null)))
+                .ForMember(dest => dest.CriteriaThreshold, opt => opt.MapFrom(src => src.Medal != null ? src.Medal.CriteriaThreshold : 0))
+                .ForMember(dest => dest.CriteriaUnit, opt => opt.MapFrom(src => src.Medal != null ? src.Medal.CriteriaUnit : null))
                 .ForMember(dest => dest.ProgressPercentage, opt => opt.MapFrom(src =>
-                    (src.CriteriaThreshold ?? (src.Medal != null ? src.Medal.CriteriaThreshold : 0)) <= 0
+                    (src.Medal == null || src.Medal.CriteriaThreshold <= 0)
                         ? 0.0
-                        : Math.Min(100.0, Math.Round((double)src.CurrentProgress / (src.CriteriaThreshold ?? src.Medal!.CriteriaThreshold) * 100.0, 1))));
+                        : Math.Min(100.0, Math.Round((double)src.CurrentProgress / src.Medal.CriteriaThreshold * 100.0, 1))));
         }
+        private static MedalMetricCode ParseMedalMetricCode(string? metricCode)
+        {
+            if (string.IsNullOrWhiteSpace(metricCode)) return MedalMetricCode.PROLIFIC_AUTHOR;
+            return Enum.TryParse<MedalMetricCode>(metricCode, true, out var code) ? code : MedalMetricCode.PROLIFIC_AUTHOR;
+        }
+
         private static SeminarFeedbackContentResponse? DeserializeSeminarFeedback(string? feedbackJson)
         {
             if (string.IsNullOrWhiteSpace(feedbackJson))

@@ -19,6 +19,11 @@ public partial class Medal
     public string? DescriptionVi { get; set; }
 
     public string Roles { get; set; } = "[\"All\"]";
+    public string ApplicableRoles { get; set; } = "[\"All\"]";
+
+    public MedalMetricCode MetricCode { get; set; } = MedalMetricCode.PROLIFIC_AUTHOR;
+
+    public string? Rules { get; set; }
 
     public string Tier { get; set; } = null!;
 

@@ -791,6 +791,16 @@ using (var scope = app.Services.CreateScope())
                 );
             END
 
+            -- Ensure Medals columns for Metric Engine
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Medals') AND name = 'MetricCode')
+                ALTER TABLE [dbo].[Medals] ADD [MetricCode] [varchar](50) NOT NULL CONSTRAINT DF_Medals_MetricCode DEFAULT 'PROLIFIC_AUTHOR';
+
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Medals') AND name = 'Rules')
+                ALTER TABLE [dbo].[Medals] ADD [Rules] [nvarchar](max) NULL;
+
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Medals') AND name = 'ApplicableRoles')
+                ALTER TABLE [dbo].[Medals] ADD [ApplicableRoles] [nvarchar](max) NOT NULL CONSTRAINT DF_Medals_ApplicableRoles DEFAULT '[""All""]';
+
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserMedals')
             BEGIN
                 CREATE TABLE [dbo].[UserMedals](
@@ -806,6 +816,13 @@ using (var scope = app.Services.CreateScope())
                     CONSTRAINT [UQ_UserMedals_UserId_MedalId] UNIQUE NONCLUSTERED ([UserId], [MedalId])
                 );
             END
+
+            -- Ensure UserMedals does not contain redundant criteria columns
+            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('UserMedals') AND name = 'CriteriaThreshold')
+                ALTER TABLE [dbo].[UserMedals] DROP COLUMN [CriteriaThreshold];
+
+            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('UserMedals') AND name = 'CriteriaUnit')
+                ALTER TABLE [dbo].[UserMedals] DROP COLUMN [CriteriaUnit];
 
             IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_RoleRequests_Status')
             BEGIN

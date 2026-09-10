@@ -19,10 +19,6 @@ public partial class UserMedal
 
     public DateTime? AwardedAt { get; set; }
 
-    public int? CriteriaThreshold { get; set; }
-
-    public string? CriteriaUnit { get; set; }
-
     public int? AwardedByAdminId { get; set; }
 
     public string? AwardedReason { get; set; }

@@ -9,6 +9,9 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? Description { get; set; }
         public string? DescriptionVi { get; set; }
         public List<string>? Roles { get; set; }
+        public List<string>? ApplicableRoles { get; set; }
+        public string? MetricCode { get; set; }
+        public string? Rules { get; set; }
         public string? Tier { get; set; }
         public int? StageLevel { get; set; }
         public string? ImageUrl { get; set; }
