@@ -15,7 +15,7 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<SeminarResponse?> GetByIdAsync(int seminarId, int? organizerId = null);
         Task<SeminarResponse?> GetByIdForViewerAsync(int seminarId, int currentUserId);
         Task<SeminarResponse> CreateAsync(int organizerId, SeminarCreateRequest request, CancellationToken cancellationToken = default);
-        Task<SeminarResponse?> UpdateAsync(int seminarId, int organizerId, SeminarUpdateRequest request, CancellationToken cancellationToken = default);
+        Task<SeminarResponse?> UpdateAsync(int seminarId, int organizerId, SeminarUpdateRequest request, CancellationToken cancellationToken = default, bool isAdmin = false);
         Task<bool> DeleteAsync(int seminarId, int organizerId);
         Task<SeminarInviteResponse> InviteAsync(int seminarId, int organizerId, SeminarInviteRequest request, CancellationToken cancellationToken = default);
         Task<SeminarStatsResponse?> GetStatsAsync(int seminarId, int organizerId);

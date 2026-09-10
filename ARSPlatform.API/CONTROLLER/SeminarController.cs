@@ -332,10 +332,10 @@ namespace ARSPlatform.API.CONTROLLER
         /// </summary>
         /// <param name="id">ID Seminar cần cập nhật</param>
         /// <param name="request">Dữ liệu cập nhật</param>
-        /// <param name name="cancellationToken">Cancellation token</param>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Seminar sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "Lecturer,Researcher")]
+        [Authorize(Roles = "Lecturer,Researcher,Admin")]
         public async Task<ActionResult<SeminarResponse>> Update(
             int id,
             [FromBody] SeminarUpdateRequest request,
@@ -352,7 +352,8 @@ namespace ARSPlatform.API.CONTROLLER
                     id,
                     organizerId,
                     request,
-                    cancellationToken);
+                    cancellationToken,
+                    IsAdmin());
 
                 if (response == null)
                 {

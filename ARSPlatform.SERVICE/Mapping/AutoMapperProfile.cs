@@ -327,6 +327,10 @@ namespace ARSPlatform.SERVICE.Mapping
 
             // Seminar
             CreateMap<Seminar, SeminarResponse>()
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src =>
+                    !string.IsNullOrWhiteSpace(src.Status)
+                        ? src.Status
+                        : (src.EndTime <= DateTime.UtcNow ? "Completed" : (src.StartTime <= DateTime.UtcNow ? "In Progress" : "Upcoming"))))
                 .ForMember(dest => dest.Participants, opt => opt.MapFrom(src => src.SeminarParticipants))
                 .ForMember(dest => dest.SubFieldName, opt => opt.MapFrom(src => src.SubField != null ? src.SubField.Name : null));
 

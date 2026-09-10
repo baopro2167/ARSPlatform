@@ -161,9 +161,19 @@ namespace ARSPlatform.SERVICES
             seminar.IsReminderSent = false;
             seminar.ReminderSentAt = null;
             seminar.SubFieldId = request.SubFieldId;
-            seminar.Status = IsDraft(request.Status)
-                ? "Draft"
-                : CalculateLifecycleStatus(request.StartTime, request.EndTime, DateTime.UtcNow);
+            if (!string.IsNullOrWhiteSpace(request.Status))
+            {
+                var reqStatus = request.Status.Trim();
+                seminar.Status = IsDraft(reqStatus)
+                    ? "Draft"
+                    : (IsInactiveOrSuspended(reqStatus)
+                        ? (string.Equals(reqStatus, "Suspended", StringComparison.OrdinalIgnoreCase) ? "Suspended" : "Inactive")
+                        : CalculateLifecycleStatus(request.StartTime, request.EndTime, DateTime.UtcNow));
+            }
+            else
+            {
+                seminar.Status = CalculateLifecycleStatus(request.StartTime, request.EndTime, DateTime.UtcNow);
+            }
 
             await _seminarRepository.AddAsync(seminar);
 
@@ -239,11 +249,11 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<SeminarResponse>(created ?? seminar);
         }
 
-        public async Task<SeminarResponse?> UpdateAsync(int seminarId, int organizerId, SeminarUpdateRequest request, CancellationToken cancellationToken = default)
+        public async Task<SeminarResponse?> UpdateAsync(int seminarId, int organizerId, SeminarUpdateRequest request, CancellationToken cancellationToken = default, bool isAdmin = false)
         {
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
 
-            if (seminar == null || seminar.OrganizerId != organizerId)
+            if (seminar == null || (!isAdmin && seminar.OrganizerId != organizerId))
                 return null;
 
             var startTime = request.StartTime ?? seminar.StartTime;
@@ -286,13 +296,48 @@ namespace ARSPlatform.SERVICES
                 }
             }
 
-            if (IsDraft(request.Status))
+            if (!string.IsNullOrWhiteSpace(request.Status))
             {
-                seminar.Status = "Draft";
+                var requestedStatus = request.Status.Trim();
+                if (IsInactiveOrSuspended(requestedStatus))
+                {
+                    seminar.Status = string.Equals(requestedStatus, "Suspended", StringComparison.OrdinalIgnoreCase)
+                        ? "Suspended"
+                        : "Inactive";
+                }
+                else if (IsDraft(requestedStatus))
+                {
+                    seminar.Status = "Draft";
+                }
+                else if (string.Equals(requestedStatus, "Active", StringComparison.OrdinalIgnoreCase))
+                {
+                    seminar.Status = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, DateTime.UtcNow);
+                }
+                else if (string.Equals(requestedStatus, "Upcoming", StringComparison.OrdinalIgnoreCase))
+                {
+                    seminar.Status = "Upcoming";
+                }
+                else if (string.Equals(requestedStatus, "In Progress", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(requestedStatus, "Ongoing", StringComparison.OrdinalIgnoreCase))
+                {
+                    seminar.Status = "In Progress";
+                }
+                else if (string.Equals(requestedStatus, "Completed", StringComparison.OrdinalIgnoreCase))
+                {
+                    seminar.Status = "Completed";
+                }
+                else
+                {
+                    seminar.Status = requestedStatus;
+                }
             }
-            else if (!IsDraft(seminar.Status) || !string.IsNullOrWhiteSpace(request.Status))
+            else
             {
-                seminar.Status = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, DateTime.UtcNow);
+                // If request.Status was not specified, only re-calculate if current status is NOT Draft and NOT Inactive/Suspended
+                if (!IsDraft(seminar.Status) && !IsInactiveOrSuspended(seminar.Status))
+                {
+                    seminar.Status = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, DateTime.UtcNow);
+                }
             }
 
             _seminarRepository.Update(seminar);
@@ -544,6 +589,10 @@ namespace ARSPlatform.SERVICES
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                // Skip Inactive, Suspended, or Draft seminars
+                if (IsInactiveOrSuspended(seminar.Status) || IsDraft(seminar.Status))
+                    continue;
+
                 var expectedStatus = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, now);
 
                 if (string.Equals(seminar.Status, expectedStatus, StringComparison.OrdinalIgnoreCase))
@@ -739,6 +788,15 @@ namespace ARSPlatform.SERVICES
         private static bool IsDraft(string? status)
         {
             return string.Equals(status, "Draft", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsInactiveOrSuspended(string? status)
+        {
+            if (string.IsNullOrWhiteSpace(status))
+                return false;
+
+            return string.Equals(status, "Inactive", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(status, "Suspended", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string CalculateLifecycleStatus(DateTime startTime, DateTime endTime, DateTime nowUtc)
