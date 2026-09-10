@@ -510,3 +510,23 @@ namespace ARSPlatform.SERVICE.Mapping
         }
     }
 }
+
+namespace ARSPlatform.SERVICE.Mapping
+{
+    public static class AnnualFeeMappings
+    {
+        public static AnnualFeeResponse ToResponse(this AnnualFee entity) => new AnnualFeeResponse
+        {
+            Id = entity.Id,
+            Name = entity.Name,
+            UserRole = entity.UserRole,
+            Price = entity.Price,
+            BillingCycle = entity.BillingCycle,
+            StartDate = entity.StartDate,
+            EndDate = entity.EndDate,
+            Status = entity.Status,
+            CreatedAt = entity.CreatedAt,
+            UpdatedAt = entity.UpdatedAt
+        };
+    }
+}

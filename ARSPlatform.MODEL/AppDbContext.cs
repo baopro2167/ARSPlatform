@@ -72,6 +72,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
+    public virtual DbSet<AnnualFee> AnnualFees { get; set; }
+
+    public virtual DbSet<UserSubscription> UserSubscriptions { get; set; }
+
     public virtual DbSet<UserMedal> UserMedals { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
@@ -839,6 +843,135 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.MedalId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_UserMedals_Medal");
+        });
+
+        modelBuilder.Entity<AnnualFee>(entity =>
+        {
+            entity.ToTable("AnnualFees");
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Name)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(e => e.UserRole)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(e => e.Price)
+                .HasColumnType("decimal(18, 0)")
+                .IsRequired();
+
+            entity.Property(e => e.BillingCycle)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(e => e.StartDate)
+                .HasColumnType("date")
+                .IsRequired();
+
+            entity.Property(e => e.EndDate)
+                .HasColumnType("date");
+
+            entity.Property(e => e.Status)
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            // Unique constraint: chỉ 1 active plan cho mỗi role × cycle
+            entity.HasIndex(e => new { e.UserRole, e.BillingCycle, e.Status })
+                .HasFilter("[Status] = 1")
+                .IsUnique()
+                .HasDatabaseName("UQ_AnnualFees_Active_Role_Cycle");
+
+            // Index for lookup
+            entity.HasIndex(e => e.UserRole)
+                .HasDatabaseName("IX_AnnualFees_UserRole");
+        });
+
+        modelBuilder.Entity<UserSubscription>(entity =>
+        {
+            entity.ToTable("UserSubscriptions");
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.UserRole)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            // Unique: mỗi user × role chỉ có 1 dòng
+            entity.HasIndex(e => new { e.UserId, e.UserRole })
+                .IsUnique()
+                .HasDatabaseName("UQ_UserSubscriptions_UserId_Role");
+
+            // Index: lookup theo user
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_UserSubscriptions_UserId");
+
+            // Index: lookup hết hạn
+            entity.HasIndex(e => new { e.UserRole, e.ExpiresAt })
+                .HasDatabaseName("IX_UserSubscriptions_Role_ExpiresAt");
+
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_UserSubscriptions_User");
+
+            entity.HasOne(d => d.LatestTransaction)
+                .WithMany()
+                .HasForeignKey(d => d.LatestTransactionId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_UserSubscriptions_LatestTransaction");
+        });
+
+        modelBuilder.Entity<Transaction>(entity =>
+        {
+            entity.Property(e => e.Amount).HasColumnType("decimal(15, 2)");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Status)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.Type)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+
+            entity.Property(e => e.UserId)
+                .HasColumnName("UserId");
+
+            entity.Property(e => e.PaymentDescription)
+                .HasMaxLength(255);
+
+            entity.Property(e => e.AnnualFeeId)
+                .HasColumnName("AnnualFeeId");
+
+            // Navigation
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_Transactions_User");
+
+            entity.HasOne(d => d.AnnualFee)
+                .WithMany(p => p.Transactions)
+                .HasForeignKey(d => d.AnnualFeeId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_Transactions_AnnualFee");
+
+            // Index cho webhook lookup
+            entity.HasIndex(e => e.PaymentOrderId)
+                .HasDatabaseName("IX_Transactions_PaymentOrderId");
         });
 
         OnModelCreatingPartial(modelBuilder);

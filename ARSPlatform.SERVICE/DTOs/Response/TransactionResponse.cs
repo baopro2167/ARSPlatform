@@ -17,5 +17,16 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? Description { get; set; }
 
         public DateTime? CreatedAt { get; set; }
+
+        // AnnualFee purchase
+        public int? AnnualFeeId { get; set; }
+
+        public int? UserId { get; set; }
+
+        public string? PaymentDescription { get; set; }
+
+        public string? PaymentOrderId { get; set; }
+
+        public string? PaymentResponseCode { get; set; }
     }
 }

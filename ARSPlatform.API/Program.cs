@@ -818,6 +818,83 @@ using (var scope = app.Services.CreateScope())
                 ALTER TABLE [dbo].[RoleRequests] DROP CONSTRAINT [CK_RoleRequests_RequestType];
                 ALTER TABLE [dbo].[RoleRequests] ADD CONSTRAINT [CK_RoleRequests_RequestType] CHECK ([RequestType] IN ('INITIAL_REGISTRATION', 'ADDITIONAL_ROLE', 'ROLE_UPGRADE'));
             END
+
+            -- ─────────────────────────────────────────────────────────────────────────────
+            -- AnnualFees + UserSubscriptions + Transactions (AnnualFee columns)
+            -- ─────────────────────────────────────────────────────────────────────────────
+
+            -- AnnualFees table
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'AnnualFees')
+            BEGIN
+                CREATE TABLE [dbo].[AnnualFees](
+                    [Id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [Name] [nvarchar](200) NOT NULL,
+                    [UserRole] [nvarchar](50) NOT NULL,
+                    [Price] [decimal](18, 0) NOT NULL,
+                    [BillingCycle] [nvarchar](20) NOT NULL,
+                    [StartDate] [date] NOT NULL,
+                    [EndDate] [date] NULL,
+                    [Status] [bit] NOT NULL DEFAULT 1,
+                    [CreatedAt] [datetime2](7) NULL DEFAULT GETUTCDATE(),
+                    [UpdatedAt] [datetime2](7) NULL DEFAULT GETUTCDATE()
+                );
+                CREATE UNIQUE NONCLUSTERED INDEX UQ_AnnualFees_Active_Role_Cycle
+                    ON [dbo].[AnnualFees]([UserRole], [BillingCycle], [Status])
+                    WHERE [Status] = 1;
+                CREATE NONCLUSTERED INDEX IX_AnnualFees_UserRole
+                    ON [dbo].[AnnualFees]([UserRole]);
+            END
+
+            -- UserSubscriptions table
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserSubscriptions')
+            BEGIN
+                CREATE TABLE [dbo].[UserSubscriptions](
+                    [Id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [UserId] [int] NOT NULL,
+                    [UserRole] [nvarchar](50) NOT NULL,
+                    [ExpiresAt] [datetime2](7) NULL,
+                    [LatestTransactionId] [int] NULL,
+                    [CreatedAt] [datetime2](7) NULL DEFAULT GETUTCDATE(),
+                    [UpdatedAt] [datetime2](7) NULL DEFAULT GETUTCDATE(),
+                    CONSTRAINT [FK_UserSubscriptions_User] FOREIGN KEY([UserId]) REFERENCES [dbo].[User] ([UserId]) ON DELETE CASCADE,
+                    CONSTRAINT [FK_UserSubscriptions_LatestTransaction]
+                        FOREIGN KEY([LatestTransactionId]) REFERENCES [dbo].[Transaction] ([TransactionId]) ON DELETE SET NULL,
+                    CONSTRAINT [UQ_UserSubscriptions_UserId_Role] UNIQUE NONCLUSTERED ([UserId], [UserRole])
+                );
+                CREATE NONCLUSTERED INDEX IX_UserSubscriptions_UserId
+                    ON [dbo].[UserSubscriptions]([UserId]);
+                CREATE NONCLUSTERED INDEX IX_UserSubscriptions_Role_ExpiresAt
+                    ON [dbo].[UserSubscriptions]([UserRole], [ExpiresAt]);
+            END
+
+            -- Transactions: add AnnualFeeId, UserId, PaymentDescription
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Transactions')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transactions') AND name = 'AnnualFeeId')
+                    ALTER TABLE [Transactions] ADD [AnnualFeeId] int NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transactions') AND name = 'UserId')
+                    ALTER TABLE [Transactions] ADD [UserId] int NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transactions') AND name = 'PaymentDescription')
+                    ALTER TABLE [Transactions] ADD [PaymentDescription] nvarchar(255) NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Transactions_PaymentOrderId' AND object_id = OBJECT_ID('Transactions'))
+                    CREATE NONCLUSTERED INDEX IX_Transactions_PaymentOrderId
+                        ON [dbo].[Transactions]([PaymentOrderId]);
+            END
+
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Transaction')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transaction') AND name = 'AnnualFeeId')
+                    ALTER TABLE [Transaction] ADD [AnnualFeeId] int NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transaction') AND name = 'UserId')
+                    ALTER TABLE [Transaction] ADD [UserId] int NULL;
+
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transaction') AND name = 'PaymentDescription')
+                    ALTER TABLE [Transaction] ADD [PaymentDescription] nvarchar(255) NULL;
+            END
         ");
 
         // Seed default medals if table is empty
