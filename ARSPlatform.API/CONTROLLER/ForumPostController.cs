@@ -104,7 +104,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID bài viết cần like hoặc bỏ like</param>
         /// <returns>Trạng thái like mới và tổng số lượt like</returns>
         [HttpPost("{id:int}/like")]
-        [HttpPost("like/{id:int}")]
         [Authorize]
         public async Task<ActionResult<ForumPostLikeToggleResponse>> ToggleLike(int id)
         {

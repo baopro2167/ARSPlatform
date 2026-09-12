@@ -95,7 +95,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">Thông tin yêu cầu thêm vai trò</param>
         /// <returns>Chi tiết yêu cầu được tạo ở trạng thái PENDING</returns>
         [HttpPost]
-        [HttpPost("additional-role")]
         [ProducesResponseType(
             typeof(RoleRequestResponse),
             StatusCodes.Status201Created)]
@@ -196,7 +195,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="requestId">ID yêu cầu cấp vai trò</param>
         /// <returns>204 No Content nếu hủy thành công</returns>
         [HttpDelete("{requestId:int}")]
-        [HttpPost("{requestId:int}/cancel")]
         [ProducesResponseType(
             StatusCodes.Status204NoContent)]
         [ProducesResponseType(
@@ -251,7 +249,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">Quyết định phê duyệt (status = ACCEPTED hoặc REJECTED)</param>
         /// <returns>Kết quả duyệt yêu cầu</returns>
         [HttpPut("{requestId:int}/review")]
-        [HttpPost("{requestId:int}/review")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(
             typeof(RoleRequestResponse),
@@ -362,7 +359,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID yêu cầu cấp vai trò</param>
         /// <param name="request">Lý do từ chối</param>
         /// <returns>Kết quả từ chối</returns>
-        [HttpPost("{id:int}/deny")]
         [HttpPost("{id:int}/reject")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(

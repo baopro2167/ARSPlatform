@@ -42,28 +42,6 @@ namespace ARSPlatform.API.CONTROLLER
             return Ok(result);
         }
 
-        /// <summary>
-        /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER ,
-        /// TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST
-        /// LÊN DANH SÁCH CÓ PHÂN TRANG
-        /// </summary>
-        /// <param name="paginationParams">
-        /// Tham số phân trang (PageNumber, PageSize)
-        /// </param>
-        /// <returns>
-        /// Danh sách bài báo có phân trang
-        /// </returns>
-        [HttpGet("paged")]
-        public async Task<ActionResult<PagedResult<PaperResponse>>> GetPaged(
-            [FromQuery] PaginationParams paginationParams)
-        {
-            var result =
-                await _paperService
-                    .GetPapersAsync(
-                        paginationParams);
-
-            return Ok(result);
-        }
 
         /// <summary>
         /// Lấy chi tiết bài báo nghiên cứu theo ID

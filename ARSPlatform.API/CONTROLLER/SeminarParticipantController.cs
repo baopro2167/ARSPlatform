@@ -51,49 +51,6 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Nộp form đánh giá / feedback cho buổi Seminar theo ID Seminar
-        /// </summary>
-        /// <param name="seminarId">ID buổi Seminar</param>
-        /// <param name="rawBody">Nội dung đánh giá động hoặc cấu trúc cũ</param>
-        /// <returns>Kết quả nộp feedback</returns>
-        [HttpPost("feedback/{seminarId:int}")]
-        [HttpPost("{seminarId:int}/feedback")]
-        [HttpPost("{seminarId:int}/feedback-answers")]
-        [Authorize]
-        public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int seminarId, [FromBody] JsonElement rawBody)
-        {
-            if (!TryGetCurrentUserId(out var currentUserId)) return Unauthorized();
-
-            var request = SeminarController.ConvertToFeedbackRequest(rawBody);
-
-            try
-            {
-                var response = await _service.SubmitFeedbackAsync(seminarId, request, currentUserId);
-                return Ok(response);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return StatusCode(403, new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        /// <summary>
         /// LẤY DANH SÁCH THEO (ID) CỦA TỪNG CONTROLLER , TRUYỀN VÀO PAGESIZE VÀ PAGENUMBER LÀ SẼ LIST LÊN DANH SÁCH CÓ PHÂN TRANG
         /// </summary>
         /// <param name="paginationParams">Tham số phân trang (PageNumber, PageSize)</param>

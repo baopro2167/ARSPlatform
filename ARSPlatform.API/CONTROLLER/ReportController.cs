@@ -11,7 +11,6 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Route("api/ViolationReport")]
     [Authorize]
     public class ReportController : ControllerBase
     {
@@ -88,7 +87,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// Giải quyết báo cáo vi phạm
         /// </summary>
         [HttpPost("{id:int}/resolve")]
-        [HttpPatch("{id:int}/resolve")]
         public async Task<ActionResult<ReportResponse>> Resolve(int id, [FromBody] ReportUpdateRequest? request = null)
         {
             var updateReq = request ?? new ReportUpdateRequest();

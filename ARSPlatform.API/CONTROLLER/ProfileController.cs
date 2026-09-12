@@ -84,7 +84,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">Thông tin cập nhật</param>
         /// <returns>Hồ sơ sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
-        [HttpPatch("{id:int}")]
         public async Task<ActionResult<ProfileResponse>> Update(int id, [FromBody] ProfileUpdateRequest request)
         {
             try

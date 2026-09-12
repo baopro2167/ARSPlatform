@@ -174,7 +174,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// </summary>
         /// <param name="id">ID bản ghi GroupMember</param>
         /// <returns>Thông báo kết quả hủy Leader</returns>
-        [HttpPost("{id:int}/remove-leader")]
         [HttpDelete("{id:int}/leader")]
         public async Task<ActionResult<GroupMemberResponse>> RemoveLeader(int id)
         {

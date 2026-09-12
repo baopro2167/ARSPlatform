@@ -50,7 +50,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="topicId">ID đề tài nghiên cứu</param>
         /// <returns>Danh sách các Phase Report thuộc đề tài</returns>
         [HttpGet("topic/{topicId:int}")]
-        [HttpGet("by-topic/{topicId:int}")]
         public async Task<ActionResult<IEnumerable<PhasedReportResponse>>> GetByTopic(int topicId)
         {
             var items = await _service.GetByTopicIdAsync(topicId);

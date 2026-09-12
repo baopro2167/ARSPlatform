@@ -80,7 +80,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="id">ID bình luận cần vote hoặc hủy vote</param>
         /// <returns>Trạng thái vote mới và tổng số lượt upvote</returns>
         [HttpPost("{id:int}/vote")]
-        [HttpPost("vote/{id:int}")]
         [Authorize]
         public async Task<ActionResult<CommentVoteToggleResponse>> ToggleVote(int id)
         {

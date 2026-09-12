@@ -12,7 +12,6 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Route("api/Account")]
     [Authorize]
     public class UserController : ControllerBase
     {
@@ -55,18 +54,6 @@ namespace ARSPlatform.API.CONTROLLER
                 var result = await _userService.GetUsersAsync(paginationParams, role, isActive, excludeUserId: null);
                 return Ok(result);
             }
-        }
-
-        /// <summary>
-        /// Lấy danh sách người dùng có phân trang
-        /// </summary>
-        [HttpGet("paged")]
-        public async Task<ActionResult<PagedResult<UserResponse>>> GetPaged(
-            [FromQuery] PaginationParams paginationParams,
-            [FromQuery] string? role = null,
-            [FromQuery] bool? isActive = null)
-        {
-            return await GetUsers(paginationParams, role, isActive);
         }
 
         /// <summary>

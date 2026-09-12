@@ -225,7 +225,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="payload">Payload chứa câu hỏi (JSON string, object, hoặc array)</param>
         /// <returns>Cấu hình câu hỏi đã lưu</returns>
         [HttpPut("{id:int}/feedback-form")]
-        [HttpPost("{id:int}/feedback-form")]
         [Authorize(Roles = "Lecturer,Researcher,Admin")]
         [ProducesResponseType(typeof(SeminarFeedbackFormResponse), StatusCodes.Status200OK)]
         public async Task<ActionResult<SeminarFeedbackFormResponse>> UpdateFeedbackForm(int id, [FromBody] JsonElement payload)
@@ -289,7 +288,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="rawBody">Nội dung đánh giá động (hoặc cấu trúc feedback cũ)</param>
         /// <returns>Kết quả nộp đánh giá</returns>
         [HttpPost("{id:int}/feedback")]
-        [HttpPost("{id:int}/feedback-answers")]
         [Authorize]
         public async Task<ActionResult<SeminarFeedbackResponse>> SubmitFeedback(int id, [FromBody] JsonElement rawBody)
         {

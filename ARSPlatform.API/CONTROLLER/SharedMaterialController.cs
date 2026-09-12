@@ -13,7 +13,6 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Route("api/LearningMaterialShare")]
     [Authorize]
     public class SharedMaterialController : ControllerBase
     {
@@ -124,7 +123,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// <summary>
         /// Phản hồi lời mời chia sẻ (Accept / Decline bởi người nhận) hoặc chỉnh sửa
         /// </summary>
-        [HttpPatch("{id:int}")]
         [HttpPut("{id:int}")]
         public async Task<ActionResult<SharedMaterialResponse>> Update(int id, [FromBody] SharedMaterialUpdateRequest request)
         {

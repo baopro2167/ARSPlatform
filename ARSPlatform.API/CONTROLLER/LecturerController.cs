@@ -25,7 +25,6 @@ namespace ARSPlatform.API.CONTROLLER
         /// Lấy danh sách giảng viên đang hoạt động (loại trừ tài khoản hiện tại)
         /// </summary>
         [HttpGet]
-        [HttpGet("roster")]
         public async Task<ActionResult<List<UserResponse>>> GetLecturers([FromQuery] PaginationParams? paginationParams = null)
         {
             int? currentUserId = null;
