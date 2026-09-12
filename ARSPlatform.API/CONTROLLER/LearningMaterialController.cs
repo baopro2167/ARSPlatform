@@ -122,9 +122,14 @@ namespace ARSPlatform.API.CONTROLLER
 
             try
             {
-                var success = await _service.DeleteAsync(id);
-                if (!success) return NotFound(new { Message = "Learning material not found." });
-                return Ok(new { Message = "Deleted successfully." });
+                var (success, revokedSharesCount, message) = await _service.DeleteAsync(id);
+                if (!success) return NotFound(new { Message = message });
+                return Ok(new
+                {
+                    Message = message,
+                    DeletedId = id,
+                    RevokedSharesCount = revokedSharesCount
+                });
             }
             catch (System.InvalidOperationException ex)
             {

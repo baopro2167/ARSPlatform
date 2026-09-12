@@ -16,6 +16,6 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<LearningMaterialResponse?> GetByIdAsync(int id);
         Task<LearningMaterialResponse> CreateAsync(LearningMaterialCreateRequest request);
         Task<LearningMaterialResponse?> UpdateAsync(int id, LearningMaterialUpdateRequest request);
-        Task<bool> DeleteAsync(int id);
+        Task<(bool Success, int RevokedSharesCount, string Message)> DeleteAsync(int id);
     }
 }

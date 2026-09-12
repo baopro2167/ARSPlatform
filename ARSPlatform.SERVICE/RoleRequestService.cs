@@ -16,6 +16,7 @@ namespace ARSPlatform.SERVICES
         private readonly INotificationRepository _notificationRepository;
         private readonly IUserRepository _userRepository;
         private readonly IRoleRepository _roleRepository;
+        private readonly IProfileRepository _profileRepository;
 
         public RoleRequestService(
             IRoleRequestRepository roleRequestRepository,
@@ -23,7 +24,8 @@ namespace ARSPlatform.SERVICES
             IProfessionalProfileRepository professionalProfileRepository,
             INotificationRepository notificationRepository,
             IUserRepository userRepository,
-            IRoleRepository roleRepository)
+            IRoleRepository roleRepository,
+            IProfileRepository profileRepository)
         {
             _roleRequestRepository = roleRequestRepository;
             _userRoleRepository = userRoleRepository;
@@ -31,6 +33,7 @@ namespace ARSPlatform.SERVICES
             _notificationRepository = notificationRepository;
             _userRepository = userRepository;
             _roleRepository = roleRepository;
+            _profileRepository = profileRepository;
         }
 
         public async Task<IEnumerable<RoleRequestResponse>> GetAllAsync()
@@ -38,6 +41,8 @@ namespace ARSPlatform.SERVICES
             var roleRequests = await _roleRequestRepository
                 .GetQueryable()
                 .AsNoTracking()
+                .Include(x => x.User)
+                    .ThenInclude(u => u.Profile)
                 .Include(x => x.User)
                     .ThenInclude(x => x.UserRoles)
                         .ThenInclude(x => x.Role)
@@ -53,6 +58,8 @@ namespace ARSPlatform.SERVICES
             var query = _roleRequestRepository
                 .GetQueryable()
                 .AsNoTracking()
+                .Include(x => x.User)
+                    .ThenInclude(u => u.Profile)
                 .Include(x => x.User)
                     .ThenInclude(x => x.UserRoles)
                         .ThenInclude(x => x.Role)
@@ -78,6 +85,8 @@ namespace ARSPlatform.SERVICES
                 .GetQueryable()
                 .AsNoTracking()
                 .Where(x => x.UserId == userId)
+                .Include(x => x.User)
+                    .ThenInclude(u => u.Profile)
                 .Include(x => x.User)
                     .ThenInclude(x => x.UserRoles)
                         .ThenInclude(x => x.Role)
@@ -107,6 +116,8 @@ namespace ARSPlatform.SERVICES
             var roleRequest = await _roleRequestRepository
                 .GetQueryable()
                 .AsNoTracking()
+                .Include(x => x.User)
+                    .ThenInclude(u => u.Profile)
                 .Include(x => x.User)
                     .ThenInclude(x => x.UserRoles)
                         .ThenInclude(x => x.Role)
@@ -320,19 +331,33 @@ namespace ARSPlatform.SERVICES
             ValidateRoleProgressionMatrix(currentRoles, roleEntity.Name);
 
             var now = DateTime.UtcNow;
+
+            // Update or create Profile to store PhoneNumber
+            if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                var profile = await _profileRepository.GetByIdAsync(targetUserId);
+                if (profile != null)
+                {
+                    profile.PhoneNumber = request.PhoneNumber.Trim();
+                    _profileRepository.Update(profile);
+                }
+                else
+                {
+                    profile = new Profile
+                    {
+                        UserId = targetUserId,
+                        FullName = user.FullName,
+                        PhoneNumber = request.PhoneNumber.Trim(),
+                        AvatarInitials = user.FullName.Length >= 2 ? user.FullName.Substring(0, 2) : user.FullName
+                    };
+                    await _profileRepository.AddAsync(profile);
+                }
+            }
+
             var roleRequest = new RoleRequest
             {
                 UserId = targetUserId,
                 RequestedRoleId = roleEntity.RoleId,
-                PhoneNumber = !string.IsNullOrWhiteSpace(request.PhoneNumber)
-                    ? request.PhoneNumber.Trim()
-                    : string.Empty,
-                Affiliation = !string.IsNullOrWhiteSpace(request.Affiliation)
-                    ? request.Affiliation.Trim()
-                    : null,
-                Department = !string.IsNullOrWhiteSpace(request.Department)
-                    ? request.Department.Trim()
-                    : null,
                 ProofDocumentUrl = request.ProofDocumentUrl.Trim(),
                 Status = "PENDING",
                 RequestType = string.IsNullOrWhiteSpace(request.RequestType) ? "ADDITIONAL_ROLE" : request.RequestType.Trim(),
@@ -501,6 +526,8 @@ namespace ARSPlatform.SERVICES
             return await _roleRequestRepository
                 .GetQueryable()
                 .Include(x => x.User)
+                    .ThenInclude(u => u.Profile)
+                .Include(x => x.User)
                     .ThenInclude(x => x.UserRoles)
                         .ThenInclude(x => x.Role)
                 .Include(x => x.RequestedRole)
@@ -574,9 +601,9 @@ namespace ARSPlatform.SERVICES
                 UserId = roleRequest.UserId,
                 UserName = roleRequest.User?.FullName ?? string.Empty,
                 Email = roleRequest.User?.Email ?? string.Empty,
-                Phone = roleRequest.PhoneNumber,
-                Affiliation = roleRequest.Affiliation ?? string.Empty,
-                Department = roleRequest.Department ?? string.Empty,
+                Phone = roleRequest.User?.Profile?.PhoneNumber ?? string.Empty,
+                Affiliation = roleRequest.User?.Profile?.Institution ?? string.Empty,
+                Department = string.Empty,
                 CurrentRoles = currentRoles,
                 RequestedAdditionalRoles =
                     isAdditionalRole && !string.IsNullOrWhiteSpace(requestedRoleName)

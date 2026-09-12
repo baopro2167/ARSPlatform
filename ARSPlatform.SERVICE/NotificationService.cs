@@ -28,7 +28,8 @@ namespace ARSPlatform.SERVICES
         {
             Expression<Func<Notification, bool>>? predicate = userId.HasValue ? x => x.UserId == userId.Value : null;
             var items = await _repository.GetAllAsync(predicate);
-            return _mapper.Map<IEnumerable<NotificationResponse>>(items);
+            var sorted = items.OrderByDescending(x => x.CreatedAt ?? DateTime.MinValue).ThenByDescending(x => x.NotificationId);
+            return _mapper.Map<IEnumerable<NotificationResponse>>(sorted);
         }
 
         public async Task<PagedResult<NotificationResponse>> GetPagedAsync(PaginationParams paginationParams, int? userId = null)

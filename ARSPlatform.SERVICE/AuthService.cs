@@ -1,4 +1,5 @@
 using ARSPlatform.MODEL.Entities;
+using Profile = ARSPlatform.MODEL.Entities.Profile;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE;
 using System.Net.Http;
@@ -31,6 +32,7 @@ namespace ARSPlatform.SERVICES
         private readonly IUserRoleRepository _userRoleRepository;
         private readonly IOrcidLinkSessionRepository _orcidLinkSessionRepository;
         private readonly IUserSubscriptionRepository _userSubscriptionRepository;
+        private readonly IProfileRepository _profileRepository;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
@@ -43,6 +45,7 @@ namespace ARSPlatform.SERVICES
             IUserRoleRepository userRoleRepository,
             IOrcidLinkSessionRepository orcidLinkSessionRepository,
             IUserSubscriptionRepository userSubscriptionRepository,
+            IProfileRepository profileRepository,
             IMapper mapper,
             IConfiguration configuration,
             IEmailService emailService)
@@ -54,6 +57,7 @@ namespace ARSPlatform.SERVICES
             _userRoleRepository = userRoleRepository;
             _orcidLinkSessionRepository = orcidLinkSessionRepository;
             _userSubscriptionRepository = userSubscriptionRepository;
+            _profileRepository = profileRepository;
             _mapper = mapper;
             _configuration = configuration;
             _emailService = emailService;
@@ -389,6 +393,15 @@ namespace ARSPlatform.SERVICES
                 }
 
                 await _userRepository.AddAsync(user);
+
+                var profile = new Profile
+                {
+                    User = user,
+                    FullName = user.FullName,
+                    PhoneNumber = !string.IsNullOrWhiteSpace(request.PhoneNumber) ? request.PhoneNumber.Trim() : null,
+                    AvatarInitials = user.FullName.Length >= 2 ? user.FullName.Substring(0, 2) : user.FullName
+                };
+                await _profileRepository.AddAsync(profile);
             }
 
             // Create pending role request for Admin review.
@@ -396,7 +409,6 @@ namespace ARSPlatform.SERVICES
             {
                 User = user,
                 RequestedRoleId = requestedRole.RoleId,
-                PhoneNumber = request.PhoneNumber.Trim(),
                 ProofDocumentUrl = request.PdfUrl.Trim(),
                 Status = "PENDING",
                 RequestType = "INITIAL_REGISTRATION",
@@ -671,6 +683,15 @@ namespace ARSPlatform.SERVICES
                     UpdatedAt = now
                 };
                 await _professionalProfileRepository.AddAsync(professionalProfile);
+
+                var profile = new Profile
+                {
+                    User = user,
+                    FullName = user.FullName,
+                    PhoneNumber = null,
+                    AvatarInitials = user.FullName.Length >= 2 ? user.FullName.Substring(0, 2) : user.FullName
+                };
+                await _profileRepository.AddAsync(profile);
 
                 await _userRepository.SaveChangesAsync();
 
@@ -1431,6 +1452,15 @@ namespace ARSPlatform.SERVICES
                     UpdatedAt = now
                 };
                 await _professionalProfileRepository.AddAsync(professionalProfile);
+
+                var profile = new Profile
+                {
+                    User = user,
+                    FullName = user.FullName,
+                    PhoneNumber = !string.IsNullOrWhiteSpace(request.PhoneNumber) ? request.PhoneNumber.Trim() : null,
+                    AvatarInitials = user.FullName.Length >= 2 ? user.FullName.Substring(0, 2) : user.FullName
+                };
+                await _profileRepository.AddAsync(profile);
             }
             else
             {
@@ -1447,13 +1477,22 @@ namespace ARSPlatform.SERVICES
                 user.VerificationStatus = "Pending";
                 user.IsActive = false;
                 user.UpdatedAt = now;
+
+                if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+                {
+                    var userProfile = await _profileRepository.GetByIdWithUserAsync(user.UserId);
+                    if (userProfile != null)
+                    {
+                        userProfile.PhoneNumber = request.PhoneNumber.Trim();
+                        _profileRepository.Update(userProfile);
+                    }
+                }
             }
 
             var roleRequest = new RoleRequest
             {
                 User = user,
                 RequestedRoleId = requestedRole.RoleId,
-                PhoneNumber = request.PhoneNumber.Trim(),
                 ProofDocumentUrl = request.PdfUrl.Trim(),
                 Status = "PENDING",
                 RequestType = "INITIAL_REGISTRATION",

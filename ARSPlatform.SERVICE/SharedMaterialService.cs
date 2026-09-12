@@ -167,6 +167,22 @@ namespace ARSPlatform.SERVICES
             await _repository.SaveChangesAsync();
 
             var loaded = await _repository.GetWithDetailsByIdAsync(entity.SharedMaterialId);
+
+            // Gửi thông báo cho giảng viên được chia sẻ
+            var senderUser = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == senderId);
+            var senderName = senderUser?.FullName ?? "Một giảng viên";
+            var matTitle = loaded?.LearningMaterial?.Title ?? loaded?.Paper?.Title ?? "Tài liệu học tập";
+
+            var notification = new Notification
+            {
+                UserId = colleagueId,
+                Message = $"Giảng viên {senderName} đã chia sẻ tài liệu \"{matTitle}\" với bạn.",
+                IsRead = false,
+                CreatedAt = now
+            };
+            await _dbContext.Notifications.AddAsync(notification);
+            await _dbContext.SaveChangesAsync();
+
             return MapToResponse(loaded ?? entity, currentUserId);
         }
 
@@ -243,6 +259,44 @@ namespace ARSPlatform.SERVICES
             _repository.Update(item);
             await _repository.SaveChangesAsync();
 
+            // Gửi thông báo tương ứng với trạng thái thay đổi
+            var loadedForNotif = await _repository.GetWithDetailsByIdAsync(id);
+            var title = loadedForNotif?.LearningMaterial?.Title ?? loadedForNotif?.Paper?.Title ?? "Tài liệu học tập";
+
+            if (normalized is "ENDED" or "REVOKED" or "CANCELLED")
+            {
+                if (item.SharedWithColleagueId.HasValue)
+                {
+                    var senderName = loadedForNotif?.Lecturer?.FullName ?? "Giảng viên chia sẻ";
+                    var notif = new Notification
+                    {
+                        UserId = item.SharedWithColleagueId.Value,
+                        Message = $"Giảng viên {senderName} đã kết thúc quyền truy cập tài liệu chia sẻ \"{title}\".",
+                        IsRead = false,
+                        CreatedAt = now
+                    };
+                    await _dbContext.Notifications.AddAsync(notif);
+                    await _dbContext.SaveChangesAsync();
+                }
+            }
+            else if (normalized is "ACCEPTED" or "DECLINED")
+            {
+                if (item.LecturerId.HasValue)
+                {
+                    var colleagueName = loadedForNotif?.SharedWithColleague?.FullName ?? "Người nhận chia sẻ";
+                    var actionText = normalized == "ACCEPTED" ? "chấp nhận" : "từ chối";
+                    var notif = new Notification
+                    {
+                        UserId = item.LecturerId.Value,
+                        Message = $"Giảng viên {colleagueName} đã {actionText} lời mời chia sẻ tài liệu \"{title}\".",
+                        IsRead = false,
+                        CreatedAt = now
+                    };
+                    await _dbContext.Notifications.AddAsync(notif);
+                    await _dbContext.SaveChangesAsync();
+                }
+            }
+
             return MapToResponse(item, currentUserId);
         }
 
@@ -258,13 +312,27 @@ namespace ARSPlatform.SERVICES
 
         public async Task<bool> RevokeOrDeleteAsync(int id, int currentUserId, bool isAdmin = false)
         {
-            var item = await _repository.GetByIdAsync(id);
+            var item = await _repository.GetWithDetailsByIdAsync(id);
             if (item == null) return false;
 
             var isSender = item.LecturerId == currentUserId;
             if (!isSender && !isAdmin)
             {
                 throw new UnauthorizedAccessException("Only the sender can cancel or delete this share.");
+            }
+
+            if (item.SharedWithColleagueId.HasValue)
+            {
+                var title = item.LearningMaterial?.Title ?? item.Paper?.Title ?? "Tài liệu học tập";
+                var senderName = item.Lecturer?.FullName ?? "Giảng viên chia sẻ";
+                var notif = new Notification
+                {
+                    UserId = item.SharedWithColleagueId.Value,
+                    Message = $"Giảng viên {senderName} đã thu hồi liên kết chia sẻ tài liệu \"{title}\".",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _dbContext.Notifications.AddAsync(notif);
             }
 
             _repository.Delete(item);

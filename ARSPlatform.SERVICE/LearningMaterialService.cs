@@ -87,10 +87,10 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<LearningMaterialResponse>(item);
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<(bool Success, int RevokedSharesCount, string Message)> DeleteAsync(int id)
         {
             var item = await _repository.GetByIdAsync(id);
-            if (item == null) return false;
+            if (item == null) return (false, 0, "Learning material not found.");
 
             // 1. Usage Constraint Check: Kiểm tra xem tài liệu có đang được liên kết trong ResearchTopic hoặc PhasedReport
             var idString = id.ToString();
@@ -128,20 +128,51 @@ namespace ARSPlatform.SERVICES
                 throw new InvalidOperationException("Tài liệu đang được sử dụng trong đề tài nghiên cứu, không thể xóa.");
             }
 
-            // 2. Cascade Delete: Xóa toàn bộ các bản ghi trong SharedMaterials liên kết tới tài liệu này
+            // 2. Cascade Delete: Gửi thông báo cho đồng nghiệp đang được share và xóa các bản ghi chia sẻ
             var relatedShares = await _dbContext.SharedMaterials
+                .Include(s => s.Lecturer)
                 .Where(s => s.LearningMaterialId == id || s.PaperId == id)
                 .ToListAsync();
 
-            if (relatedShares.Any())
+            var revokedSharesCount = relatedShares.Count;
+            if (revokedSharesCount > 0)
             {
+                var senderUser = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == item.LecturerId);
+                var senderName = senderUser?.FullName ?? item.Lecturer?.FullName ?? "Giảng viên chủ sở hữu";
+                var now = DateTime.UtcNow;
+
+                var notifications = new List<Notification>();
+                foreach (var s in relatedShares)
+                {
+                    if (s.SharedWithColleagueId.HasValue)
+                    {
+                        notifications.Add(new Notification
+                        {
+                            UserId = s.SharedWithColleagueId.Value,
+                            Message = $"Tài liệu \"{item.Title}\" do Giảng viên {senderName} chia sẻ đã bị chủ sở hữu xóa khỏi hệ thống.",
+                            IsRead = false,
+                            CreatedAt = now
+                        });
+                    }
+                }
+
+                if (notifications.Any())
+                {
+                    await _dbContext.Notifications.AddRangeAsync(notifications);
+                }
+
                 _dbContext.SharedMaterials.RemoveRange(relatedShares);
             }
 
             // 3. Xóa tài liệu gốc
             _repository.Delete(item);
             await _dbContext.SaveChangesAsync();
-            return true;
+
+            var message = revokedSharesCount > 0
+                ? $"Xóa tài liệu thành công. Đã thu hồi liên kết chia sẻ tới {revokedSharesCount} giảng viên và gửi thông báo tới họ."
+                : "Xóa tài liệu thành công.";
+
+            return (true, revokedSharesCount, message);
         }
     }
 }
