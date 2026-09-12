@@ -20,6 +20,7 @@ public class AnnualFeeService : IAnnualFeeService
     private readonly IAnnualFeeRepository _annualFeeRepo;
     private readonly IUserSubscriptionRepository _subscriptionRepo;
     private readonly ITransactionRepository _transactionRepo;
+    private readonly INotificationRepository _notificationRepo;
     private readonly PayOSSettings _payOSSettings;
     private readonly HttpClient _httpClient;
 
@@ -27,12 +28,14 @@ public class AnnualFeeService : IAnnualFeeService
         IAnnualFeeRepository annualFeeRepo,
         IUserSubscriptionRepository subscriptionRepo,
         ITransactionRepository transactionRepo,
+        INotificationRepository notificationRepo,
         IOptions<PayOSSettings> payOSSettings,
         HttpClient httpClient)
     {
         _annualFeeRepo = annualFeeRepo;
         _subscriptionRepo = subscriptionRepo;
         _transactionRepo = transactionRepo;
+        _notificationRepo = notificationRepo;
         _payOSSettings = payOSSettings.Value;
         _httpClient = httpClient;
     }
@@ -444,6 +447,28 @@ public class AnnualFeeService : IAnnualFeeService
 
             // Expire subscription cũ (single-active-policy)
             await ExpireOldSubscriptionsAsync(tx.UserId ?? 0, userRole, tx.TransactionId);
+
+            // Gửi thông báo thanh toán thành công
+            if (tx.UserId.HasValue && tx.UserId.Value > 0)
+            {
+                try
+                {
+                    var planName = plan?.Name ?? "Gói hội viên";
+                    var notif = new Notification
+                    {
+                        UserId = tx.UserId.Value,
+                        Message = $"[Thanh toán] Thanh toán phí hội viên \"{planName}\" thành công (Mã giao dịch: {orderCode}). Gói của bạn có hiệu lực đến ngày {expiryDate:dd/MM/yyyy}.",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepo.AddAsync(notif);
+                    await _notificationRepo.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Ignore notification error
+                }
+            }
         }
         else
         {
@@ -455,6 +480,44 @@ public class AnnualFeeService : IAnnualFeeService
         }
 
         return true;
+    }
+
+    public async Task<int> SendExpiringSubscriptionRemindersAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var threshold = now.AddDays(7);
+
+        var expiringSubs = await _subscriptionRepo.GetQueryable()
+            .Where(s => s.ExpiresAt > now && s.ExpiresAt <= threshold)
+            .ToListAsync(cancellationToken);
+
+        var sentCount = 0;
+        foreach (var sub in expiringSubs)
+        {
+            try
+            {
+                var notif = new Notification
+                {
+                    UserId = sub.UserId,
+                    Message = $"[Nhắc nhở] Gói hội viên {sub.UserRole} của bạn sẽ hết hạn vào ngày {sub.ExpiresAt:dd/MM/yyyy}. Vui lòng gia hạn để tiếp tục duy trì quyền lợi.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _notificationRepo.AddAsync(notif);
+                sentCount++;
+            }
+            catch
+            {
+                // Ignore individual notification error
+            }
+        }
+
+        if (sentCount > 0)
+        {
+            await _notificationRepo.SaveChangesAsync();
+        }
+
+        return sentCount;
     }
 
     // ─────────────────────────────────────────────

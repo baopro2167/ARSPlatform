@@ -14,15 +14,18 @@ public class PaymentService : IPaymentService
 {
     private readonly PayOSSettings _payOSSettings;
     private readonly ITransactionRepository _transactionRepository;
+    private readonly INotificationRepository _notificationRepository;
     private readonly HttpClient _httpClient;
 
     public PaymentService(
         IOptions<PayOSSettings> payOSSettings,
         ITransactionRepository transactionRepository,
+        INotificationRepository notificationRepository,
         HttpClient httpClient)
     {
         _payOSSettings = payOSSettings.Value;
         _transactionRepository = transactionRepository;
+        _notificationRepository = notificationRepository;
         _httpClient = httpClient;
     }
 
@@ -130,6 +133,27 @@ public class PaymentService : IPaymentService
 
         _transactionRepository.Update(transaction);
         await _transactionRepository.SaveChangesAsync();
+
+        if ((status == "PAID" || status == "SUCCESS") && transaction.UserId.HasValue && transaction.UserId.Value > 0)
+        {
+            try
+            {
+                var desc = !string.IsNullOrWhiteSpace(transaction.Description) ? transaction.Description : $"Đơn hàng {orderCode}";
+                var notif = new Notification
+                {
+                    UserId = transaction.UserId.Value,
+                    Message = $"[Thanh toán] Giao dịch \"{desc}\" với số tiền {transaction.Amount:N0} VNĐ đã được xử lý thành công.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _notificationRepository.AddAsync(notif);
+                await _notificationRepository.SaveChangesAsync();
+            }
+            catch
+            {
+                // Ignore notification error
+            }
+        }
 
         // Redirect URL based on status
         var redirectUrl = status == "PAID" || status == "SUCCESS"

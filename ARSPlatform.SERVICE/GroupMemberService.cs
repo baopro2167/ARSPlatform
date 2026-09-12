@@ -4,12 +4,14 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
+using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace ARSPlatform.SERVICES
 {
@@ -17,11 +19,13 @@ namespace ARSPlatform.SERVICES
     {
         private readonly IGroupMemberRepository _repository;
         private readonly IMapper _mapper;
+        private readonly AppDbContext _dbContext;
 
-        public GroupMemberService(IGroupMemberRepository repository, IMapper mapper)
+        public GroupMemberService(IGroupMemberRepository repository, IMapper mapper, AppDbContext dbContext)
         {
             _repository = repository;
             _mapper = mapper;
+            _dbContext = dbContext;
         }
 
         public async Task<IEnumerable<GroupMemberResponse>> GetAllAsync(int? groupId = null)
@@ -82,6 +86,29 @@ namespace ARSPlatform.SERVICES
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
 
+            // Gửi thông báo cho thành viên mới được thêm
+            if (item.StudentId.HasValue && item.ResearchGroupId.HasValue)
+            {
+                try
+                {
+                    var group = await _dbContext.ResearchGroups.AsNoTracking().FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
+                    var groupName = group?.Name ?? "Nhóm nghiên cứu";
+                    var notif = new Notification
+                    {
+                        UserId = item.StudentId.Value,
+                        Message = $"[Nhóm nghiên cứu] Bạn đã được thêm vào nhóm nghiên cứu \"{groupName}\".",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _dbContext.Notifications.AddAsync(notif);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Ignore notification error
+                }
+            }
+
             var created = (await _repository.GetAllAsync(x => x.GroupMemberId == item.GroupMemberId, includes: x => x.Student!)).FirstOrDefault();
             return _mapper.Map<GroupMemberResponse>(created ?? item);
         }
@@ -91,9 +118,43 @@ namespace ARSPlatform.SERVICES
             var item = await _repository.GetByIdAsync(id);
             if (item == null) return null;
 
+            var oldStatus = item.ActivityStatus;
             _mapper.Map(request, item);
             _repository.Update(item);
             await _repository.SaveChangesAsync();
+
+            // Gửi thông báo khi thành viên chấp nhận tham gia hoặc trạng thái thay đổi
+            if (item.ResearchGroupId.HasValue && !string.IsNullOrWhiteSpace(request.ActivityStatus) && oldStatus != item.ActivityStatus)
+            {
+                try
+                {
+                    var group = await _dbContext.ResearchGroups.AsNoTracking().FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
+                    var student = item.StudentId.HasValue ? await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == item.StudentId.Value) : null;
+                    var groupName = group?.Name ?? "Nhóm nghiên cứu";
+                    var studentName = student?.FullName ?? "Thành viên";
+
+                    var normalizedStatus = request.ActivityStatus.Trim().ToLowerInvariant();
+                    if (normalizedStatus is "accepted" or "joined" or "active")
+                    {
+                        if (group?.LecturerId.HasValue == true && group.LecturerId.Value != item.StudentId)
+                        {
+                            var notif = new Notification
+                            {
+                                UserId = group.LecturerId.Value,
+                                Message = $"[Nhóm nghiên cứu] {studentName} đã đồng ý tham gia nhóm nghiên cứu \"{groupName}\".",
+                                IsRead = false,
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            await _dbContext.Notifications.AddAsync(notif);
+                            await _dbContext.SaveChangesAsync();
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore notification error
+                }
+            }
 
             var updated = (await _repository.GetAllAsync(x => x.GroupMemberId == id, includes: x => x.Student!)).FirstOrDefault();
             return _mapper.Map<GroupMemberResponse>(updated ?? item);
@@ -148,6 +209,29 @@ namespace ARSPlatform.SERVICES
             item.LeaderId = true;
             _repository.Update(item);
             await _repository.SaveChangesAsync();
+
+            // Gửi thông báo cho thành viên được chỉ định làm Trưởng nhóm
+            if (item.StudentId.HasValue && item.ResearchGroupId.HasValue)
+            {
+                try
+                {
+                    var group = await _dbContext.ResearchGroups.AsNoTracking().FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
+                    var groupName = group?.Name ?? "Nhóm nghiên cứu";
+                    var notif = new Notification
+                    {
+                        UserId = item.StudentId.Value,
+                        Message = $"[Nhóm nghiên cứu] Bạn đã được chỉ định làm Trưởng nhóm (Leader) của nhóm \"{groupName}\".",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _dbContext.Notifications.AddAsync(notif);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Ignore notification error
+                }
+            }
 
             var updated = (await _repository.GetAllAsync(x => x.GroupMemberId == groupMemberId, includes: x => x.Student!)).FirstOrDefault();
             return _mapper.Map<GroupMemberResponse>(updated ?? item);

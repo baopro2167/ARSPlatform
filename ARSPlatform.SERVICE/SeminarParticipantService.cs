@@ -199,6 +199,7 @@ namespace ARSPlatform.SERVICES
                     throw new ArgumentException("Participant feedback must be submitted through POST /api/Seminar/{seminarId}/feedback.");
             }
 
+            var oldStatus = item.InvitationStatus;
             if (request.InvitationStatus != null)
                 item.InvitationStatus = NormalizeParticipantStatus(request.InvitationStatus);
 
@@ -207,6 +208,45 @@ namespace ARSPlatform.SERVICES
 
             _repository.Update(item);
             await _repository.SaveChangesAsync();
+
+            // Notify if participant confirmed/accepted
+            if (isParticipant && item.InvitationStatus is "CONFIRMED" or "ACCEPTED" && oldStatus != item.InvitationStatus)
+            {
+                try
+                {
+                    var seminarTitle = !string.IsNullOrWhiteSpace(item.Seminar?.Content) ? item.Seminar.Content : "Hội thảo";
+                    var timeStr = item.Seminar?.StartTime != null ? $" (bắt đầu lúc {item.Seminar.StartTime:HH:mm dd/MM/yyyy})" : "";
+                    
+                    // 1. Notify participant
+                    var notifParticipant = new Notification
+                    {
+                        UserId = currentUserId,
+                        Message = $"Bạn đã đăng ký tham gia hội thảo: \"{seminarTitle}\"{timeStr}.",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _notificationRepository.AddAsync(notifParticipant);
+
+                    // 2. Notify organizer
+                    if (item.Seminar?.OrganizerId != null && item.Seminar.OrganizerId != currentUserId)
+                    {
+                        var participantName = currentUser?.FullName ?? "Người tham dự";
+                        var notifOrganizer = new Notification
+                        {
+                            UserId = item.Seminar.OrganizerId.Value,
+                            Message = $"[Hội thảo] {participantName} đã xác nhận tham gia hội thảo \"{seminarTitle}\".",
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _notificationRepository.AddAsync(notifOrganizer);
+                    }
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Ignore notification error
+                }
+            }
 
             return _mapper.Map<SeminarParticipantResponse>(item);
         }
@@ -420,10 +460,11 @@ namespace ARSPlatform.SERVICES
         {
             var value = status.Trim().ToLowerInvariant();
             if (value == "pending") return "PENDING";
-            if (value is "invited" or "accepted" or "confirmed") return "INVITED";
+            if (value == "invited") return "INVITED";
+            if (value is "accepted" or "confirmed") return "CONFIRMED";
             if (value is "submitted" or "complete" or "completed") return "SUBMITTED";
             if (value is "declined" or "rejected") return "DECLINED";
-            throw new ArgumentException("InvitationStatus must be PENDING, INVITED, SUBMITTED, or DECLINED.");
+            throw new ArgumentException("InvitationStatus must be PENDING, INVITED, CONFIRMED, SUBMITTED, or DECLINED.");
         }
 
         private static List<SeminarFeedbackAnswerDto> ValidateAndNormalizeDynamicAnswers(string feedbackFormJson, List<SeminarFeedbackAnswerDto> answers)

@@ -150,6 +150,53 @@ namespace ARSPlatform.SERVICES
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
 
+            // Gửi thông báo khi trả lời bình luận hoặc bình luận vào bài viết
+            try
+            {
+                var currentUser = await _userRepository.GetByIdAsync(userId);
+                var commenterName = currentUser?.FullName ?? "Một thành viên";
+                var snippet = item.Content != null && item.Content.Length > 60 ? item.Content[..60] + "..." : item.Content;
+
+                if (request.ReplyId.HasValue)
+                {
+                    var parentComment = await _repository.GetByIdAsync(request.ReplyId.Value);
+                    if (parentComment != null && parentComment.UserId.HasValue && parentComment.UserId.Value != userId)
+                    {
+                        var notif = new Notification
+                        {
+                            UserId = parentComment.UserId.Value,
+                            Message = $"[Diễn đàn] {commenterName} đã trả lời bình luận của bạn: \"{snippet}\"",
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _notificationRepository.AddAsync(notif);
+                        await _notificationRepository.SaveChangesAsync();
+                    }
+                }
+                else if (request.ForumPostId.HasValue)
+                {
+                    var commentWithPost = (await _repository.GetAllAsync(x => x.ForumCommentId == item.ForumCommentId, includes: x => x.ForumPost!)).FirstOrDefault();
+                    var post = commentWithPost?.ForumPost;
+                    if (post != null && post.UserId != userId)
+                    {
+                        var postTitle = !string.IsNullOrWhiteSpace(post.Title) ? post.Title : "bài viết";
+                        var notif = new Notification
+                        {
+                            UserId = post.UserId,
+                            Message = $"[Diễn đàn] {commenterName} đã bình luận vào bài viết \"{postTitle}\" của bạn.",
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _notificationRepository.AddAsync(notif);
+                        await _notificationRepository.SaveChangesAsync();
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore notification error
+            }
+
             var created = (await _repository.GetAllAsync(x => x.ForumCommentId == item.ForumCommentId, includes: x => x.User!)).FirstOrDefault();
             return _mapper.Map<ForumCommentResponse>(created ?? item);
         }

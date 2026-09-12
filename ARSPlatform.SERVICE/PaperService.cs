@@ -246,6 +246,8 @@ namespace ARSPlatform.SERVICES
             await _paperRepository
                 .SaveChangesAsync();
 
+            await NotifyCoAuthorsAsync(paper, request.Authors);
+
             var createdPaper =
                 await _paperRepository
                     .GetWithAuthorByIdAsync(
@@ -499,6 +501,11 @@ namespace ARSPlatform.SERVICES
             await _paperRepository
                 .SaveChangesAsync();
 
+            if (request.Authors != null)
+            {
+                await NotifyCoAuthorsAsync(paper, request.Authors);
+            }
+
             var updatedPaper =
                 await _paperRepository
                     .GetWithAuthorByIdAsync(id);
@@ -638,6 +645,11 @@ namespace ARSPlatform.SERVICES
 
             await _paperRepository
                 .SaveChangesAsync();
+
+            if (request.Authors != null)
+            {
+                await NotifyCoAuthorsAsync(paper, request.Authors);
+            }
 
             var updatedPaper =
                 await _paperRepository
@@ -1493,6 +1505,69 @@ namespace ARSPlatform.SERVICES
                 Authorships =
                     lookup.Authorships
             };
+        }
+
+        private async Task NotifyCoAuthorsAsync(Paper paper, IReadOnlyList<PaperAuthorRequest>? requestedAuthors)
+        {
+            if (requestedAuthors == null || requestedAuthors.Count == 0) return;
+
+            try
+            {
+                var creator = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == paper.CreatorId);
+                var creatorName = creator?.FullName ?? "Tác giả chính";
+
+                var candidateUserIds = new HashSet<int>();
+
+                foreach (var author in requestedAuthors)
+                {
+                    if (author.UserId.HasValue && author.UserId.Value > 0 && author.UserId.Value != paper.CreatorId)
+                    {
+                        candidateUserIds.Add(author.UserId.Value);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(author.OrcidId))
+                    {
+                        if (OrcidIdUtility.TryNormalizeAndValidate(author.OrcidId, out var normalizedOrcid))
+                        {
+                            var matchedUser = await _dbContext.Users.AsNoTracking()
+                                .FirstOrDefaultAsync(u => u.OrcidId == normalizedOrcid && u.UserId != paper.CreatorId);
+                            if (matchedUser != null)
+                            {
+                                candidateUserIds.Add(matchedUser.UserId);
+                            }
+                        }
+                    }
+                    else if (!string.IsNullOrWhiteSpace(author.Email))
+                    {
+                        var matchedUser = await _dbContext.Users.AsNoTracking()
+                            .FirstOrDefaultAsync(u => u.Email == author.Email.Trim() && u.UserId != paper.CreatorId);
+                        if (matchedUser != null)
+                        {
+                            candidateUserIds.Add(matchedUser.UserId);
+                        }
+                    }
+                }
+
+                if (candidateUserIds.Count > 0)
+                {
+                    var now = DateTime.UtcNow;
+                    foreach (var userId in candidateUserIds)
+                    {
+                        var notif = new Notification
+                        {
+                            UserId = userId,
+                            Message = $"Bạn đã được thêm làm đồng tác giả trong bài báo khoa học \"{paper.Title}\" bởi {creatorName}.",
+                            IsRead = false,
+                            CreatedAt = now
+                        };
+                        await _dbContext.Notifications.AddAsync(notif);
+                    }
+                    await _dbContext.SaveChangesAsync();
+                }
+            }
+            catch
+            {
+                // Suppress notification errors to avoid disrupting paper operations
+            }
         }
     }
 }

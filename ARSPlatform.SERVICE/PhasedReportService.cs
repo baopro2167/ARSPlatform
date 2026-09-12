@@ -533,27 +533,51 @@ namespace ARSPlatform.SERVICES
             _repository.Update(item);
             await _repository.SaveChangesAsync();
 
-            // Gửi thông báo cho sinh viên/nhóm
-            if (item.GroupMember?.StudentId != null)
+            // Gửi thông báo cho toàn bộ thành viên trong nhóm
+            try
             {
-                try
+                var phase = item.PhaseNumber ?? 1;
+                var scoreText = item.LectureFeedback.HasValue ? $" ({item.LectureFeedback.Value}/10)" : string.Empty;
+                var groupName = item.ResearchGroup?.Name ?? "Nhóm nghiên cứu";
+                var message = $"[Báo cáo tiến độ] Giảng viên đã nhận xét và chấm điểm Phase {phase}{scoreText} của nhóm \"{groupName}\" - Trạng thái: {item.Status}";
+
+                var targetUserIds = new HashSet<int>();
+                if (item.GroupMember?.StudentId != null)
                 {
-                    var phase = item.PhaseNumber ?? 1;
-                    var scoreText = item.LectureFeedback.HasValue ? $" ({item.LectureFeedback.Value}/10)" : string.Empty;
-                    var notif = new Notification
+                    targetUserIds.Add(item.GroupMember.StudentId.Value);
+                }
+
+                if (item.ResearchGroupId.HasValue)
+                {
+                    var groupMembers = await _groupMemberRepository.GetAllAsync(gm => gm.ResearchGroupId == item.ResearchGroupId.Value);
+                    foreach (var gm in groupMembers)
                     {
-                        UserId = item.GroupMember.StudentId.Value,
-                        Message = $"[Báo cáo tiến độ] Giảng viên đã nhận xét và chấm điểm Phase {phase}{scoreText} - Trạng thái: {item.Status}",
-                        IsRead = false,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    await _notificationRepository.AddAsync(notif);
+                        if (gm.StudentId.HasValue)
+                        {
+                            targetUserIds.Add(gm.StudentId.Value);
+                        }
+                    }
+                }
+
+                if (targetUserIds.Count > 0)
+                {
+                    var now = DateTime.UtcNow;
+                    foreach (var uId in targetUserIds)
+                    {
+                        await _notificationRepository.AddAsync(new Notification
+                        {
+                            UserId = uId,
+                            Message = message,
+                            IsRead = false,
+                            CreatedAt = now
+                        });
+                    }
                     await _notificationRepository.SaveChangesAsync();
                 }
-                catch
-                {
-                    // Ignore notification error
-                }
+            }
+            catch
+            {
+                // Ignore notification error
             }
 
             var updated = await GetByIdAsync(item.PhasedReportId);

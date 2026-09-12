@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
@@ -18,5 +18,11 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? OpenAlexAuthorId { get; set; }
 
         public bool? IsCorresponding { get; set; }
+
+        public int? UserId { get; set; }
+
+        [EmailAddress]
+        [MaxLength(255)]
+        public string? Email { get; set; }
     }
 }

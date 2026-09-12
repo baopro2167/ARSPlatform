@@ -256,6 +256,9 @@ namespace ARSPlatform.SERVICES
             if (seminar == null || (!isAdmin && seminar.OrganizerId != organizerId))
                 return null;
 
+            var oldStatus = seminar.Status;
+            var oldStartTime = seminar.StartTime;
+
             var startTime = request.StartTime ?? seminar.StartTime;
             var endTime = request.EndTime ?? seminar.EndTime;
             var content = request.Content ?? seminar.Content;
@@ -343,6 +346,40 @@ namespace ARSPlatform.SERVICES
             _seminarRepository.Update(seminar);
             await _seminarRepository.SaveChangesAsync();
 
+            // Notify participants if status changed to cancelled/suspended or time changed
+            var statusChangedToInactive = oldStatus != seminar.Status && IsInactiveOrSuspended(seminar.Status);
+            var timeChanged = request.StartTime.HasValue && oldStartTime != seminar.StartTime;
+
+            if (statusChangedToInactive || timeChanged)
+            {
+                try
+                {
+                    var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
+                    var notifMsg = statusChangedToInactive
+                        ? $"Hội thảo \"{seminarTitle}\" đã bị {(seminar.Status == "Suspended" ? "tạm hoãn" : "hủy bỏ")} bởi người tổ chức."
+                        : $"Hội thảo \"{seminarTitle}\" đã được dời lịch bắt đầu sang {seminar.StartTime:HH:mm dd/MM/yyyy}.";
+
+                    foreach (var p in seminar.SeminarParticipants)
+                    {
+                        if (p.UserId.HasValue && p.UserId.Value != organizerId)
+                        {
+                            await _notificationRepository.AddAsync(new Notification
+                            {
+                                UserId = p.UserId.Value,
+                                Message = notifMsg,
+                                IsRead = false,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Ignore notification errors
+                }
+            }
+
             // FE hiện vẫn dùng PUT { isReminderSent: true } cho Remind Pending.
             // Giữ contract này song song với endpoint reminder riêng.
             if (request.IsReminderSent == true)
@@ -358,6 +395,32 @@ namespace ARSPlatform.SERVICES
 
             if (seminar == null || seminar.OrganizerId != organizerId)
                 return false;
+
+            if (seminar.SeminarParticipants != null && seminar.SeminarParticipants.Count > 0)
+            {
+                try
+                {
+                    var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
+                    foreach (var p in seminar.SeminarParticipants)
+                    {
+                        if (p.UserId.HasValue && p.UserId.Value != organizerId)
+                        {
+                            await _notificationRepository.AddAsync(new Notification
+                            {
+                                UserId = p.UserId.Value,
+                                Message = $"Hội thảo \"{seminarTitle}\" đã bị xóa khỏi hệ thống bởi người tổ chức.",
+                                IsRead = false,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Ignore notification errors
+                }
+            }
 
             _seminarRepository.Delete(seminar);
             await _seminarRepository.SaveChangesAsync();
@@ -557,6 +620,19 @@ namespace ARSPlatform.SERVICES
                 try
                 {
                     await _emailService.SendEmailAsync(email, "[ARS] Seminar Feedback Reminder", BuildFeedbackReminderEmailBody(seminar));
+
+                    if (participant.UserId.HasValue)
+                    {
+                        var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
+                        await _notificationRepository.AddAsync(new Notification
+                        {
+                            UserId = participant.UserId.Value,
+                            Message = $"[Đánh giá] Hội thảo \"{seminarTitle}\" đã kết thúc. Vui lòng dành ít phút gửi phản hồi đánh giá của bạn.",
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+
                     participant.FeedbackReminderSentAt = DateTime.UtcNow;
                     response.Sent++;
                 }
@@ -568,7 +644,10 @@ namespace ARSPlatform.SERVICES
             }
 
             if (eligibleParticipants.Count > 0)
+            {
                 await _participantRepository.SaveChangesAsync();
+                await _notificationRepository.SaveChangesAsync();
+            }
 
             return response;
         }
@@ -637,6 +716,19 @@ namespace ARSPlatform.SERVICES
                     try
                     {
                         await _emailService.SendEmailAsync(email, "[ARS] Upcoming Seminar Reminder", BuildEventReminderEmailBody(seminar));
+
+                        if (participant.UserId.HasValue)
+                        {
+                            var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
+                            await _notificationRepository.AddAsync(new Notification
+                            {
+                                UserId = participant.UserId.Value,
+                                Message = $"[Nhắc hẹn] Hội thảo \"{seminarTitle}\" sẽ diễn ra vào lúc {seminar.StartTime:HH:mm dd/MM/yyyy}. Vui lòng chuẩn bị tham dự.",
+                                IsRead = false,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+
                         participant.EventReminderSentAt = DateTime.UtcNow;
                         hasChanges = true;
                     }
@@ -658,7 +750,10 @@ namespace ARSPlatform.SERVICES
             }
 
             if (hasChanges)
+            {
                 await _seminarRepository.SaveChangesAsync();
+                await _notificationRepository.SaveChangesAsync();
+            }
         }
 
         public async Task<List<SuggestedInviteeDto>> GetSuggestedInviteesAsync(int subFieldId, int currentUserId)
@@ -823,7 +918,10 @@ namespace ARSPlatform.SERVICES
             if (value is "declined" or "rejected")
                 return "DECLINED";
 
-            if (value is "invited" or "accepted" or "confirmed")
+            if (value is "accepted" or "confirmed")
+                return "CONFIRMED";
+
+            if (value == "invited")
                 return "INVITED";
 
             return "PENDING";
