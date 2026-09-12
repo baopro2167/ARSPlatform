@@ -52,6 +52,13 @@ namespace ARSPlatform.API.CONTROLLER
         [HttpPost]
         public async Task<ActionResult<LearningMaterialResponse>> Create([FromBody] LearningMaterialCreateRequest request)
         {
+            if (!request.LecturerId.HasValue || request.LecturerId.Value <= 0)
+            {
+                if (int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid))
+                {
+                    request.LecturerId = uid;
+                }
+            }
             var response = await _service.CreateAsync(request);
             return Ok(response);
         }
@@ -113,9 +120,16 @@ namespace ARSPlatform.API.CONTROLLER
                 return Forbid();
             }
 
-            var success = await _service.DeleteAsync(id);
-            if (!success) return NotFound(new { Message = "Learning material not found." });
-            return Ok(new { Message = "Deleted successfully." });
+            try
+            {
+                var success = await _service.DeleteAsync(id);
+                if (!success) return NotFound(new { Message = "Learning material not found." });
+                return Ok(new { Message = "Deleted successfully." });
+            }
+            catch (System.InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
         }
     }
 }

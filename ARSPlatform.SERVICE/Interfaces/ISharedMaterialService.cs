@@ -22,6 +22,6 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<SharedMaterialResponse?> UpdateStatusAsync(int id, string newStatus, int currentUserId, System.DateTime? respondedAt = null, bool isAdmin = false);
         Task<bool> DeleteAsync(int id);
         Task<bool> RevokeOrDeleteAsync(int id, int currentUserId, bool isAdmin = false);
-        Task<List<SharedMaterialResponse>> GetFeedAsync(int currentUserId, bool includeExpired = false, string? status = null, int? learningMaterialId = null);
+        Task<List<SharedMaterialResponse>> GetFeedAsync(int currentUserId, bool includeExpired = false, string? status = null, int? learningMaterialId = null, string? role = null);
     }
 }

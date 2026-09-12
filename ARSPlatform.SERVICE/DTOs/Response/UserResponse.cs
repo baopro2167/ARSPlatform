@@ -23,5 +23,9 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public DateTime? UpdatedAt { get; set; }
         public string RoleName { get; set; } = string.Empty;
         public System.Collections.Generic.List<string> Roles { get; set; } = new();
+
+        public string? Department { get; set; }
+        public string? SubField { get; set; }
+        public int? SubFieldId { get; set; }
     }
 }

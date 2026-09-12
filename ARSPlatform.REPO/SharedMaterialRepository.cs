@@ -52,7 +52,7 @@ namespace ARSPlatform.REPOSITORIES
             return await GetByPaperIdPagedAsync(paperId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
-        public async Task<List<SharedMaterial>> GetFeedAsync(int userId, bool includeExpired = false, string? status = null, int? learningMaterialId = null)
+        public async Task<List<SharedMaterial>> GetFeedAsync(int userId, bool includeExpired = false, string? status = null, int? learningMaterialId = null, string? role = null)
         {
             var now = System.DateTime.UtcNow;
             var query = _context.SharedMaterials
@@ -61,25 +61,69 @@ namespace ARSPlatform.REPOSITORIES
                 .Include(x => x.SharedWithColleague)
                 .Include(x => x.LearningMaterial)
                 .Include(x => x.Paper)
-                .Where(x => x.LecturerId == userId || x.SharedWithColleagueId == userId);
+                .AsQueryable();
 
+            // Filter by direction / role if specified
+            if (!string.IsNullOrWhiteSpace(role))
+            {
+                var roleLower = role.Trim().ToLowerInvariant();
+                if (roleLower is "recipient" or "receiver" or "inbound")
+                {
+                    query = query.Where(x => x.SharedWithColleagueId == userId);
+                }
+                else if (roleLower is "sender" or "creator" or "outbound")
+                {
+                    query = query.Where(x => x.LecturerId == userId);
+                }
+                else
+                {
+                    query = query.Where(x => x.LecturerId == userId || x.SharedWithColleagueId == userId);
+                }
+            }
+            else
+            {
+                query = query.Where(x => x.LecturerId == userId || x.SharedWithColleagueId == userId);
+            }
+
+            // Exclude orphaned records where underlying material no longer exists
+            query = query.Where(x => x.LearningMaterial != null || x.Paper != null);
+
+            // Filter by specific learning material ID if requested
             if (learningMaterialId.HasValue && learningMaterialId.Value > 0)
             {
                 query = query.Where(x => x.LearningMaterialId == learningMaterialId.Value || x.PaperId == learningMaterialId.Value);
             }
 
+            // Status and expiration filtering
             if (!string.IsNullOrWhiteSpace(status) && !status.Equals("ALL", System.StringComparison.OrdinalIgnoreCase))
             {
-                query = query.Where(x => x.Status != null && x.Status.ToUpper() == status.ToUpper());
+                var statusUpper = status.Trim().ToUpperInvariant();
+                query = query.Where(x => x.Status != null && x.Status.ToUpper() == statusUpper);
+                if (!includeExpired)
+                {
+                    query = query.Where(x => x.ExpiresAt == null || x.ExpiresAt.Value > now);
+                }
+            }
+            else if (string.Equals(status, "ALL", System.StringComparison.OrdinalIgnoreCase))
+            {
+                if (!includeExpired)
+                {
+                    query = query.Where(x => x.ExpiresAt == null || x.ExpiresAt.Value > now);
+                }
+            }
+            else
+            {
+                // Default feed: Exclude ENDED, DECLINED, REVOKED, CANCELLED, and EXPIRED records unless includeExpired is true
+                if (!includeExpired)
+                {
+                    var terminalStatuses = new[] { "ENDED", "DECLINED", "REVOKED", "CANCELLED", "EXPIRED" };
+                    query = query.Where(x => x.Status == null || !terminalStatuses.Contains(x.Status.ToUpper()));
+                    query = query.Where(x => x.ExpiresAt == null || x.ExpiresAt.Value > now);
+                }
             }
 
             var list = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
                 query.OrderByDescending(x => x.SharedAt ?? x.CreatedAt ?? System.DateTime.MinValue));
-
-            if (!includeExpired)
-            {
-                list = list.Where(x => x.ExpiresAt == null || x.ExpiresAt.Value > now).ToList();
-            }
 
             return list;
         }

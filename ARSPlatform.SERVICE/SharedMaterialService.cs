@@ -224,16 +224,16 @@ namespace ARSPlatform.SERVICES
                     throw new InvalidOperationException("This share invitation has expired.");
                 }
             }
-            else if (normalized is "ENDED" or "REVOKED" or "CANCELLED")
+            else if (normalized is "ENDED" or "REVOKED" or "CANCELLED" or "EXPIRED" or "PENDING")
             {
                 if (!isSender && !isAdmin)
                 {
-                    throw new UnauthorizedAccessException("Only the sender can end or revoke this share invitation.");
+                    throw new UnauthorizedAccessException("Only the sender can change or revoke this share invitation.");
                 }
             }
             else
             {
-                throw new ArgumentException($"Invalid status: '{newStatus}'. Allowed: ACCEPTED, DECLINED, ENDED, REVOKED, CANCELLED.");
+                throw new ArgumentException($"Invalid status: '{newStatus}'. Allowed: ACCEPTED, DECLINED, ENDED, EXPIRED, REVOKED, CANCELLED.");
             }
 
             item.Status = normalized;
@@ -272,9 +272,9 @@ namespace ARSPlatform.SERVICES
             return true;
         }
 
-        public async Task<List<SharedMaterialResponse>> GetFeedAsync(int currentUserId, bool includeExpired = false, string? status = null, int? learningMaterialId = null)
+        public async Task<List<SharedMaterialResponse>> GetFeedAsync(int currentUserId, bool includeExpired = false, string? status = null, int? learningMaterialId = null, string? role = null)
         {
-            var list = await _repository.GetFeedAsync(currentUserId, includeExpired, status, learningMaterialId);
+            var list = await _repository.GetFeedAsync(currentUserId, includeExpired, status, learningMaterialId, role);
             return list.Select(x => MapToResponse(x, currentUserId)).ToList();
         }
 

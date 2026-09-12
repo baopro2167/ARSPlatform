@@ -40,7 +40,10 @@ namespace ARSPlatform.SERVICES
         {
             var query = _userRepository.GetQueryable()
                 .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
+                    .ThenInclude(ur => ur.Role)
+                .Include(u => u.Profile)
+                .Include(u => u.ProfessionalProfile)
+                    .ThenInclude(pp => pp!.SubField)
                 .AsNoTracking();
 
             if (isActive.HasValue)

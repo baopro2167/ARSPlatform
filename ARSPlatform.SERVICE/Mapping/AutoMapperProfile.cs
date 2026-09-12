@@ -30,7 +30,19 @@ namespace ARSPlatform.SERVICE.Mapping
                             .Where(r => !string.IsNullOrWhiteSpace(r))
                             .Distinct()
                             .ToList()
-                        : new List<string>()));
+                        : new List<string>()))
+                .ForMember(dest => dest.Department, opt => opt.MapFrom(src =>
+                    src.Profile != null && !string.IsNullOrWhiteSpace(src.Profile.Institution)
+                        ? src.Profile.Institution
+                        : (src.ProfessionalProfile != null && src.ProfessionalProfile.SubField != null
+                            ? src.ProfessionalProfile.SubField.Name
+                            : null)))
+                .ForMember(dest => dest.SubField, opt => opt.MapFrom(src =>
+                    src.ProfessionalProfile != null && src.ProfessionalProfile.SubField != null
+                        ? src.ProfessionalProfile.SubField.Name
+                        : null))
+                .ForMember(dest => dest.SubFieldId, opt => opt.MapFrom(src =>
+                    src.ProfessionalProfile != null ? src.ProfessionalProfile.SubFieldId : null));
 
             CreateMap<RegisterRequest, User>()
                 .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())

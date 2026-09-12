@@ -18,10 +18,12 @@ namespace ARSPlatform.API.CONTROLLER
     public class SharedMaterialController : ControllerBase
     {
         private readonly ISharedMaterialService _service;
+        private readonly IUserService _userService;
 
-        public SharedMaterialController(ISharedMaterialService service)
+        public SharedMaterialController(ISharedMaterialService service, IUserService userService)
         {
             _service = service;
+            _userService = userService;
         }
 
         private int GetCurrentUserId()
@@ -46,8 +48,19 @@ namespace ARSPlatform.API.CONTROLLER
             [FromQuery] int? learningMaterialId = null)
         {
             var userId = GetCurrentUserId();
-            var items = await _service.GetFeedAsync(userId, includeExpired, status, learningMaterialId);
+            var items = await _service.GetFeedAsync(userId, includeExpired, status, learningMaterialId, role);
             return Ok(items);
+        }
+
+        /// <summary>
+        /// Lấy danh sách đồng nghiệp (Giảng viên) đang hoạt động để chọn người nhận tài liệu chia sẻ
+        /// </summary>
+        [HttpGet("colleagues")]
+        public async Task<ActionResult<List<UserResponse>>> GetColleagues()
+        {
+            var userId = GetCurrentUserId();
+            var colleagues = await _userService.GetLecturersRosterAsync(excludeUserId: userId);
+            return Ok(colleagues);
         }
 
         /// <summary>
