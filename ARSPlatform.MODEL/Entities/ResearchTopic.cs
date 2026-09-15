@@ -29,4 +29,7 @@ public partial class ResearchTopic
 
     [JsonIgnore]
     public virtual ICollection<PhasedReport> PhasedReports { get; set; } = new List<PhasedReport>();
+
+    [JsonIgnore]
+    public virtual ICollection<ResearchTopicLearningMaterial> ResearchTopicLearningMaterials { get; set; } = new List<ResearchTopicLearningMaterial>();
 }

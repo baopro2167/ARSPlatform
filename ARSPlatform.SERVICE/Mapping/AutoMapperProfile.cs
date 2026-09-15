@@ -311,6 +311,31 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.ResearchGroupId, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
+            // ResearchGroupJoinRequest
+            CreateMap<ResearchGroupJoinRequest, ResearchGroupJoinRequestResponse>()
+                .ForMember(dest => dest.ResearchGroupName, opt => opt.MapFrom(src =>
+                    src.ResearchGroup != null ? src.ResearchGroup.Name : null))
+                .ForMember(dest => dest.DecidedByUserName, opt => opt.MapFrom(src =>
+                    src.DecidedByUser != null ? src.DecidedByUser.FullName : null))
+                .ForMember(dest => dest.Applicant, opt => opt.MapFrom(src =>
+                    src.ApplicantUser != null
+                        ? new ApplicantProfileDto
+                        {
+                            UserId = src.ApplicantUser.UserId,
+                            DisplayName = src.ApplicantUser.Profile != null && !string.IsNullOrWhiteSpace(src.ApplicantUser.Profile.FullName)
+                                ? src.ApplicantUser.Profile.FullName
+                                : src.ApplicantUser.FullName,
+                            Email = src.ApplicantUser.Email,
+                            AvatarUrl = src.ApplicantUser.AvatarUrl,
+                            Major = src.ApplicantUser.ProfessionalProfile != null && src.ApplicantUser.ProfessionalProfile.SubField != null
+                                ? src.ApplicantUser.ProfessionalProfile.SubField.Name
+                                : (src.ApplicantUser.Profile != null ? src.ApplicantUser.Profile.Institution : null),
+                            AcademicLevel = src.ApplicantUser.Profile != null && !string.IsNullOrWhiteSpace(src.ApplicantUser.Profile.AcademicTitle)
+                                ? src.ApplicantUser.Profile.AcademicTitle
+                                : src.ApplicantUser.VerificationStatus
+                        }
+                        : null));
+
             // ResearchTopic
             CreateMap<ResearchTopic, ResearchTopicResponse>()
                 .ForMember(dest => dest.LecturerName, opt => opt.MapFrom(src =>

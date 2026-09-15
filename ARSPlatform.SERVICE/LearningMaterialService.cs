@@ -70,10 +70,70 @@ namespace ARSPlatform.SERVICES
 
         public async Task<LearningMaterialResponse> CreateAsync(LearningMaterialCreateRequest request)
         {
-            var item = _mapper.Map<LearningMaterial>(request);
-            await _repository.AddAsync(item);
-            await _repository.SaveChangesAsync();
-            return _mapper.Map<LearningMaterialResponse>(item);
+            if (!string.IsNullOrWhiteSpace(request.FileUrl))
+            {
+                if (!Uri.TryCreate(request.FileUrl, UriKind.Absolute, out var uriResult) ||
+                    !(uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps))
+                {
+                    throw new ArgumentException("FileUrl must be a valid http or https URL.");
+                }
+            }
+
+            if (request.TopicId.HasValue)
+            {
+                var topic = await _dbContext.ResearchTopics.FirstOrDefaultAsync(t => t.TopicId == request.TopicId.Value);
+                if (topic == null)
+                {
+                    throw new KeyNotFoundException($"Research topic with ID {request.TopicId.Value} not found.");
+                }
+
+                if (request.LecturerId.HasValue && topic.LecturerId != request.LecturerId.Value)
+                {
+                    throw new UnauthorizedAccessException("You are not authorized to add materials to this research topic.");
+                }
+
+                var strategy = _dbContext.Database.CreateExecutionStrategy();
+                LearningMaterial? createdMaterial = null;
+
+                await strategy.ExecuteAsync(async () =>
+                {
+                    await using var tx = await _dbContext.Database.BeginTransactionAsync();
+                    try
+                    {
+                        var item = _mapper.Map<LearningMaterial>(request);
+                        item.CreatedAt = DateTime.UtcNow;
+                        await _repository.AddAsync(item);
+                        await _repository.SaveChangesAsync();
+
+                        var link = new ResearchTopicLearningMaterial
+                        {
+                            TopicId = request.TopicId.Value,
+                            LearningMaterialId = item.LearningMaterialId,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _dbContext.ResearchTopicLearningMaterials.AddAsync(link);
+                        await _dbContext.SaveChangesAsync();
+
+                        await tx.CommitAsync();
+                        createdMaterial = item;
+                    }
+                    catch
+                    {
+                        await tx.RollbackAsync();
+                        throw;
+                    }
+                });
+
+                return _mapper.Map<LearningMaterialResponse>(createdMaterial);
+            }
+            else
+            {
+                var item = _mapper.Map<LearningMaterial>(request);
+                item.CreatedAt = DateTime.UtcNow;
+                await _repository.AddAsync(item);
+                await _repository.SaveChangesAsync();
+                return _mapper.Map<LearningMaterialResponse>(item);
+            }
         }
 
         public async Task<LearningMaterialResponse?> UpdateAsync(int id, LearningMaterialUpdateRequest request)

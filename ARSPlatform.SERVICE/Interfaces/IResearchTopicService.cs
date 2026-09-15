@@ -16,5 +16,10 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<ResearchTopicResponse> CreateAsync(ResearchTopicCreateRequest request, int? lecturerId = null);
         Task<ResearchTopicResponse?> UpdateAsync(int id, ResearchTopicUpdateRequest request);
         Task<bool> DeleteAsync(int id);
+
+        Task<IEnumerable<LearningMaterialResponse>> GetLearningMaterialsByTopicIdAsync(int topicId);
+        Task<bool> AssignLearningMaterialAsync(int topicId, int learningMaterialId, int currentUserId);
+        Task<LearningMaterialResponse> CreateAndAssignLearningMaterialAsync(int topicId, TopicLearningMaterialCreateRequest request, int currentUserId);
+        Task<bool> RemoveLearningMaterialFromTopicAsync(int topicId, int learningMaterialId, int currentUserId);
     }
 }

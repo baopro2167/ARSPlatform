@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Request
 {
@@ -13,5 +13,7 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? Description { get; set; }
 
         public int? SubFieldId { get; set; }
+
+        public int? TopicId { get; set; }
     }
 }

@@ -148,4 +148,8 @@ public partial class User
     [JsonIgnore]
     public virtual ICollection<UserMedal> UserMedals { get; set; }
         = new List<UserMedal>();
+
+    [JsonIgnore]
+    public virtual ICollection<ResearchGroupJoinRequest> ResearchGroupJoinRequests { get; set; }
+        = new List<ResearchGroupJoinRequest>();
 }

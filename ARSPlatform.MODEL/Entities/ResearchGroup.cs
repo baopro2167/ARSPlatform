@@ -26,8 +26,13 @@ public partial class ResearchGroup
 
     public bool IsActive { get; set; } = true;
 
+    public int? MaxMembers { get; set; }
+
     [JsonIgnore]
     public virtual ICollection<GroupMember> GroupMembers { get; set; } = new List<GroupMember>();
+
+    [JsonIgnore]
+    public virtual ICollection<ResearchGroupJoinRequest> JoinRequests { get; set; } = new List<ResearchGroupJoinRequest>();
 
     public virtual User? Lecturer { get; set; }
 

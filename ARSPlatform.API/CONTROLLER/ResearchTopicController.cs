@@ -124,5 +124,114 @@ namespace ARSPlatform.API.CONTROLLER
             if (!success) return NotFound(new { Message = "Research topic not found." });
             return Ok(new { Message = "Deleted successfully." });
         }
+
+        /// <summary>
+        /// Lấy danh sách tài liệu học tập gắn với đề tài nghiên cứu
+        /// </summary>
+        /// <param name="topicId">ID đề tài nghiên cứu</param>
+        /// <returns>Danh sách tài liệu học tập</returns>
+        [HttpGet("{topicId:int}/learning-materials")]
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<LearningMaterialResponse>>> GetLearningMaterials(int topicId)
+        {
+            try
+            {
+                var materials = await _service.GetLearningMaterialsByTopicIdAsync(topicId);
+                return Ok(materials);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Gán tài liệu học tập có sẵn từ thư viện vào đề tài nghiên cứu
+        /// </summary>
+        /// <param name="topicId">ID đề tài nghiên cứu</param>
+        /// <param name="request">ID tài liệu học tập cần gán</param>
+        /// <returns>Kết quả gán tài liệu</returns>
+        [HttpPost("{topicId:int}/learning-materials")]
+        public async Task<IActionResult> AssignLearningMaterial(int topicId, [FromBody] AssignTopicLearningMaterialRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            try
+            {
+                await _service.AssignLearningMaterialAsync(topicId, request.LearningMaterialId, currentUserId.Value);
+                return Ok(new { Message = "Learning material assigned to topic successfully." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Tạo mới tài liệu học tập và gắn trực tiếp vào đề tài nghiên cứu trong 1 Transaction
+        /// </summary>
+        /// <param name="topicId">ID đề tài nghiên cứu</param>
+        /// <param name="request">Thông tin tài liệu học tập</param>
+        /// <returns>Tài liệu vừa tạo</returns>
+        [HttpPost("{topicId:int}/learning-materials/create")]
+        public async Task<ActionResult<LearningMaterialResponse>> CreateAndAssignLearningMaterial(int topicId, [FromBody] TopicLearningMaterialCreateRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            try
+            {
+                var created = await _service.CreateAndAssignLearningMaterialAsync(topicId, request, currentUserId.Value);
+                return StatusCode(201, created);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Gỡ tài liệu học tập khỏi đề tài nghiên cứu (không xóa tài liệu gốc)
+        /// </summary>
+        /// <param name="topicId">ID đề tài nghiên cứu</param>
+        /// <param name="learningMaterialId">ID tài liệu học tập</param>
+        /// <returns>Thông báo kết quả gỡ</returns>
+        [HttpDelete("{topicId:int}/learning-materials/{learningMaterialId:int}")]
+        public async Task<IActionResult> RemoveLearningMaterial(int topicId, int learningMaterialId)
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue) return Unauthorized();
+
+            try
+            {
+                await _service.RemoveLearningMaterialFromTopicAsync(topicId, learningMaterialId, currentUserId.Value);
+                return Ok(new { Message = "Learning material removed from topic successfully." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Message = ex.Message });
+            }
+        }
     }
 }

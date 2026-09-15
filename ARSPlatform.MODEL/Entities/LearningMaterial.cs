@@ -24,4 +24,6 @@ public partial class LearningMaterial
     public virtual SubField? SubField { get; set; }
 
     public virtual ICollection<SharedMaterial> SharedMaterials { get; set; } = new List<SharedMaterial>();
+
+    public virtual ICollection<ResearchTopicLearningMaterial> ResearchTopicLearningMaterials { get; set; } = new List<ResearchTopicLearningMaterial>();
 }

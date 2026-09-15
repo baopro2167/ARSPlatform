@@ -54,6 +54,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
 
+    public virtual DbSet<ResearchTopicLearningMaterial> ResearchTopicLearningMaterials { get; set; }
+
+    public virtual DbSet<ResearchGroupJoinRequest> ResearchGroupJoinRequests { get; set; }
+
     public virtual DbSet<ReviewRequest> ReviewRequests { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
@@ -540,6 +544,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("IsActive");
             entity.Property(e => e.Name).HasMaxLength(255);
             entity.Property(e => e.MaterialsUrl).HasMaxLength(1000);
+            entity.Property(e => e.MaxMembers);
 
             entity.HasOne(d => d.Lecturer).WithMany(p => p.ResearchGroups)
                 .HasForeignKey(d => d.LecturerId)
@@ -974,6 +979,66 @@ public partial class AppDbContext : DbContext
             // Index cho webhook lookup
             entity.HasIndex(e => e.PaymentOrderId)
                 .HasDatabaseName("IX_Transactions_PaymentOrderId");
+        });
+
+        modelBuilder.Entity<ResearchTopicLearningMaterial>(entity =>
+        {
+            entity.ToTable("ResearchTopicLearningMaterials");
+
+            entity.HasKey(e => e.ResearchTopicLearningMaterialId);
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasIndex(e => new { e.TopicId, e.LearningMaterialId }, "IX_ResearchTopicLearningMaterials_TopicId_LearningMaterialId")
+                .IsUnique();
+
+            entity.HasOne(d => d.Topic)
+                .WithMany(p => p.ResearchTopicLearningMaterials)
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ResearchTopicLearningMaterials_Topic");
+
+            entity.HasOne(d => d.LearningMaterial)
+                .WithMany(p => p.ResearchTopicLearningMaterials)
+                .HasForeignKey(d => d.LearningMaterialId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ResearchTopicLearningMaterials_LearningMaterial");
+        });
+
+        modelBuilder.Entity<ResearchGroupJoinRequest>(entity =>
+        {
+            entity.ToTable("ResearchGroupJoinRequests");
+
+            entity.HasKey(e => e.JoinRequestId);
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasDefaultValue("PENDING");
+
+            entity.HasIndex(e => new { e.ResearchGroupId, e.Status }, "IX_ResearchGroupJoinRequests_ResearchGroupId_Status");
+
+            entity.HasIndex(e => new { e.ApplicantUserId, e.Status }, "IX_ResearchGroupJoinRequests_ApplicantUserId_Status");
+
+            entity.HasOne(d => d.ResearchGroup)
+                .WithMany(p => p.JoinRequests)
+                .HasForeignKey(d => d.ResearchGroupId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ResearchGroupJoinRequests_ResearchGroup");
+
+            entity.HasOne(d => d.ApplicantUser)
+                .WithMany(p => p.ResearchGroupJoinRequests)
+                .HasForeignKey(d => d.ApplicantUserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ResearchGroupJoinRequests_ApplicantUser");
+
+            entity.HasOne(d => d.DecidedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.DecidedByUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_ResearchGroupJoinRequests_DecidedByUser");
         });
 
         OnModelCreatingPartial(modelBuilder);
