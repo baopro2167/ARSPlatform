@@ -158,6 +158,23 @@ namespace ARSPlatform.SERVICES
             if (requestedRole == null)
                 throw new Exception($"Requested role '{requestedRoleName}' is not configured in the database.");
 
+            // Validation for academic roles: Lecturer, Researcher, Reviewer
+            var academicRoles = new[] { "Lecturer", "Researcher", "Reviewer" };
+            var isAcademicRole = academicRoles.Any(role =>
+                string.Equals(role, requestedRoleName, StringComparison.OrdinalIgnoreCase));
+
+            if (isAcademicRole)
+            {
+                var hasOpenAlex = !string.IsNullOrWhiteSpace(request.OpenAlexId);
+                var hasSemanticScholar = !string.IsNullOrWhiteSpace(request.SemanticScholarId);
+
+                if (!hasOpenAlex && !hasSemanticScholar)
+                {
+                    throw new ArgumentException(
+                        "Đối với vai trò Lecturer, Researcher hoặc Reviewer, nếu không có OpenAlexId thì bắt buộc phải nhập SemanticScholarId.");
+                }
+            }
+
             var now = DateTime.UtcNow;
 
             /*
@@ -339,12 +356,30 @@ namespace ARSPlatform.SERVICES
                         now;
                 }
 
+                if (!string.IsNullOrWhiteSpace(request.OpenAlexId))
+                {
+                    user.OpenAlexId = request.OpenAlexId.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.SemanticScholarId))
+                {
+                    user.SemanticScholarId = request.SemanticScholarId.Trim();
+                }
+
                 _userRepository.Update(user);
             }
             else
             {
                 user =
                     _mapper.Map<User>(request);
+
+                user.OpenAlexId = !string.IsNullOrWhiteSpace(request.OpenAlexId)
+                    ? request.OpenAlexId.Trim()
+                    : null;
+
+                user.SemanticScholarId = !string.IsNullOrWhiteSpace(request.SemanticScholarId)
+                    ? request.SemanticScholarId.Trim()
+                    : null;
 
                 user.PasswordHash =
                     BCrypt.Net.BCrypt.HashPassword(

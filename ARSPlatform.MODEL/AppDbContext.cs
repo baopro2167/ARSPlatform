@@ -748,6 +748,12 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(255);
             entity.Property(e => e.OrcidVerifiedAt)
                 .HasColumnType("datetime2(7)");
+            entity.Property(e => e.OpenAlexId)
+                .HasMaxLength(255)
+                .IsUnicode(false);
+            entity.Property(e => e.SemanticScholarId)
+                .HasMaxLength(255)
+                .IsUnicode(false);
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)
                 .IsUnicode(false);

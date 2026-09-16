@@ -19,6 +19,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? OrcidDisplayName { get; set; }
         public bool IsOrcidVerified { get; set; }
         public DateTime? OrcidVerifiedAt { get; set; }
+        public string? OpenAlexId { get; set; }
+        public string? SemanticScholarId { get; set; }
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public string RoleName { get; set; } = string.Empty;

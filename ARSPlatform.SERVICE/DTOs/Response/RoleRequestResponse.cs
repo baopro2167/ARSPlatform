@@ -18,6 +18,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public string? OrcidId { get; set; }
         public bool IsOrcidVerified { get; set; }
         public DateTime? OrcidVerifiedAt { get; set; }
+        public string? OpenAlexId { get; set; }
+        public string? SemanticScholarId { get; set; }
 
         public string ProofDocumentUrl { get; set; } = string.Empty;
         public bool? IsEmailVerified { get; set; }

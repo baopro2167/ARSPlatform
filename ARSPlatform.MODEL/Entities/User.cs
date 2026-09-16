@@ -25,6 +25,10 @@ public partial class User
 
     public DateTime? OrcidVerifiedAt { get; set; }
 
+    public string? OpenAlexId { get; set; }
+
+    public string? SemanticScholarId { get; set; }
+
     public string? AvatarUrl { get; set; }
 
     public bool? IsEmailVerified { get; set; }

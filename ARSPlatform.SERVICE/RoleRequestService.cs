@@ -354,6 +354,23 @@ namespace ARSPlatform.SERVICES
                 }
             }
 
+            // Update OpenAlexId & SemanticScholarId on User if provided
+            bool userUpdated = false;
+            if (!string.IsNullOrWhiteSpace(request.OpenAlexId))
+            {
+                user.OpenAlexId = request.OpenAlexId.Trim();
+                userUpdated = true;
+            }
+            if (!string.IsNullOrWhiteSpace(request.SemanticScholarId))
+            {
+                user.SemanticScholarId = request.SemanticScholarId.Trim();
+                userUpdated = true;
+            }
+            if (userUpdated)
+            {
+                _userRepository.Update(user);
+            }
+
             var roleRequest = new RoleRequest
             {
                 UserId = targetUserId,
@@ -618,6 +635,8 @@ namespace ARSPlatform.SERVICES
                 OrcidId = roleRequest.User?.OrcidId,
                 IsOrcidVerified = roleRequest.User?.IsOrcidVerified ?? false,
                 OrcidVerifiedAt = roleRequest.User?.OrcidVerifiedAt,
+                OpenAlexId = roleRequest.User?.OpenAlexId,
+                SemanticScholarId = roleRequest.User?.SemanticScholarId,
                 ProofDocumentUrl = roleRequest.ProofDocumentUrl,
                 IsEmailVerified = roleRequest.User?.IsEmailVerified,
                 SubmissionDate = roleRequest.CreatedAt,

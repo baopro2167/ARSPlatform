@@ -21,7 +21,8 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string ProofDocumentUrl { get; set; } = string.Empty;
 
         public string? OrcidId { get; set; }
-
+        public string? OpenAlexId { get; set; }
+        public string? SemanticScholarId { get; set; }
         public string? Reason { get; set; }
     }
 }

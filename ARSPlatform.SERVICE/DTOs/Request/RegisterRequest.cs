@@ -28,5 +28,11 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         [MaxLength(200)]
         public string? OrcidTicket { get; set; }
+
+        [MaxLength(255)]
+        public string? OpenAlexId { get; set; }
+
+        [MaxLength(255)]
+        public string? SemanticScholarId { get; set; }
     }
 }
