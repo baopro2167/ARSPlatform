@@ -279,6 +279,72 @@ builder.Services.AddHttpClient<IOpenAlexService, OpenAlexService>(
         }
     });
 
+// Register Semantic Scholar Settings and Service (free public API, no key required)
+// Lưu ý: Block này hoàn toàn độc lập với OpenAlex — không sửa bất kỳ logic nào phía trên.
+builder.Services.Configure<SemanticScholarSettings>(options =>
+{
+    var section = builder.Configuration.GetSection("SemanticScholarSettings");
+
+    options.BaseUrl =
+        section["BaseUrl"]
+        ?? "https://api.semanticscholar.org/graph/v1";
+
+    options.TimeoutSeconds =
+        int.TryParse(
+            section["TimeoutSeconds"],
+            out var timeoutSeconds)
+            ? timeoutSeconds
+            : 15;
+
+    options.MaxPapers =
+        int.TryParse(
+            section["MaxPapers"],
+            out var maxPapers)
+            ? maxPapers
+            : 100;
+
+    options.AuthorCacheSeconds =
+        int.TryParse(
+            section["AuthorCacheSeconds"],
+            out var authorCacheSeconds)
+            ? authorCacheSeconds
+            : 3600;
+
+    options.PaperCacheSeconds =
+        int.TryParse(
+            section["PaperCacheSeconds"],
+            out var paperCacheSeconds)
+            ? paperCacheSeconds
+            : 3600;
+});
+
+builder.Services.AddHttpClient<ISemanticScholarService, SemanticScholarService>(
+    (serviceProvider, client) =>
+    {
+        var settings = serviceProvider
+            .GetRequiredService<
+                Microsoft.Extensions.Options.IOptions<SemanticScholarSettings>>()
+            .Value;
+
+        var baseUrl =
+            string.IsNullOrWhiteSpace(settings.BaseUrl)
+                ? "https://api.semanticscholar.org/graph/v1"
+                : settings.BaseUrl.TrimEnd('/');
+
+        client.BaseAddress =
+            new Uri($"{baseUrl}/");
+
+        client.Timeout =
+            TimeSpan.FromSeconds(
+                Math.Clamp(
+                    settings.TimeoutSeconds,
+                    3,
+                    60));
+
+        client.DefaultRequestHeaders.Accept.ParseAdd(
+            "application/json");
+    });
+
 // Register ORCID OAuth Settings
 builder.Services.Configure<OrcidSettings>(options =>
 {
