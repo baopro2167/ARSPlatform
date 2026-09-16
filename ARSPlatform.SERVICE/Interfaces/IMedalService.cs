@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 
@@ -27,8 +28,9 @@ namespace ARSPlatform.SERVICE.Interfaces
 
         // Admin Manual Grant & Dev Helpers (Ticket BE-MEDAL-GRANT-01)
         Task<(UserMedalResponse Response, bool IsCreated)> GrantMedalAsync(MedalGrantRequest request, int adminId, string adminName);
-        Task<bool> RevokeGrantedMedalAsync(long userMedalId, int adminId, string adminName);
         Task<MedalDevGrantAllResponse> DevGrantAllByRoleAsync(MedalDevGrantAllRequest request, int adminId, string adminName);
-        Task<MedalDevRevokeAllResponse> DevRevokeAllAsync(int userId, int adminId, string adminName);
+
+        // Admin toggle UserMedal status (Active / Inactive) for a single user
+        Task<UserMedalResponse> UpdateUserMedalStatusAsync(long userMedalId, MedalStatus newStatus, int adminId, string adminName);
     }
 }

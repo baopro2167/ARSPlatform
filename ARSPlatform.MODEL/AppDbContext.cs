@@ -843,6 +843,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.AwardedReason).HasMaxLength(500);
             entity.Property(e => e.CorrelationId).HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue(MedalStatus.Active);
             entity.HasIndex(e => new { e.UserId, e.IsUnlocked }, "IX_UserMedals_UserId_IsUnlocked");
 
             entity.HasOne(d => d.User)

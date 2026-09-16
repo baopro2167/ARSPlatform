@@ -1,4 +1,5 @@
 using System;
+using ARSPlatform.MODEL.Entities;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -17,6 +18,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int? AwardedByAdminId { get; set; }
         public string? AwardedReason { get; set; }
         public string? CorrelationId { get; set; }
+
+        public MedalStatus Status { get; set; } = MedalStatus.Active;
 
         public MedalSummaryDto? Medal { get; set; }
     }

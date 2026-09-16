@@ -29,6 +29,12 @@ public partial class UserMedal
 
     public DateTime? UpdatedAt { get; set; }
 
+    /// <summary>
+    /// Trạng thái huy hiệu đối với người dùng. Mặc định là Active khi cấp.
+    /// Admin có thể tắt (Inactive) để ẩn huy hiệu của 1 user mà không xóa dữ liệu.
+    /// </summary>
+    public MedalStatus Status { get; set; } = MedalStatus.Active;
+
     [JsonIgnore]
     public virtual User User { get; set; } = null!;
 

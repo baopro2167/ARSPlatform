@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ARSPlatform.MODEL.Entities;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
@@ -132,18 +133,70 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Admin xóa huy hiệu khỏi hệ thống.
+        /// Admin xóa huy hiệu khỏi hệ thống. Nếu có người dùng đang giữ huy hiệu này thì trả về 409 Conflict.
         /// </summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(string id)
         {
-            var deleted = await _service.DeleteAsync(id);
-            if (!deleted)
+            try
             {
-                return NotFound(new { message = $"Medal with ID '{id}' not found." });
+                var deleted = await _service.DeleteAsync(id);
+                if (!deleted)
+                {
+                    return NotFound(new { message = $"Medal with ID '{id}' not found." });
+                }
+                return Ok(new { message = $"Medal '{id}' deleted successfully." });
             }
-            return Ok(new { message = $"Medal '{id}' deleted successfully." });
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Admin bật/tắt trạng thái hiển thị của một bản ghi UserMedal (huy hiệu đã cấp cho user cụ thể).
+        /// Body: { "status": "Active" | "Inactive" }.
+        /// </summary>
+        /// <param name="userMedalId">ID bản ghi UserMedal cần đổi trạng thái.</param>
+        /// <param name="request">Body chứa trạng thái mới.</param>
+        [HttpPatch("admin/user-medal/{userMedalId:long}/status")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(typeof(UserMedalResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserMedalResponse>> UpdateUserMedalStatus(
+            long userMedalId,
+            [FromBody] MedalUserMedalStatusUpdateRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Status))
+            {
+                return BadRequest(new { message = "Status is required." });
+            }
+
+            if (!Enum.TryParse<MedalStatus>(request.Status, ignoreCase: true, out var newStatus)
+                || !Enum.IsDefined(typeof(MedalStatus), newStatus))
+            {
+                return BadRequest(new { message = "Invalid status. Allowed values: 'Active' or 'Inactive'." });
+            }
+
+            var adminId = GetCurrentUserId();
+            if (!adminId.HasValue)
+            {
+                return Unauthorized(new { message = "Admin is not authenticated." });
+            }
+            var adminName = GetCurrentUserName();
+
+            try
+            {
+                var updated = await _service.UpdateUserMedalStatusAsync(userMedalId, newStatus, adminId.Value, adminName);
+                return Ok(updated);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -255,35 +308,6 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Admin thu hồi một huy hiệu đã được admin cấp trước đó. Idempotent (gọi lại vẫn trả về 204).
-        /// </summary>
-        /// <param name="userMedalId">ID bản ghi UserMedal do admin cấp cần thu hồi.</param>
-        [HttpDelete("grant/{userMedalId:long}")]
-        [Authorize(Roles = "Admin")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> RevokeGrantedMedal(long userMedalId)
-        {
-            var adminId = GetCurrentUserId();
-            if (!adminId.HasValue)
-            {
-                return Unauthorized(new { message = "Admin is not authenticated." });
-            }
-            var adminName = GetCurrentUserName();
-
-            try
-            {
-                await _service.RevokeGrantedMedalAsync(userMedalId, adminId.Value, adminName);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-        }
-
-        /// <summary>
         /// [Dev/Staging Helper] Cấp toàn bộ huy hiệu phù hợp với vai trò của người dùng trong một transaction duy nhất. Bị chặn trên môi trường Production (trả về 404).
         /// </summary>
         /// <param name="request">Tham số cấp toàn bộ huy hiệu theo vai trò (userId, includePlatinum, tierFilter, awardedReason).</param>
@@ -310,45 +334,6 @@ namespace ARSPlatform.API.CONTROLLER
             try
             {
                 var result = await _service.DevGrantAllByRoleAsync(request, adminId.Value, adminName);
-                return Ok(result);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-        }
-
-        /// <summary>
-        /// [Dev/Staging Helper] Thu hồi toàn bộ huy hiệu do admin cấp của một người dùng trong một transaction. Bị chặn trên môi trường Production (trả về 404).
-        /// </summary>
-        /// <param name="userId">ID người dùng cần thu hồi toàn bộ huy hiệu admin cấp.</param>
-        [HttpDelete("dev/revoke-all/{userId:int}")]
-        [Authorize(Roles = "Admin")]
-        [ProducesResponseType(typeof(MedalDevRevokeAllResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<MedalDevRevokeAllResponse>> DevRevokeAll(int userId)
-        {
-            if (IsDevGated())
-            {
-                return NotFound(new { message = "Endpoint not available in production." });
-            }
-
-            var adminId = GetCurrentUserId();
-            if (!adminId.HasValue)
-            {
-                return Unauthorized(new { message = "Admin is not authenticated." });
-            }
-            var adminName = GetCurrentUserName();
-
-            try
-            {
-                var result = await _service.DevRevokeAllAsync(userId, adminId.Value, adminName);
                 return Ok(result);
             }
             catch (ArgumentException ex)

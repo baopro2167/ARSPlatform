@@ -4,6 +4,7 @@ using ARSPlatform.MODEL;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ARSPlatform.MODELS.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260916075809_AddMedalStatusToUserMedal")]
+    partial class AddMedalStatusToUserMedal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1411,13 +1414,13 @@ namespace ARSPlatform.MODELS.Migrations
                         new
                         {
                             RoleId = 4,
-                            CreatedAt = new DateTime(2026, 9, 16, 7, 29, 19, 201, DateTimeKind.Utc).AddTicks(7556),
+                            CreatedAt = new DateTime(2026, 9, 16, 7, 58, 8, 342, DateTimeKind.Utc).AddTicks(5686),
                             Name = "Lecturer"
                         },
                         new
                         {
                             RoleId = 5,
-                            CreatedAt = new DateTime(2026, 9, 16, 7, 29, 19, 201, DateTimeKind.Utc).AddTicks(7565),
+                            CreatedAt = new DateTime(2026, 9, 16, 7, 58, 8, 342, DateTimeKind.Utc).AddTicks(5696),
                             Name = "Graduate Student"
                         });
                 });
@@ -1811,11 +1814,6 @@ namespace ARSPlatform.MODELS.Migrations
                     b.Property<int?>("MaxSimultaneousPapers")
                         .HasColumnType("int");
 
-                    b.Property<string>("OpenAlexId")
-                        .HasMaxLength(255)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(255)");
-
                     b.Property<string>("OrcidDisplayName")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
@@ -1838,11 +1836,6 @@ namespace ARSPlatform.MODELS.Migrations
 
                     b.Property<string>("ProofDocumentUrl")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SemanticScholarId")
-                        .HasMaxLength(255)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(255)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .ValueGeneratedOnAdd()

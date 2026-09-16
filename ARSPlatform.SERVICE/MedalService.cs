@@ -169,6 +169,14 @@ namespace ARSPlatform.SERVICES
             var medal = await _medalRepo.GetByIdAsync(id);
             if (medal == null) return false;
 
+            // Check if any UserMedal record references this medal
+            var usageCount = await _context.UserMedals.CountAsync(um => um.MedalId == id);
+            if (usageCount > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Huy hiệu đang được {usageCount} người dùng sử dụng. Admin nên tắt huy hiệu thay vì xóa.");
+            }
+
             _medalRepo.Delete(medal);
             await _medalRepo.SaveChangesAsync();
             return true;
@@ -889,7 +897,8 @@ namespace ARSPlatform.SERVICES
                 AwardedReason = request.AwardedReason,
                 CorrelationId = correlationId,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                Status = MedalStatus.Active
             };
 
             try
@@ -923,43 +932,6 @@ namespace ARSPlatform.SERVICES
             });
 
             return (_mapper.Map<UserMedalResponse>(newRow), true);
-        }
-
-        public async Task<bool> RevokeGrantedMedalAsync(long userMedalId, int adminId, string adminName)
-        {
-            var userMedal = await _context.UserMedals
-                .Include(um => um.Medal)
-                .FirstOrDefaultAsync(um => um.Id == userMedalId);
-
-            if (userMedal == null)
-            {
-                // Idempotent: repeat calls return 204 No Content
-                return true;
-            }
-
-            // Ticket rule: Reject (404) if userMedalId does not refer to an admin-granted row
-            if (!userMedal.AwardedByAdminId.HasValue)
-            {
-                throw new KeyNotFoundException($"Medal grant '{userMedalId}' was not granted by an admin and cannot be revoked via this endpoint.");
-            }
-
-            var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
-            var medalCode = userMedal.Medal?.Code ?? userMedal.MedalId;
-
-            _context.UserMedals.Remove(userMedal);
-            await _context.SaveChangesAsync();
-
-            await _auditLogService.CreateAsync(new AuditLogCreateRequest
-            {
-                AdminId = adminId,
-                AdminName = adminName,
-                Action = "MEDAL_REVOKE",
-                Target = "UserMedal",
-                TargetId = userMedalId.ToString(),
-                Details = $"Admin revoked medal {medalCode} (ID: {userMedalId}) for user {userMedal.UserId}. CorrelationId: {correlationId}"
-            });
-
-            return true;
         }
 
         public async Task<MedalDevGrantAllResponse> DevGrantAllByRoleAsync(MedalDevGrantAllRequest request, int adminId, string adminName)
@@ -1074,7 +1046,8 @@ namespace ARSPlatform.SERVICES
                             AwardedReason = request.AwardedReason ?? "Dev role seeding",
                             CorrelationId = correlationId,
                             CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
+                            UpdatedAt = DateTime.UtcNow,
+                            Status = MedalStatus.Active
                         };
 
                         await _context.UserMedals.AddAsync(newUm);
@@ -1134,62 +1107,6 @@ namespace ARSPlatform.SERVICES
                 AwardedCount = awardedCount,
                 SkippedCount = skippedCount,
                 Rows = awardedRows,
-                CorrelationId = correlationId
-            };
-        }
-
-        public async Task<MedalDevRevokeAllResponse> DevRevokeAllAsync(int userId, int adminId, string adminName)
-        {
-            if (userId <= 0)
-            {
-                throw new ArgumentException("Valid UserId is required.");
-            }
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId);
-            if (user == null)
-            {
-                throw new KeyNotFoundException($"User with ID '{userId}' not found.");
-            }
-
-            var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
-            var revokedCount = 0;
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var adminGrantedRows = await _context.UserMedals
-                    .Where(um => um.UserId == userId && um.AwardedByAdminId != null)
-                    .ToListAsync();
-
-                revokedCount = adminGrantedRows.Count;
-                if (revokedCount > 0)
-                {
-                    _context.UserMedals.RemoveRange(adminGrantedRows);
-                    await _context.SaveChangesAsync();
-                }
-
-                await _auditLogService.CreateAsync(new AuditLogCreateRequest
-                {
-                    AdminId = adminId,
-                    AdminName = adminName,
-                    Action = "MEDAL_REVOKE_ALL",
-                    Target = "User",
-                    TargetId = userId.ToString(),
-                    Details = $"Revoked all {revokedCount} admin-granted medals for user {userId} ({user.FullName}) with correlationId: {correlationId}"
-                });
-
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
-
-            return new MedalDevRevokeAllResponse
-            {
-                UserId = userId,
-                RevokedCount = revokedCount,
                 CorrelationId = correlationId
             };
         }
@@ -1773,6 +1690,53 @@ namespace ARSPlatform.SERVICES
                     IsActive = true
                 }
             };
+        }
+
+        #endregion
+
+        #region Admin - Update UserMedal Status
+
+        /// <summary>
+        /// Admin bật/tắt trạng thái hiển thị của 1 bản ghi UserMedal (cấp huy hiệu cho user cụ thể).
+        /// Chỉ áp dụng cho các UserMedal đã được cấp (AwardedByAdminId != null) - theo ticket BE-MEDAL-GRANT-01.
+        /// </summary>
+        public async Task<UserMedalResponse> UpdateUserMedalStatusAsync(long userMedalId, MedalStatus newStatus, int adminId, string adminName)
+        {
+            var userMedal = await _context.UserMedals
+                .Include(um => um.Medal)
+                .FirstOrDefaultAsync(um => um.Id == userMedalId);
+
+            if (userMedal == null)
+            {
+                throw new KeyNotFoundException($"UserMedal with ID '{userMedalId}' not found.");
+            }
+
+            var previousStatus = userMedal.Status;
+            if (previousStatus == newStatus)
+            {
+                // Idempotent: không ghi log nếu status không đổi
+                return _mapper.Map<UserMedalResponse>(userMedal);
+            }
+
+            userMedal.Status = newStatus;
+            userMedal.UpdatedAt = DateTime.UtcNow;
+            _context.UserMedals.Update(userMedal);
+            await _context.SaveChangesAsync();
+
+            var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            var medalCode = userMedal.Medal?.Code ?? userMedal.MedalId;
+
+            await _auditLogService.CreateAsync(new AuditLogCreateRequest
+            {
+                AdminId = adminId,
+                AdminName = adminName,
+                Action = newStatus == MedalStatus.Active ? "MEDAL_USER_STATUS_ACTIVATED" : "MEDAL_USER_STATUS_DEACTIVATED",
+                Target = "UserMedal",
+                TargetId = userMedalId.ToString(),
+                Details = $"Admin {(newStatus == MedalStatus.Active ? "activated" : "deactivated")} medal {medalCode} for user {userMedal.UserId}. PreviousStatus={previousStatus}. CorrelationId: {correlationId}"
+            });
+
+            return _mapper.Map<UserMedalResponse>(userMedal);
         }
 
         #endregion
