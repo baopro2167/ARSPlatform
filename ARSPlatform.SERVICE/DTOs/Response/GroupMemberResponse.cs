@@ -18,6 +18,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public DateTime? JoinedAt { get; set; }
 
+        public string? RequestNote { get; set; }
+
         public string? StudentName { get; set; }
 
         public string? StudentEmail { get; set; }

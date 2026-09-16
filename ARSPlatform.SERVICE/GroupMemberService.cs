@@ -68,6 +68,51 @@ namespace ARSPlatform.SERVICES
             return await GetPagedAsync(new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
 
+        public async Task<PagedResult<GroupMemberResponse>> GetByActivityStatusAsync(
+            string status,
+            PaginationParams paginationParams,
+            int? groupId = null)
+        {
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                throw new ArgumentException("Status is required (e.g. PENDING or REJECTED).", nameof(status));
+            }
+
+            var normalizedStatus = status.Trim().ToUpperInvariant();
+
+            // Repository không có sẵn method này → query trực tiếp qua DbContext
+            // để vẫn include được Student + ResearchGroup.
+            var query = _dbContext.GroupMembers
+                .Include(x => x.Student!)
+                .Include(x => x.ResearchGroup!)
+                .AsQueryable();
+
+            query = query.Where(x =>
+                x.ActivityStatus != null &&
+                x.ActivityStatus.ToUpper() == normalizedStatus);
+
+            if (groupId.HasValue)
+            {
+                query = query.Where(x => x.ResearchGroupId == groupId.Value);
+            }
+
+            var totalCount = await query.CountAsync();
+
+            var items = await query
+                .OrderByDescending(x => x.JoinedAt ?? DateTime.MinValue)
+                .ThenByDescending(x => x.GroupMemberId)
+                .Skip((paginationParams.PageNumber - 1) * paginationParams.PageSize)
+                .Take(paginationParams.PageSize)
+                .ToListAsync();
+
+            var dtos = _mapper.Map<List<GroupMemberResponse>>(items);
+            return new PagedResult<GroupMemberResponse>(
+                dtos,
+                totalCount,
+                paginationParams.PageNumber,
+                paginationParams.PageSize);
+        }
+
         public async Task<GroupMemberResponse?> GetByIdAsync(int id)
         {
             var item = (await _repository.GetAllAsync(x => x.GroupMemberId == id, includes: x => x.Student!)).FirstOrDefault();
@@ -158,6 +203,126 @@ namespace ARSPlatform.SERVICES
 
             var updated = (await _repository.GetAllAsync(x => x.GroupMemberId == id, includes: x => x.Student!)).FirstOrDefault();
             return _mapper.Map<GroupMemberResponse>(updated ?? item);
+        }
+
+        /// <summary>
+        /// Lecturer duyệt hoặc từ chối một sinh viên trong nhóm.
+        /// Endpoint chuyên biệt: chỉ thay đổi ActivityStatus và RequestNote,
+        /// tự động gửi notification cho Student tương ứng.
+        /// </summary>
+        public async Task<GroupMemberResponse> UpdateApprovalAsync(int groupMemberId, GroupMemberApprovalRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException(nameof(request), "Request body is required.");
+            }
+
+            var item = (await _repository.GetAllAsync(
+                x => x.GroupMemberId == groupMemberId,
+                includes: x => x.Student!)).FirstOrDefault();
+
+            if (item == null)
+            {
+                throw new KeyNotFoundException($"Không tìm thấy thành viên nhóm với ID {groupMemberId}.");
+            }
+
+            // Chỉ chấp nhận các status hợp lệ
+            var allowedStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "PENDING", "JOINED", "ACCEPTED", "ACTIVE", "REJECTED", "LEFT", "REMOVED"
+            };
+
+            var newStatusRaw = request.ActivityStatus?.Trim();
+            if (string.IsNullOrWhiteSpace(newStatusRaw))
+            {
+                throw new ArgumentException("ActivityStatus is required (e.g. JOINED, REJECTED, PENDING).", nameof(request.ActivityStatus));
+            }
+
+            if (!allowedStatuses.Contains(newStatusRaw))
+            {
+                throw new ArgumentException(
+                    $"ActivityStatus '{newStatusRaw}' không hợp lệ. Chỉ chấp nhận: PENDING, JOINED, ACCEPTED, ACTIVE, REJECTED, LEFT, REMOVED.",
+                    nameof(request.ActivityStatus));
+            }
+
+            // Chuẩn hoá: lưu trữ dạng chữ IN HOA để truy vấn GetByActivityStatusAsync đồng bộ
+            var normalizedStatus = newStatusRaw.ToUpperInvariant();
+
+            // Nếu Lecturer vừa duyệt thì set JoinedAt = UtcNow (nếu trước đó chưa có)
+            var wasPending = string.Equals(item.ActivityStatus, "PENDING", StringComparison.OrdinalIgnoreCase);
+            var wasRejected = string.Equals(item.ActivityStatus, "REJECTED", StringComparison.OrdinalIgnoreCase);
+
+            item.ActivityStatus = normalizedStatus;
+            item.RequestNote = string.IsNullOrWhiteSpace(request.RequestNote)
+                ? null
+                : request.RequestNote.Trim();
+
+            if ((normalizedStatus == "JOINED" || normalizedStatus == "ACCEPTED" || normalizedStatus == "ACTIVE")
+                && !item.JoinedAt.HasValue)
+            {
+                item.JoinedAt = DateTime.UtcNow;
+            }
+
+            _repository.Update(item);
+            await _repository.SaveChangesAsync();
+
+            // ─────────────────────────────────────────────
+            // Gửi notification cho Student
+            // ─────────────────────────────────────────────
+            if (item.StudentId.HasValue && item.ResearchGroupId.HasValue)
+            {
+                try
+                {
+                    var group = await _dbContext.ResearchGroups
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
+                    var groupName = group?.Name ?? "Nhóm nghiên cứu";
+
+                    var noteSuffix = string.IsNullOrWhiteSpace(item.RequestNote)
+                        ? string.Empty
+                        : $" Lý do: {item.RequestNote}";
+
+                    string message;
+
+                    if (normalizedStatus is "JOINED" or "ACCEPTED" or "ACTIVE")
+                    {
+                        message = $"[Nhóm nghiên cứu] Yêu cầu gia nhập nhóm nghiên cứu \"{groupName}\" của bạn đã được Giảng viên chấp thuận.{noteSuffix}";
+                    }
+                    else if (normalizedStatus == "REJECTED")
+                    {
+                        message = $"[Nhóm nghiên cứu] Yêu cầu gia nhập nhóm nghiên cứu \"{groupName}\" của bạn đã bị từ chối.{noteSuffix}";
+                    }
+                    else if (normalizedStatus == "LEFT" || normalizedStatus == "REMOVED")
+                    {
+                        message = $"[Nhóm nghiên cứu] Bạn đã được cập nhật trạng thái rời khỏi nhóm nghiên cứu \"{groupName}\".{noteSuffix}";
+                    }
+                    else
+                    {
+                        message = $"[Nhóm nghiên cứu] Trạng thái yêu cầu tham gia nhóm \"{groupName}\" của bạn đã được cập nhật thành \"{normalizedStatus}\".{noteSuffix}";
+                    }
+
+                    var notif = new Notification
+                    {
+                        UserId = item.StudentId.Value,
+                        Message = message,
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _dbContext.Notifications.AddAsync(notif);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Không để lỗi notification chặn response duyệt
+                }
+            }
+
+            // Trả về bản ghi đã refresh kèm Student navigation
+            var refreshed = (await _repository.GetAllAsync(
+                x => x.GroupMemberId == groupMemberId,
+                includes: x => x.Student!)).FirstOrDefault();
+
+            return _mapper.Map<GroupMemberResponse>(refreshed ?? item);
         }
 
         public async Task<bool> DeleteAsync(int id)

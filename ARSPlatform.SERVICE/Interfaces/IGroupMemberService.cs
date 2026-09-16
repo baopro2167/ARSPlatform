@@ -13,9 +13,11 @@ namespace ARSPlatform.SERVICE.Interfaces
         Task<PagedResult<GroupMemberResponse>> GetByGroupIdAsync(int groupId, int pageNumber, int pageSize);
         Task<PagedResult<GroupMemberResponse>> GetByStudentIdAsync(int studentId, int pageNumber, int pageSize);
         Task<PagedResult<GroupMemberResponse>> GetAllAsync(int pageNumber, int pageSize);
+        Task<PagedResult<GroupMemberResponse>> GetByActivityStatusAsync(string status, PaginationParams paginationParams, int? groupId = null);
         Task<GroupMemberResponse?> GetByIdAsync(int id);
         Task<GroupMemberResponse> CreateAsync(GroupMemberCreateRequest request);
         Task<GroupMemberResponse?> UpdateAsync(int id, GroupMemberUpdateRequest request);
+        Task<GroupMemberResponse> UpdateApprovalAsync(int groupMemberId, GroupMemberApprovalRequest request);
         Task<bool> DeleteAsync(int id);
         Task<GroupMemberResponse> SetLeaderAsync(int groupMemberId, int? userId = null);
         Task<GroupMemberResponse> RemoveLeaderAsync(int groupMemberId);

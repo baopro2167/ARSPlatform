@@ -650,6 +650,19 @@ using (var scope = app.Services.CreateScope())
                     ALTER TABLE [GroupMember] ADD [LeaderId] bit NULL CONSTRAINT DF_GroupMember_LeaderId DEFAULT 0;
                 END
             END
+
+            -- 3b. GroupMembers.RequestNote (Lecturer note khi duyệt / từ chối sinh viên)
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'GroupMembers')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('GroupMembers') AND name = 'RequestNote')
+                    ALTER TABLE [GroupMembers] ADD [RequestNote] nvarchar(max) NULL;
+            END
+
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'GroupMember')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('GroupMember') AND name = 'RequestNote')
+                    ALTER TABLE [GroupMember] ADD [RequestNote] nvarchar(max) NULL;
+            END
         ");
 
         // 4. Schema updates for PhasedReports (TopicId, LecturerDescription, CreatedAt, DeadlineAt)

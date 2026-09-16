@@ -89,6 +89,57 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Lecturer xem danh sách yêu cầu tham gia nhóm theo trạng thái (PENDING / REJECTED / LEFT, ...).
+        /// Dùng để lên danh sách duyệt hoặc xem lại các yêu cầu đã xử lý.
+        /// </summary>
+        /// <param name="status">Trạng thái lọc: PENDING, REJECTED, JOINED, ...</param>
+        /// <param name="paginationParams">Tham số phân trang</param>
+        /// <param name="groupId">Lọc thêm theo ID nhóm (tùy chọn)</param>
+        /// <returns>Danh sách thành viên theo trạng thái</returns>
+        [HttpGet("by-status")]
+        public async Task<ActionResult<PagedResult<GroupMemberResponse>>> GetByActivityStatus(
+            [FromQuery] string status,
+            [FromQuery] PaginationParams paginationParams,
+            [FromQuery] int? groupId = null)
+        {
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                return BadRequest(new { Message = "Query 'status' là bắt buộc (ví dụ: PENDING, REJECTED)." });
+            }
+
+            var result = await _service.GetByActivityStatusAsync(status, paginationParams, groupId);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Lecturer duyệt hoặc từ chối một sinh viên đã có row trong GroupMembers.
+        /// Endpoint chuyên biệt: chỉ thay đổi ActivityStatus và RequestNote,
+        /// tự động gửi notification tới Student tương ứng.
+        /// </summary>
+        /// <param name="id">ID bản ghi GroupMember</param>
+        /// <param name="request">ActivityStatus mới và RequestNote (lý do duyệt / từ chối)</param>
+        /// <returns>Bản ghi GroupMember sau khi cập nhật</returns>
+        [HttpPatch("{id:int}/approval")]
+        public async Task<ActionResult<GroupMemberResponse>> UpdateApproval(
+            int id,
+            [FromBody] GroupMemberApprovalRequest request)
+        {
+            try
+            {
+                var response = await _service.UpdateApprovalAsync(id, request);
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Xóa thành viên khỏi nhóm nghiên cứu
         /// </summary>
         /// <param name="id">ID bản ghi thành viên</param>
