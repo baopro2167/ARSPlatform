@@ -519,6 +519,13 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
                 .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => DateTime.UtcNow));
 
+            CreateMap<UserReward, UserRewardResponse>();
+            CreateMap<UserRewardCreateRequest, UserReward>();
+            CreateMap<UserRewardUpdateRequest, UserReward>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.UpdateAt, opt => opt.Ignore());
+
             CreateMap<UserMedal, UserMedalResponse>()
                 .ForMember(dest => dest.Medal, opt => opt.MapFrom(src => src.Medal))
                 .ForMember(dest => dest.Code, opt => opt.MapFrom(src => src.Medal != null ? src.Medal.Code : string.Empty))

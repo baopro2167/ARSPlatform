@@ -51,19 +51,30 @@ namespace ARSPlatform.SERVICES
         private readonly IOpenAlexService _openAlexService;
         private readonly IMapper _mapper;
         private readonly AppDbContext _dbContext;
+        private readonly IUserRewardService _userRewardService;
+        private readonly INotificationService _notificationService;
+        private readonly IUserSubscriptionRepository _userSubscriptionRepository;
+
+        private const string StatusPublished = "Published";
 
         public PaperService(
             IPaperRepository paperRepository,
             IExternalApiService externalApiService,
             IOpenAlexService openAlexService,
             IMapper mapper,
-            AppDbContext dbContext)
+            AppDbContext dbContext,
+            IUserRewardService userRewardService,
+            INotificationService notificationService,
+            IUserSubscriptionRepository userSubscriptionRepository)
         {
             _paperRepository = paperRepository;
             _externalApiService = externalApiService;
             _openAlexService = openAlexService;
             _mapper = mapper;
             _dbContext = dbContext;
+            _userRewardService = userRewardService;
+            _notificationService = notificationService;
+            _userSubscriptionRepository = userSubscriptionRepository;
         }
 
         public async Task<PagedResult<PaperResponse>> GetPapersAsync(
@@ -268,6 +279,8 @@ namespace ARSPlatform.SERVICES
 
             if (paper == null)
                 return null;
+
+            var previousStatus = paper.Status;
 
             var normalizedWorkId =
                 request.OpenAlexWorkId == null
@@ -538,6 +551,8 @@ namespace ARSPlatform.SERVICES
             if (paper == null)
                 return null;
 
+            var previousStatus = paper.Status;
+
             var normalizedWorkId =
                 request.OpenAlexWorkId == null
                     ? paper.OpenAlexWorkId
@@ -645,6 +660,13 @@ namespace ARSPlatform.SERVICES
 
             await _paperRepository
                 .SaveChangesAsync();
+
+            // Trigger auto-reward cho Researcher khi status chuyển sang Published.
+            if (!string.Equals(previousStatus, StatusPublished, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(paper.Status, StatusPublished, StringComparison.OrdinalIgnoreCase))
+            {
+                await OnResearcherPaperPublishedAsync(paper);
+            }
 
             if (request.Authors != null)
             {
@@ -1567,6 +1589,76 @@ namespace ARSPlatform.SERVICES
             catch
             {
                 // Suppress notification errors to avoid disrupting paper operations
+            }
+        }
+
+        /// <summary>
+        /// Xử lý phần thưởng + thông báo khi 1 paper được publish lên trang web thành công.
+        /// Chỉ áp dụng cho paper có Creator (Researcher) và reward "Research Publication Reward" đang Active.
+        /// Quy trình:
+        ///   1. Lookup reward "Research Publication Reward" trong UserRewards (Status = Active).
+        ///   2. Cộng RewardMonths vào UserSubscriptions.ExpiresAt của Creator (UserRole = Researcher).
+        ///      Nếu chưa có subscription → throw lỗi (theo rule "no_sub_action = Error").
+        ///   3. Gửi 2 notification cho Creator:
+        ///         - "Bài báo của bạn đã được đăng lên trang web thành công."
+        ///         - "Tài khoản của bạn được tăng hạn sử dụng N tháng khi publish bài báo ... thành công."
+        /// Lỗi ở đâu đều được nuốt và log warning để không phá vỡ luồng publish chính.
+        /// </summary>
+        private async Task OnResearcherPaperPublishedAsync(Paper paper)
+        {
+            try
+            {
+                if (!paper.CreatorId.HasValue) return;
+
+                var creatorId = paper.CreatorId.Value;
+                var safeTitle = string.IsNullOrWhiteSpace(paper.Title) ? "(không tiêu đề)" : paper.Title.Trim();
+
+                // 1. Lookup reward "Research Publication Reward" (Contains, case-insensitive, Status=Active).
+                var reward = await _userRewardService
+                    .FindActiveByNameContainsAsync("Research Publication Reward");
+
+                // 2. Gửi notification "đã publish" cho Creator (luôn gửi kể cả khi không có reward).
+                await _notificationService.CreateNotificationAsync(
+                    creatorId,
+                    $"Bài báo \"{safeTitle}\" của bạn đã được đăng lên trang web thành công.");
+
+                if (reward == null)
+                {
+                    // Không có reward Active phù hợp → bỏ qua phần cộng tháng.
+                    return;
+                }
+
+                // 3. Lấy UserSubscription của Creator với UserRole = Researcher.
+                var subscription = await _userSubscriptionRepository
+                    .GetByUserAndRoleAsync(creatorId, "Researcher");
+
+                if (subscription == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Researcher (UserId={creatorId}) chưa có UserSubscription để cộng tháng phần thưởng.");
+                }
+
+                // 4. Cộng RewardMonths vào ExpiresAt (giữ nguyên giá trị cũ nếu còn hạn).
+                var nowUtc = DateTime.UtcNow;
+                var baseDate = subscription.ExpiresAt.HasValue && subscription.ExpiresAt.Value > nowUtc
+                    ? subscription.ExpiresAt.Value
+                    : nowUtc;
+                subscription.ExpiresAt = baseDate.AddMonths(reward.RewardMonths);
+                subscription.UpdatedAt = nowUtc;
+
+                _userSubscriptionRepository.Update(subscription);
+                await _userSubscriptionRepository.SaveChangesAsync();
+
+                // 5. Gửi notification "tăng hạn sử dụng".
+                await _notificationService.CreateNotificationAsync(
+                    creatorId,
+                    $"Tài khoản của bạn được tăng hạn sử dụng {reward.RewardMonths} tháng khi publish bài báo \"{safeTitle}\" thành công.");
+            }
+            catch (Exception ex)
+            {
+                // Log warning để debug nhưng không phá vỡ luồng publish.
+                // Có thể inject ILogger sau; hiện tại nuốt + không block.
+                Console.WriteLine($"[OnResearcherPaperPublishedAsync] Error: {ex.Message}");
             }
         }
     }

@@ -86,6 +86,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<UserToken> UserTokens { get; set; }
 
+    public virtual DbSet<UserReward> UserRewards { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AuditLog>(entity =>
@@ -803,6 +805,35 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__UserToken__UserI__3587F3E0");
+        });
+
+        modelBuilder.Entity<UserReward>(entity =>
+        {
+            entity.ToTable("UserRewards");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(e => e.Description)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.RewardMonths)
+                .IsRequired();
+
+            entity.Property(e => e.Status)
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasDefaultValue("Active");
+
+            entity.Property(e => e.UpdateAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.HasIndex(e => e.Status, "IX_UserRewards_Status");
         });
 
         modelBuilder.Entity<Medal>(entity =>

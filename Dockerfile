@@ -2,19 +2,21 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution and csproj files to restore dependencies
+# Copy solution and csproj files to restore dependencies.
+# We restore directly from ARSPlatform.API.csproj (not the .sln) to avoid
+# pulling in optional projects (e.g. ARSPlatform.Tests) that may not exist
+# in every deploy context.
 COPY ARSPlatform.sln ./
 COPY ARSPlatform.API/ARSPlatform.API.csproj ARSPlatform.API/
 COPY ARSPlatform.MODEL/ARSPlatform.MODELS.csproj ARSPlatform.MODEL/
 COPY ARSPlatform.REPO/ARSPlatform.REPOSITORIES.csproj ARSPlatform.REPO/
 COPY ARSPlatform.SERVICE/ARSPlatform.SERVICES.csproj ARSPlatform.SERVICE/
 
-RUN dotnet restore
+RUN dotnet restore ARSPlatform.API/ARSPlatform.API.csproj
 
 # Copy all source files and build
 COPY . .
-WORKDIR /src/ARSPlatform.API
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish ARSPlatform.API/ARSPlatform.API.csproj -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
 # Stage 2: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
