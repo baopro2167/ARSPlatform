@@ -51,22 +51,19 @@ namespace ARSPlatform.SERVICES
         private readonly IOpenAlexService _openAlexService;
         private readonly IMapper _mapper;
         private readonly AppDbContext _dbContext;
-        private readonly INotificationService _notificationService;
 
         public PaperService(
             IPaperRepository paperRepository,
             IExternalApiService externalApiService,
             IOpenAlexService openAlexService,
             IMapper mapper,
-            AppDbContext dbContext,
-            INotificationService notificationService)
+            AppDbContext dbContext)
         {
             _paperRepository = paperRepository;
             _externalApiService = externalApiService;
             _openAlexService = openAlexService;
             _mapper = mapper;
             _dbContext = dbContext;
-            _notificationService = notificationService;
         }
 
         public async Task<PagedResult<PaperResponse>> GetPapersAsync(
@@ -504,23 +501,6 @@ namespace ARSPlatform.SERVICES
             await _paperRepository
                 .SaveChangesAsync();
 
-            /*
-                Sau khi paper được Admin set Status = "Approved" (publish),
-                cộng thêm thời gian (Rewards, tính theo ngày) từ UserReward
-                đang Active vào ExpiresAt của UserSubscriptions role "Researcher"
-                của tác giả chính (Creator).
-            */
-            if (allowStatusUpdate &&
-                string.Equals(
-                    paper.Status,
-                    "Approved",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                await ExtendResearcherSubscriptionAsync(
-                    paper.CreatorId,
-                    paper.Title);
-            }
-
             if (request.Authors != null)
             {
                 await NotifyCoAuthorsAsync(paper, request.Authors);
@@ -665,21 +645,6 @@ namespace ARSPlatform.SERVICES
 
             await _paperRepository
                 .SaveChangesAsync();
-
-            /*
-                [TEST] Tương tự production: khi paper được set Approved,
-                cộng UserReward.Rewards vào UserSubscriptions.ExpiresAt
-                của Creator (Researcher).
-            */
-            if (string.Equals(
-                    paper.Status,
-                    "Approved",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                await ExtendResearcherSubscriptionAsync(
-                    paper.CreatorId,
-                    paper.Title);
-            }
 
             if (request.Authors != null)
             {
@@ -1603,183 +1568,6 @@ namespace ARSPlatform.SERVICES
             {
                 // Suppress notification errors to avoid disrupting paper operations
             }
-        }
-
-        /*
-         * ============================================================
-         * ExtendResearcherSubscriptionAsync
-         * ------------------------------------------------------------
-         * Khi paper được Admin set Status = "Approved" (publish),
-         * cộng thêm RewardMonths từ UserReward có Name = "Research
-         * Publication Reward" (so sánh chuẩn hoá: bỏ khoảng trắng /
-         * dấu gạch dưới / dấu gạch ngang và không phân biệt hoa-thường)
-         * đang Active vào UserSubscriptions.ExpiresAt của tác giả chính
-         * với role "Researcher".
-         *
-         * Quy tắc:
-         *   - Nếu đã có UserSubscriptions row (userId, "Researcher"):
-         *       + Lấy ExpiresAt hiện tại (hoặc now nếu đã hết hạn/null)
-         *         rồi AddMonths(RewardMonths).
-         *   - Nếu chưa có: tạo mới với ExpiresAt = now + RewardMonths.
-         *
-         * Sau khi cộng thời gian, đẩy 1 Notification cho Researcher:
-         *   "Bạn đã được gia hạn thời gian sử dụng vai trò này khi
-         *    đăng \"{Paper.Title}\" đã được đăng lên hệ thống"
-         *
-         * UserReward được chọn là row Active match theo tên (sau khi
-         * chuẩn hoá). Nếu không có reward nào Active match tên hoặc
-         * RewardMonths = 0 → bỏ qua (không cộng, không gửi notif).
-         * ============================================================
-         */
-        private const string ResearchPublicationRewardName =
-            "Research Publication Reward";
-
-        private async Task ExtendResearcherSubscriptionAsync(
-            int? userId,
-            string paperTitle)
-        {
-            if (!userId.HasValue || userId.Value <= 0)
-            {
-                return;
-            }
-
-            try
-            {
-                var activeRewards = await _dbContext
-                    .UserRewards
-                    .AsNoTracking()
-                    .Where(r =>
-                        r.Status == "Active" &&
-                        r.RewardMonths > 0)
-                    .ToListAsync();
-
-                // Lọc reward theo tên đã chuẩn hoá: bỏ khoảng trắng /
-                // gạch dưới / gạch ngang và so sánh không phân biệt
-                // hoa-thường. Vì vậy các biến thể FE có thể gửi như
-                // "Research Publication Reward",
-                // "research_publication_reward",
-                // "ResearchPublicationReward",
-                // "research-publication-reward" ... đều khớp.
-                var reward = activeRewards
-                    .FirstOrDefault(r =>
-                        string.Equals(
-                            NormalizeRewardName(r.Name),
-                            NormalizeRewardName(
-                                ResearchPublicationRewardName),
-                            StringComparison.Ordinal));
-
-                if (reward == null)
-                {
-                    return;
-                }
-
-                const string researcherRole = "Researcher";
-                var now = DateTime.UtcNow;
-
-                var subscription = await _dbContext
-                    .UserSubscriptions
-                    .FirstOrDefaultAsync(s =>
-                        s.UserId == userId.Value &&
-                        s.UserRole == researcherRole);
-
-                DateTime? newExpiresAt;
-
-                if (subscription != null)
-                {
-                    var baseDate =
-                        subscription.ExpiresAt.HasValue &&
-                        subscription.ExpiresAt.Value > now
-                            ? subscription.ExpiresAt.Value
-                            : now;
-
-                    newExpiresAt =
-                        baseDate.AddMonths(reward.RewardMonths);
-
-                    subscription.ExpiresAt = newExpiresAt;
-                    subscription.UpdatedAt = now;
-
-                    _dbContext.UserSubscriptions.Update(subscription);
-                }
-                else
-                {
-                    newExpiresAt =
-                        now.AddMonths(reward.RewardMonths);
-
-                    await _dbContext.UserSubscriptions.AddAsync(
-                        new UserSubscription
-                        {
-                            UserId = userId.Value,
-                            UserRole = researcherRole,
-                            ExpiresAt = newExpiresAt,
-                            LatestTransactionId = null,
-                            CreatedAt = now,
-                            UpdatedAt = now
-                        });
-                }
-
-                await _dbContext.SaveChangesAsync();
-
-                // Gửi Notification cho Researcher sau khi cộng
-                // thời gian thành công.
-                var safeTitle =
-                    string.IsNullOrWhiteSpace(paperTitle)
-                        ? "bài báo của bạn"
-                        : paperTitle.Trim();
-
-                var message =
-                    $"Bạn đã được gia hạn thời gian sử dụng vai trò này " +
-                    $"khi đăng \"{safeTitle}\" đã được đăng lên hệ thống";
-
-                await _dbContext.Notifications.AddAsync(
-                    new Notification
-                    {
-                        UserId = userId.Value,
-                        Message = message,
-                        IsRead = false,
-                        CreatedAt = now
-                    });
-
-                await _dbContext.SaveChangesAsync();
-            }
-            catch
-            {
-                // Suppress reward-extension errors to avoid disrupting paper operations
-            }
-        }
-
-        /*
-         * Chuẩn hoá tên UserReward để so sánh:
-         *   - Lowercase
-         *   - Bỏ khoảng trắng, '_' và '-'
-         *   - Giữ lại chữ cái và chữ số
-         *
-         * Ví dụ:
-         *   "Research Publication Reward"  -> "researchpublicationreward"
-         *   "research_publication_reward"  -> "researchpublicationreward"
-         *   "Research-Publication-Reward"  -> "researchpublicationreward"
-         *   "RESEARCH  PUBLICATION  REWARD"-> "researchpublicationreward"
-         */
-        private static string NormalizeRewardName(
-            string? name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return string.Empty;
-            }
-
-            var builder =
-                new StringBuilder(name.Length);
-
-            foreach (var c in name)
-            {
-                if (char.IsLetterOrDigit(c))
-                {
-                    builder.Append(
-                        char.ToLowerInvariant(c));
-                }
-            }
-
-            return builder.ToString();
         }
     }
 }

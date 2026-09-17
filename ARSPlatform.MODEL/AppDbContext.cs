@@ -78,8 +78,6 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<AnnualFee> AnnualFees { get; set; }
 
-    public virtual DbSet<UserReward> UserRewards { get; set; }
-
     public virtual DbSet<UserSubscription> UserSubscriptions { get; set; }
 
     public virtual DbSet<UserMedal> UserMedals { get; set; }
@@ -1051,37 +1049,6 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.DecidedByUserId)
                 .OnDelete(DeleteBehavior.NoAction)
                 .HasConstraintName("FK_ResearchGroupJoinRequests_DecidedByUser");
-        });
-
-        modelBuilder.Entity<UserReward>(entity =>
-        {
-            entity.ToTable("UserRewards");
-
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Name)
-                .HasMaxLength(200)
-                .IsRequired();
-
-            entity.Property(e => e.Description)
-                .HasMaxLength(500);
-
-            entity.Property(e => e.RewardMonths)
-                .HasDefaultValue(0);
-
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValue("Active");
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.UpdateAt)
-                .HasDefaultValueSql("(getutcdate())");
-
-            // Index for lookup
-            entity.HasIndex(e => e.Status)
-                .HasDatabaseName("IX_UserRewards_Status");
         });
 
         OnModelCreatingPartial(modelBuilder);
