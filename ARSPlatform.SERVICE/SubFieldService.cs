@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using AutoMapper;
 using ARSPlatform.MODEL.Entities;
@@ -152,6 +153,28 @@ namespace ARSPlatform.SERVICES
 
             _mapper.Map(request, item);
             item.Name = normalizedName;
+
+            _repository.Update(item);
+            await _repository.SaveChangesAsync();
+
+            var updated = await _repository.GetByIdWithMajorFieldAsync(id);
+            return _mapper.Map<SubFieldResponse>(updated);
+        }
+
+        /// <summary>
+        /// Cập nhật riêng GradingRubric của SubField theo id.
+        /// Chỉ serialize list tiêu chí thành JSON và ghi đè trường GradingRubric;
+        /// các trường Name, MajorFieldId, Description giữ nguyên.
+        /// </summary>
+        public async Task<SubFieldResponse?> UpdateRubricAsync(int id, SubFieldRubricUpdateRequest request)
+        {
+            var item = await _repository.GetByIdWithMajorFieldAsync(id);
+            if (item == null) return null;
+
+            // Serialize danh sách tiêu chí → JSON string lưu vào cột GradingRubric
+            item.GradingRubric = JsonSerializer.Serialize(
+                request.GradingRubric,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
             _repository.Update(item);
             await _repository.SaveChangesAsync();

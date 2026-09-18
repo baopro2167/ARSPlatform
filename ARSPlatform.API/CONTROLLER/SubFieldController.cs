@@ -70,11 +70,12 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Tạo mới một chuyên ngành hẹp
+        /// Tạo mới một chuyên ngành hẹp (chỉ Admin)
         /// </summary>
         /// <param name="request">Thông tin chuyên ngành hẹp</param>
         /// <returns>Chuyên ngành vừa tạo</returns>
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<SubFieldResponse>> Create([FromBody] SubFieldCreateRequest request)
         {
             try
@@ -106,12 +107,13 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Cập nhật thông tin chuyên ngành hẹp
+        /// Cập nhật thông tin chuyên ngành hẹp (chỉ Admin)
         /// </summary>
         /// <param name="id">ID chuyên ngành hẹp cần cập nhật</param>
         /// <param name="request">Thông tin cập nhật</param>
         /// <returns>Chuyên ngành sau khi cập nhật</returns>
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<SubFieldResponse>> Update(int id, [FromBody] SubFieldUpdateRequest request)
         {
             try
@@ -131,11 +133,36 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
-        /// Xóa một chuyên ngành hẹp
+        /// [Admin] Cập nhật riêng GradingRubric của một chuyên ngành hẹp.
+        /// Không thay đổi Name, MajorFieldId hay Description.
+        /// Hỗ trợ 2 nguồn: (1) template hệ thống cung cấp, (2) Admin tự soạn thảo.
+        /// </summary>
+        /// <param name="id">ID chuyên ngành hẹp cần cập nhật rubric</param>
+        /// <param name="request">Danh sách tiêu chí chấm điểm mới</param>
+        /// <returns>SubField sau khi cập nhật rubric</returns>
+        [HttpPatch("{id:int}/rubric")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SubFieldResponse>> UpdateRubric(int id, [FromBody] SubFieldRubricUpdateRequest request)
+        {
+            try
+            {
+                var response = await _service.UpdateRubricAsync(id, request);
+                if (response == null) return NotFound(new { Message = "Sub-field not found." });
+                return Ok(response);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Xóa một chuyên ngành hẹp (chỉ Admin)
         /// </summary>
         /// <param name="id">ID chuyên ngành</param>
         /// <returns>Không có nội dung</returns>
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             try
