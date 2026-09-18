@@ -20,19 +20,22 @@ namespace ARSPlatform.SERVICES
         private readonly IUserRepository _userRepository;
         private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
+        private readonly ISignalRNotificationService? _realtimeService;
 
         public ForumCommentService(
             IForumCommentRepository repository,
             ICommentVoteRepository voteRepository,
             IUserRepository userRepository,
             INotificationRepository notificationRepository,
-            IMapper mapper)
+            IMapper mapper,
+            ISignalRNotificationService? realtimeService = null)
         {
             _repository = repository;
             _voteRepository = voteRepository;
             _userRepository = userRepository;
             _notificationRepository = notificationRepository;
             _mapper = mapper;
+            _realtimeService = realtimeService;
         }
 
         public async Task<IEnumerable<ForumCommentResponse>> GetAllAsync(int? postId = null, int? currentUserId = null)
@@ -198,7 +201,20 @@ namespace ARSPlatform.SERVICES
             }
 
             var created = (await _repository.GetAllAsync(x => x.ForumCommentId == item.ForumCommentId, includes: x => x.User!)).FirstOrDefault();
-            return _mapper.Map<ForumCommentResponse>(created ?? item);
+            var response = _mapper.Map<ForumCommentResponse>(created ?? item);
+
+            if (_realtimeService != null && item.ForumPostId.HasValue)
+            {
+                await _realtimeService.SendForumCommentAddedAsync(
+                    item.ForumPostId.Value,
+                    item.ForumCommentId,
+                    userId,
+                    created?.User?.FullName ?? "Một thành viên",
+                    item.Content ?? "",
+                    item.CreatedAt ?? DateTime.UtcNow);
+            }
+
+            return response;
         }
 
         public async Task<ForumCommentResponse?> UpdateAsync(int id, ForumCommentUpdateRequest request)

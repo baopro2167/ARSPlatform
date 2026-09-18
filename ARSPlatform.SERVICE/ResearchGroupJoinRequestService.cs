@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -21,6 +21,7 @@ namespace ARSPlatform.SERVICES
         private readonly IUserRepository _userRepository;
         private readonly AppDbContext _dbContext;
         private readonly IMapper _mapper;
+        private readonly ISignalRNotificationService? _realtimeService;
 
         public ResearchGroupJoinRequestService(
             IResearchGroupJoinRequestRepository joinRequestRepository,
@@ -28,7 +29,8 @@ namespace ARSPlatform.SERVICES
             IGroupMemberRepository groupMemberRepository,
             IUserRepository userRepository,
             AppDbContext dbContext,
-            IMapper mapper)
+            IMapper mapper,
+            ISignalRNotificationService? realtimeService = null)
         {
             _joinRequestRepository = joinRequestRepository;
             _researchGroupRepository = researchGroupRepository;
@@ -36,6 +38,7 @@ namespace ARSPlatform.SERVICES
             _userRepository = userRepository;
             _dbContext = dbContext;
             _mapper = mapper;
+            _realtimeService = realtimeService;
         }
 
         public async Task<ResearchGroupJoinRequestResponse> CreateJoinRequestAsync(int groupId, int applicantUserId, string? note = null)
@@ -118,6 +121,16 @@ namespace ARSPlatform.SERVICES
             }
 
             await _dbContext.SaveChangesAsync();
+
+            if (_realtimeService != null)
+            {
+                await _realtimeService.SendGroupJoinRequestUpdatedAsync(
+                    groupId,
+                    joinRequest.JoinRequestId,
+                    joinRequest.Status,
+                    applicantUserId,
+                    applicantName);
+            }
 
             var loaded = await _dbContext.ResearchGroupJoinRequests
                 .Include(r => r.ResearchGroup)
@@ -294,6 +307,16 @@ namespace ARSPlatform.SERVICES
                 }
             });
 
+            if (_realtimeService != null)
+            {
+                await _realtimeService.SendGroupJoinRequestUpdatedAsync(
+                    groupId,
+                    joinRequestId,
+                    "ACCEPTED",
+                    joinRequest.ApplicantUserId,
+                    applicantName);
+            }
+
             var updated = await _dbContext.ResearchGroupJoinRequests
                 .Include(r => r.ResearchGroup)
                 .Include(r => r.DecidedByUser)
@@ -364,6 +387,17 @@ namespace ARSPlatform.SERVICES
                     throw;
                 }
             });
+
+            if (_realtimeService != null)
+            {
+                var applicantName = joinRequest.ApplicantUser?.Profile?.FullName ?? joinRequest.ApplicantUser?.FullName ?? "Sinh viên";
+                await _realtimeService.SendGroupJoinRequestUpdatedAsync(
+                    groupId,
+                    joinRequestId,
+                    "REJECTED",
+                    joinRequest.ApplicantUserId,
+                    applicantName);
+            }
 
             var updated = await _dbContext.ResearchGroupJoinRequests
                 .Include(r => r.ResearchGroup)

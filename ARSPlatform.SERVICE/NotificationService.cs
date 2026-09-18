@@ -107,14 +107,7 @@ namespace ARSPlatform.SERVICES
 
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            var response = _mapper.Map<NotificationResponse>(item);
-
-            if (_realtimeService != null && item.UserId.HasValue && item.UserId.Value > 0)
-            {
-                await _realtimeService.SendNotificationToUserAsync(item.UserId.Value, response);
-            }
-
-            return response;
+            return _mapper.Map<NotificationResponse>(item);
         }
 
         public async Task<NotificationResponse> CreateNotificationAsync(int userId, string message)
@@ -129,14 +122,7 @@ namespace ARSPlatform.SERVICES
 
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            var response = _mapper.Map<NotificationResponse>(item);
-
-            if (_realtimeService != null && userId > 0)
-            {
-                await _realtimeService.SendNotificationToUserAsync(userId, response);
-            }
-
-            return response;
+            return _mapper.Map<NotificationResponse>(item);
         }
 
         public async Task<NotificationResponse?> UpdateAsync(int id, NotificationUpdateRequest request, int? currentUserId = null, bool isAdmin = false)

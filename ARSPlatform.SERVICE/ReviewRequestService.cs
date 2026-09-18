@@ -20,19 +20,22 @@ namespace ARSPlatform.SERVICES
         private readonly IUserRepository _userRepository;
         private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
+        private readonly ISignalRNotificationService? _realtimeService;
 
         public ReviewRequestService(
             IReviewRequestRepository repository,
             IPaperRepository paperRepository,
             IUserRepository userRepository,
             INotificationRepository notificationRepository,
-            IMapper mapper)
+            IMapper mapper,
+            ISignalRNotificationService? realtimeService = null)
         {
             _repository = repository;
             _paperRepository = paperRepository;
             _userRepository = userRepository;
             _notificationRepository = notificationRepository;
             _mapper = mapper;
+            _realtimeService = realtimeService;
         }
 
         public async Task<IEnumerable<ReviewRequestResponse>> GetAllAsync()
@@ -104,6 +107,16 @@ namespace ARSPlatform.SERVICES
                 };
                 await _notificationRepository.AddAsync(notification);
                 await _notificationRepository.SaveChangesAsync();
+
+                if (_realtimeService != null)
+                {
+                    await _realtimeService.SendReviewRequestAssignedAsync(
+                        created.ReviewerId.Value,
+                        created.ReviewRequestId,
+                        created.PaperId ?? 0,
+                        paperTitle,
+                        created.Deadline);
+                }
             }
 
             return _mapper.Map<ReviewRequestResponse>(created ?? item);
@@ -250,6 +263,19 @@ namespace ARSPlatform.SERVICES
             if (assignedList.Any())
             {
                 await _notificationRepository.SaveChangesAsync();
+
+                if (_realtimeService != null)
+                {
+                    foreach (var assigned in assignedList)
+                    {
+                        await _realtimeService.SendReviewRequestAssignedAsync(
+                            assigned.ReviewerId,
+                            assigned.ReviewRequestId,
+                            paper.PaperId,
+                            paper.Title,
+                            null);
+                    }
+                }
             }
 
             // 7. Tạo thông báo kết quả
@@ -388,6 +414,19 @@ namespace ARSPlatform.SERVICES
             if (assignedList.Any())
             {
                 await _notificationRepository.SaveChangesAsync();
+
+                if (_realtimeService != null)
+                {
+                    foreach (var assigned in assignedList)
+                    {
+                        await _realtimeService.SendReviewRequestAssignedAsync(
+                            assigned.ReviewerId,
+                            assigned.ReviewRequestId,
+                            paper.PaperId,
+                            paper.Title,
+                            deadline);
+                    }
+                }
             }
 
             string resultMessage;

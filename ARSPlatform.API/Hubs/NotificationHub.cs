@@ -51,5 +51,53 @@ namespace ARSPlatform.API.Hubs
 
             await base.OnDisconnectedAsync(exception);
         }
+
+        /// <summary>
+        /// Tham gia nhóm nhận cập nhật trạng thái của bài báo cụ thể.
+        /// </summary>
+        public async Task JoinPaperGroup(int paperId)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"Paper_{paperId}");
+        }
+
+        /// <summary>
+        /// Rời khỏi nhóm nhận cập nhật trạng thái của bài báo.
+        /// </summary>
+        public async Task LeavePaperGroup(int paperId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"Paper_{paperId}");
+        }
+
+        /// <summary>
+        /// Tham gia luồng bình luận trực tiếp của bài viết diễn đàn cụ thể.
+        /// </summary>
+        public async Task JoinPostGroup(int postId)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"Post_{postId}");
+        }
+
+        /// <summary>
+        /// Rời khỏi luồng bình luận trực tiếp của bài viết diễn đàn.
+        /// </summary>
+        public async Task LeavePostGroup(int postId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"Post_{postId}");
+        }
+
+        /// <summary>
+        /// Tham gia workspace trực tiếp của nhóm nghiên cứu.
+        /// </summary>
+        public async Task JoinGroupWorkspace(int groupId)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"Group_{groupId}");
+        }
+
+        /// <summary>
+        /// Rời khỏi workspace trực tiếp của nhóm nghiên cứu.
+        /// </summary>
+        public async Task LeaveGroupWorkspace(int groupId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"Group_{groupId}");
+        }
     }
 }

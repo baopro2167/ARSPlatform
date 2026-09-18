@@ -1,5 +1,6 @@
 using ARSPlatform.API.HostedServices;
 using ARSPlatform.API.Hubs;
+using ARSPlatform.API.Interceptors;
 using ARSPlatform.API.Services;
 using ARSPlatform.MODEL;
 using ARSPlatform.REPO;
@@ -24,14 +25,18 @@ using ARSPlatform.SERVICE;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Database Context
-builder.Services.AddDbContext<AppDbContext>(options =>
+// Register Interceptors & Database Context
+builder.Services.AddScoped<NotificationSignalRInterceptor>();
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
+{
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         sqlOptions => sqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(10),
-            errorNumbersToAdd: null)));
+            errorNumbersToAdd: null));
+    options.AddInterceptors(sp.GetRequiredService<NotificationSignalRInterceptor>());
+});
 
 // Add AutoMapper
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
@@ -48,15 +53,6 @@ foreach (var type in repoAssembly.GetTypes().Where(t => t.IsClass && !t.IsAbstra
         builder.Services.AddScoped(interfaceType, type);
     }
 }
-
-// Configure CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader());
-});
 
 // Nâng giới hạn Form Upload lên 500MB
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
