@@ -474,6 +474,16 @@ namespace ARSPlatform.SERVICES
                 }
             }
 
+            if (allowStatusUpdate &&
+                !string.IsNullOrWhiteSpace(request.AuthorshipVerificationStatus))
+            {
+                ApplyAuthorshipVerificationDecision(
+                    paper,
+                    request.AuthorshipVerificationStatus,
+                    request.AuthorshipVerifiedAt,
+                    request.AuthorshipVerificationReason);
+            }
+
             /*
                 Preserve Admin status management, but an
                 OpenAlex-linked Paper cannot be Approved until
@@ -650,6 +660,15 @@ namespace ARSPlatform.SERVICES
             {
                 paper.Status =
                     request.Status.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.AuthorshipVerificationStatus))
+            {
+                ApplyAuthorshipVerificationDecision(
+                    paper,
+                    request.AuthorshipVerificationStatus,
+                    request.AuthorshipVerifiedAt,
+                    request.AuthorshipVerificationReason);
             }
 
             paper.UpdatedAt =
@@ -1659,6 +1678,93 @@ namespace ARSPlatform.SERVICES
                 // Log warning để debug nhưng không phá vỡ luồng publish.
                 // Có thể inject ILogger sau; hiện tại nuốt + không block.
                 Console.WriteLine($"[OnResearcherPaperPublishedAsync] Error: {ex.Message}");
+            }
+        }
+
+        public async Task<PaperAuthorshipDecisionResponse?> RecordAuthorshipDecisionAsync(
+            int paperId,
+            PaperAuthorshipDecisionRequest request,
+            int adminUserId)
+        {
+            var paper = await _paperRepository
+                .GetWithAuthorByIdAsync(paperId);
+
+            if (paper == null)
+            {
+                return null;
+            }
+
+            var decisionUpper = (request.Decision ?? string.Empty).Trim().ToUpperInvariant();
+            if (decisionUpper is not ("VERIFIED" or "ALLOW" or "ALLOWED" or "APPROVE" or "APPROVED" or "REJECTED" or "REJECT" or "DENY" or "DENIED"))
+            {
+                throw new ArgumentException(
+                    $"Invalid decision '{request.Decision}'. Decision must be 'VERIFIED' or 'REJECTED'.");
+            }
+
+            ApplyAuthorshipVerificationDecision(
+                paper,
+                request.Decision,
+                DateTime.UtcNow,
+                request.Reason);
+
+            paper.UpdatedAt = DateTime.UtcNow;
+
+            _paperRepository.Update(paper);
+            await _paperRepository.SaveChangesAsync();
+
+            return new PaperAuthorshipDecisionResponse
+            {
+                Id = paper.PaperId,
+                Status = paper.Status,
+                AuthorshipVerificationStatus = paper.AuthorshipVerificationStatus,
+                AuthorshipVerifiedAt = paper.AuthorshipVerifiedAt,
+                AuthorshipVerificationReason = paper.AuthorshipVerificationReason
+            };
+        }
+
+        private static void ApplyAuthorshipVerificationDecision(
+            Paper paper,
+            string statusOrDecision,
+            DateTime? verifiedAt,
+            string? reason)
+        {
+            string? safeReason = null;
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                var r = reason.Trim();
+                safeReason = r.Length > 100 ? r.Substring(0, 100) : r;
+            }
+
+            var normalized = (statusOrDecision ?? string.Empty).Trim().ToUpperInvariant();
+            if (normalized is "VERIFIED" or "ALLOW" or "ALLOWED" or "APPROVED" or "APPROVE")
+            {
+                paper.AuthorshipVerificationStatus = VerificationVerified;
+                paper.AuthorshipVerifiedAt = verifiedAt ?? DateTime.UtcNow;
+                paper.AuthorshipVerificationReason = safeReason ?? "MANUALLY_VERIFIED_BY_ADMIN";
+            }
+            else if (normalized is "REJECTED" or "REJECT" or "DENIED" or "DENY")
+            {
+                paper.AuthorshipVerificationStatus = "REJECTED";
+                paper.AuthorshipVerifiedAt = null;
+                paper.AuthorshipVerificationReason = safeReason ?? "REJECTED_BY_ADMIN";
+            }
+            else if (normalized is "PENDING_ADMIN_REVIEW" or "PENDING")
+            {
+                paper.AuthorshipVerificationStatus = VerificationPendingAdminReview;
+                paper.AuthorshipVerifiedAt = null;
+                paper.AuthorshipVerificationReason = safeReason;
+            }
+            else if (normalized is "NOT_CHECKED")
+            {
+                paper.AuthorshipVerificationStatus = VerificationNotChecked;
+                paper.AuthorshipVerifiedAt = null;
+                paper.AuthorshipVerificationReason = null;
+            }
+            else
+            {
+                paper.AuthorshipVerificationStatus = statusOrDecision.Trim();
+                paper.AuthorshipVerifiedAt = verifiedAt;
+                paper.AuthorshipVerificationReason = safeReason;
             }
         }
     }

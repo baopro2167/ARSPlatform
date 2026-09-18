@@ -366,6 +366,10 @@ public partial class AppDbContext : DbContext
                 tb.HasCheckConstraint(
                     "CK_Papers_PaperType",
                     "[PaperType] IN ('Journal', 'Conference')");
+
+                tb.HasCheckConstraint(
+                    "CK_Papers_AuthorshipVerificationStatus",
+                    "[AuthorshipVerificationStatus] IN ('NOT_CHECKED', 'PENDING_ADMIN_REVIEW', 'VERIFIED', 'REJECTED')");
             });
 
             entity.Property(e => e.AuthorshipVerificationReason)

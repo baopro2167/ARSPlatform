@@ -58,5 +58,16 @@ namespace ARSPlatform.SERVICE.DTOs.Request
         public string? IssnValue { get; set; }
 
         public List<PaperAuthorRequest>? Authors { get; set; }
+
+        /// <summary>
+        /// Trạng thái xác minh danh tính tác giả (VERIFIED, REJECTED, ALLOW, PENDING_ADMIN_REVIEW, NOT_CHECKED).
+        /// </summary>
+        [MaxLength(50)]
+        public string? AuthorshipVerificationStatus { get; set; }
+
+        public DateTime? AuthorshipVerifiedAt { get; set; }
+
+        [MaxLength(100)]
+        public string? AuthorshipVerificationReason { get; set; }
     }
 }

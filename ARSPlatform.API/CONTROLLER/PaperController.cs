@@ -351,6 +351,52 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Admin đưa ra quyết định xác minh danh tính tác giả (Authorship Decision: VERIFIED hoặc REJECTED).
+        /// Hỗ trợ cả PUT và POST theo đặc tả contract FE.
+        /// </summary>
+        /// <param name="id">ID của Paper</param>
+        /// <param name="request">Quyết định ("VERIFIED" hoặc "REJECTED") và lý do</param>
+        /// <returns>Thông tin kết quả quyết định xác minh danh tính tác giả</returns>
+        [HttpPut("{id:int}/authorship-decision")]
+        [HttpPost("{id:int}/authorship-decision")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<PaperAuthorshipDecisionResponse>> SetAuthorshipDecision(
+            int id,
+            [FromBody] PaperAuthorshipDecisionRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var currentUserIdStr =
+                User.FindFirst(
+                    ClaimTypes.NameIdentifier)
+                    ?.Value;
+
+            int adminUserId = int.TryParse(currentUserIdStr, out var parsedId) ? parsedId : 0;
+
+            try
+            {
+                var result = await _paperService.RecordAuthorshipDecisionAsync(id, request, adminUserId);
+                if (result == null)
+                {
+                    return NotFound(new { Message = "Paper not found." });
+                }
+
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Lấy danh sách bài báo được phân công cho 1 phản biện viên (Reviewer).
         /// Truyền vào <c>reviewerId</c> sẽ list tất cả paper đã được phân công,
         /// response gồm <c>ReviewerId</c> và <c>ReviewerName</c> (= User.FullName).

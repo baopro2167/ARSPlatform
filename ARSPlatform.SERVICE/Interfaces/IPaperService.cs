@@ -57,5 +57,13 @@ namespace ARSPlatform.SERVICE.Interfaces
         /// </summary>
         Task<List<PaperWithReviewerResponse>> GetPapersByReviewerAsync(
             int reviewerId);
+
+        /// <summary>
+        /// Ghi nhận quyết định xác minh danh tính tác giả từ Admin (Authorship Decision: VERIFIED hoặc REJECTED).
+        /// </summary>
+        Task<PaperAuthorshipDecisionResponse?> RecordAuthorshipDecisionAsync(
+            int paperId,
+            PaperAuthorshipDecisionRequest request,
+            int adminUserId);
     }
 }
