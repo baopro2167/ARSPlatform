@@ -17,11 +17,16 @@ namespace ARSPlatform.SERVICES
     {
         private readonly INotificationRepository _repository;
         private readonly IMapper _mapper;
+        private readonly ISignalRNotificationService? _realtimeService;
 
-        public NotificationService(INotificationRepository repository, IMapper mapper)
+        public NotificationService(
+            INotificationRepository repository, 
+            IMapper mapper,
+            ISignalRNotificationService? realtimeService = null)
         {
             _repository = repository;
             _mapper = mapper;
+            _realtimeService = realtimeService;
         }
 
         public async Task<IEnumerable<NotificationResponse>> GetAllAsync(int? userId = null)
@@ -102,7 +107,14 @@ namespace ARSPlatform.SERVICES
 
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            return _mapper.Map<NotificationResponse>(item);
+            var response = _mapper.Map<NotificationResponse>(item);
+
+            if (_realtimeService != null && item.UserId.HasValue && item.UserId.Value > 0)
+            {
+                await _realtimeService.SendNotificationToUserAsync(item.UserId.Value, response);
+            }
+
+            return response;
         }
 
         public async Task<NotificationResponse> CreateNotificationAsync(int userId, string message)
@@ -117,7 +129,14 @@ namespace ARSPlatform.SERVICES
 
             await _repository.AddAsync(item);
             await _repository.SaveChangesAsync();
-            return _mapper.Map<NotificationResponse>(item);
+            var response = _mapper.Map<NotificationResponse>(item);
+
+            if (_realtimeService != null && userId > 0)
+            {
+                await _realtimeService.SendNotificationToUserAsync(userId, response);
+            }
+
+            return response;
         }
 
         public async Task<NotificationResponse?> UpdateAsync(int id, NotificationUpdateRequest request, int? currentUserId = null, bool isAdmin = false)

@@ -1,4 +1,6 @@
 using ARSPlatform.API.HostedServices;
+using ARSPlatform.API.Hubs;
+using ARSPlatform.API.Services;
 using ARSPlatform.MODEL;
 using ARSPlatform.REPO;
 using ARSPlatform.REPO.Interfaces;
@@ -508,16 +510,21 @@ builder.Services.Configure<GoogleCalendarSettings>(options =>
 });
 builder.Services.AddHttpClient<IGoogleCalendarService, GoogleCalendarService>();
 
-// Configure CORS
+// Configure CORS (Cho phép Credentials và WebSockets từ mọi nguồn FE)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
+
+// Configure SignalR
+builder.Services.AddSignalR();
+builder.Services.AddScoped<ISignalRNotificationService, SignalRNotificationService>();
 
 // Configure Controllers
 builder.Services.AddControllers()
@@ -568,6 +575,21 @@ builder.Services.AddAuthentication(options =>
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+
+    // Hỗ trợ truyền JWT Token qua query string 'access_token' khi bắt tay WebSocket
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization(options =>
@@ -1034,5 +1056,6 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

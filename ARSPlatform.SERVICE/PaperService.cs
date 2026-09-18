@@ -54,6 +54,7 @@ namespace ARSPlatform.SERVICES
         private readonly IUserRewardService _userRewardService;
         private readonly INotificationService _notificationService;
         private readonly IUserSubscriptionRepository _userSubscriptionRepository;
+        private readonly ISignalRNotificationService? _realtimeNotificationService;
 
         private const string StatusPublished = "Published";
 
@@ -65,7 +66,8 @@ namespace ARSPlatform.SERVICES
             AppDbContext dbContext,
             IUserRewardService userRewardService,
             INotificationService notificationService,
-            IUserSubscriptionRepository userSubscriptionRepository)
+            IUserSubscriptionRepository userSubscriptionRepository,
+            ISignalRNotificationService? realtimeNotificationService = null)
         {
             _paperRepository = paperRepository;
             _externalApiService = externalApiService;
@@ -75,6 +77,7 @@ namespace ARSPlatform.SERVICES
             _userRewardService = userRewardService;
             _notificationService = notificationService;
             _userSubscriptionRepository = userSubscriptionRepository;
+            _realtimeNotificationService = realtimeNotificationService;
         }
 
         public async Task<PagedResult<PaperResponse>> GetPapersAsync(
@@ -529,6 +532,15 @@ namespace ARSPlatform.SERVICES
                 await NotifyCoAuthorsAsync(paper, request.Authors);
             }
 
+            if (_realtimeNotificationService != null && paper.CreatorId.HasValue)
+            {
+                await _realtimeNotificationService.SendPaperStatusUpdatedAsync(
+                    paper.PaperId,
+                    paper.Status,
+                    paper.AuthorshipVerificationStatus,
+                    paper.CreatorId.Value);
+            }
+
             var updatedPaper =
                 await _paperRepository
                     .GetWithAuthorByIdAsync(id);
@@ -690,6 +702,15 @@ namespace ARSPlatform.SERVICES
             if (request.Authors != null)
             {
                 await NotifyCoAuthorsAsync(paper, request.Authors);
+            }
+
+            if (_realtimeNotificationService != null && paper.CreatorId.HasValue)
+            {
+                await _realtimeNotificationService.SendPaperStatusUpdatedAsync(
+                    paper.PaperId,
+                    paper.Status,
+                    paper.AuthorshipVerificationStatus,
+                    paper.CreatorId.Value);
             }
 
             var updatedPaper =
@@ -1711,6 +1732,15 @@ namespace ARSPlatform.SERVICES
 
             _paperRepository.Update(paper);
             await _paperRepository.SaveChangesAsync();
+
+            if (_realtimeNotificationService != null && paper.CreatorId.HasValue)
+            {
+                await _realtimeNotificationService.SendPaperStatusUpdatedAsync(
+                    paper.PaperId,
+                    paper.Status,
+                    paper.AuthorshipVerificationStatus,
+                    paper.CreatorId.Value);
+            }
 
             return new PaperAuthorshipDecisionResponse
             {
