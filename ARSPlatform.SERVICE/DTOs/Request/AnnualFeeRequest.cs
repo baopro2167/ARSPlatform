@@ -105,3 +105,30 @@ public class AnnualFeePayOSWebhookRequest
     public string? OrderId { get; set; }
     public DateTime? CreatedAt { get; set; }
 }
+
+/// <summary>
+/// Tham số lọc + phân trang cho GET /api/AnnualFees/admin/subscriptions
+/// </summary>
+public class AdminSubscriptionListParams
+{
+    /// <summary>Số trang, bắt đầu từ 1.</summary>
+    public int Page { get; set; } = 1;
+
+    /// <summary>Số item mỗi trang. Tối đa 100.</summary>
+    public int PageSize { get; set; } = 10;
+
+    /// <summary>Tìm kiếm theo FullName hoặc Email của User.</summary>
+    public string? Search { get; set; }
+
+    /// <summary>Lọc theo Role người dùng (Researcher, Lecturer, ...).</summary>
+    public string? Role { get; set; }
+
+    /// <summary>
+    /// Lọc theo trạng thái subscription:
+    ///   Active  — ExpiresAt > now
+    ///   Expired — ExpiresAt != null &amp;&amp; ExpiresAt &lt;= now
+    ///   None    — không có record UserSubscription (hoặc ExpiresAt == null)
+    /// </summary>
+    public string? Status { get; set; }
+}
+

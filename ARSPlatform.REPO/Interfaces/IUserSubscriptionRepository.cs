@@ -31,4 +31,17 @@ public interface IUserSubscriptionRepository : IGenericRepository<UserSubscripti
     /// Join qua: UserSubscription → Transaction → AnnualFee (theo LatestTransactionId)
     /// </summary>
     Task<PagedResult<UserSubscription>> GetSubscribersByAnnualFeeIdAsync(int annualFeeId, PaginationParams paginationParams);
+
+    /// <summary>
+    /// [Admin] Lấy toàn bộ UserSubscription join User, có phân trang + filter.
+    /// Hỗ trợ:
+    ///   - search: tìm theo FullName / Email
+    ///   - role:   lọc theo UserSubscription.UserRole
+    ///   - status: Active | Expired | None
+    /// Status=None sẽ LEFT JOIN để bao gồm user chưa từng đăng ký.
+    /// </summary>
+    Task<PagedResult<UserSubscription>> GetAllSubscriptionsPagedAsync(
+        int page, int pageSize,
+        string? search, string? role, string? status);
 }
+

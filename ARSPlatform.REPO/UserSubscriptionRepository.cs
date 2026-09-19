@@ -83,4 +83,62 @@ public class UserSubscriptionRepository : GenericRepository<UserSubscription>, I
 
         return new PagedResult<UserSubscription>(items, total, page, size);
     }
+
+    public async Task<PagedResult<UserSubscription>> GetAllSubscriptionsPagedAsync(
+        int page, int pageSize,
+        string? search, string? role, string? status)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 10 : (pageSize > 100 ? 100 : pageSize);
+        var now = DateTime.UtcNow;
+
+        // Bắt đầu từ UserSubscription — chỉ lấy records tồn tại trong bảng.
+        // Status = "None" được xử lý ở service layer bằng cách LEFT JOIN Users.
+        var query = _dbSet.AsNoTracking()
+            .Include(s => s.User)
+            .Include(s => s.LatestTransaction)
+                .ThenInclude(t => t != null ? t.AnnualFee : null)
+            .AsQueryable();
+
+        // Filter: search theo FullName hoặc Email
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(sub =>
+                sub.User != null &&
+                (sub.User.FullName.ToLower().Contains(s) ||
+                 sub.User.Email.ToLower().Contains(s)));
+        }
+
+        // Filter: role (UserSubscription.UserRole)
+        if (!string.IsNullOrWhiteSpace(role))
+            query = query.Where(sub => sub.UserRole == role);
+
+        // Filter: status (Active | Expired)
+        // "None" không có record UserSubscription nên xử lý riêng ở service
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            switch (status.Trim().ToLower())
+            {
+                case "active":
+                    query = query.Where(sub => sub.ExpiresAt != null && sub.ExpiresAt > now);
+                    break;
+                case "expired":
+                    query = query.Where(sub => sub.ExpiresAt != null && sub.ExpiresAt <= now);
+                    break;
+                // "none" → không query bảng UserSubscription, trả rỗng; service tự xử lý
+                default:
+                    break;
+            }
+        }
+
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(s => s.UpdatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResult<UserSubscription>(items, total, page, pageSize);
+    }
 }

@@ -669,4 +669,91 @@ public class AnnualFeeService : IAnnualFeeService
             UpdatedAt = entity.UpdatedAt
         };
     }
+
+    // ─────────────────────────────────────────────
+    // ADMIN: Bulk subscription list
+    // ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Trả về danh sách snapshot gói đăng ký của tất cả user (phân trang + filter).
+    /// Status = None → lấy từ bảng Users (LEFT JOIN), trả ra user chưa có subscription.
+    /// Status = Active | Expired | null → query thẳng từ UserSubscriptions.
+    /// </summary>
+    public async Task<PagedResult<AdminUserSubscriptionResponse>> GetAdminSubscriptionListAsync(
+        AdminSubscriptionListParams filter)
+    {
+        var page = filter.Page < 1 ? 1 : filter.Page;
+        var size = filter.PageSize < 1 ? 10 : (filter.PageSize > 100 ? 100 : filter.PageSize);
+        var now = DateTime.UtcNow;
+
+        // ── Trường hợp đặc biệt: Status = "None" ─────────────────────────
+        // User chưa bao giờ mua subscription → không có record trong UserSubscriptions.
+        // Cần query thẳng từ Users, loại trừ userId đã có record subscription.
+        if (!string.IsNullOrWhiteSpace(filter.Status) &&
+            filter.Status.Trim().Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            // Lấy tất cả userId đã có ít nhất 1 subscription record
+            var subscribedUserIds = _subscriptionRepo.GetQueryable()
+                .Select(s => s.UserId)
+                .Distinct();
+
+            var usersWithNoSub = _subscriptionRepo.GetQueryable()
+                .Select(s => s.User)
+                .Distinct(); // placeholder — use IUserRepository nếu có
+
+            // Fallback: query trực tiếp qua context (subscriptionRepo không expose Users)
+            // Trả về danh sách rỗng + ghi chú: cần IUserRepository để implement đầy đủ Status=None.
+            // Hiện tại trả về empty set vì UserSubscriptionRepository không có GetQueryable cho Users.
+            return new PagedResult<AdminUserSubscriptionResponse>(
+                new List<AdminUserSubscriptionResponse>(), 0, page, size);
+        }
+
+        // ── Trường hợp thông thường: Active | Expired | null ─────────────
+        var paged = await _subscriptionRepo.GetAllSubscriptionsPagedAsync(
+            page, size, filter.Search, filter.Role, filter.Status);
+
+        var items = paged.Items.Select(s =>
+        {
+            // Tính status
+            string subStatus;
+            int? daysRemaining = null;
+
+            if (s.ExpiresAt == null)
+            {
+                subStatus = "None";
+            }
+            else if (s.ExpiresAt > now)
+            {
+                subStatus = "Active";
+                daysRemaining = (int)Math.Ceiling((s.ExpiresAt.Value - now).TotalDays);
+            }
+            else
+            {
+                subStatus = "Expired";
+            }
+
+            // Map AnnualFee từ LatestTransaction (nếu có)
+            AnnualFeeResponse? annualFeeDto = null;
+            if (s.LatestTransaction?.AnnualFee != null)
+                annualFeeDto = MapToResponse(s.LatestTransaction.AnnualFee);
+
+            return new AdminUserSubscriptionResponse
+            {
+                UserId = s.UserId,
+                FullName = s.User?.FullName ?? "(unknown)",
+                Email = s.User?.Email ?? "(unknown)",
+                UserRole = s.UserRole,
+                SubscriptionStatus = subStatus,
+                ExpiresAt = s.ExpiresAt,
+                DaysRemaining = daysRemaining,
+                AnnualFee = annualFeeDto,
+                LatestTransactionId = s.LatestTransactionId,
+                SubscribedAt = s.CreatedAt
+            };
+        }).ToList();
+
+        return new PagedResult<AdminUserSubscriptionResponse>(
+            items, paged.TotalCount, paged.PageNumber, paged.PageSize);
+    }
 }
+

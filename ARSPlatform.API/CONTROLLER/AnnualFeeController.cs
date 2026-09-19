@@ -94,6 +94,20 @@ public class AnnualFeeController : ControllerBase
     }
 
     /// <summary>
+    /// [Admin] Danh sách snapshot gói đăng ký của tất cả user — phân trang + filter.
+    /// Dùng cho màn hình /admin/accounts để hiển thị cột trạng thái subscription.
+    /// </summary>
+    /// <param name="filter">Tham số lọc: page, pageSize, search, role, status</param>
+    [HttpGet("admin/subscriptions")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<PagedResult<AdminUserSubscriptionResponse>>> GetAdminSubscriptions(
+        [FromQuery] AdminSubscriptionListParams filter)
+    {
+        var result = await _service.GetAdminSubscriptionListAsync(filter);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Tạo gói AnnualFee mới (Admin)
     /// </summary>
     [HttpPost]

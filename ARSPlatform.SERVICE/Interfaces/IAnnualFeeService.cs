@@ -35,6 +35,10 @@ public interface IAnnualFeeService
     // Admin: danh sách user đang sử dụng 1 gói AnnualFee (phân trang)
     Task<PagedResult<AnnualFeeSubscriberResponse>> GetSubscribersByAnnualFeeIdAsync(int annualFeeId, PaginationParams paginationParams);
 
+    // Admin: bulk danh sách subscription của tất cả user, có filter + phân trang
+    Task<PagedResult<AdminUserSubscriptionResponse>> GetAdminSubscriptionListAsync(AdminSubscriptionListParams filter);
+
     // Reminder
     Task<int> SendExpiringSubscriptionRemindersAsync(CancellationToken cancellationToken = default);
 }
+

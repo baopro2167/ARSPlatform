@@ -89,3 +89,37 @@ public class AnnualFeeSubscriberResponse
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+
+/// <summary>
+/// Snapshot gói đăng ký của 1 user — dùng cho GET /api/AnnualFees/admin/subscriptions
+/// </summary>
+public class AdminUserSubscriptionResponse
+{
+    public int UserId { get; set; }
+    public string FullName { get; set; } = null!;
+    public string Email { get; set; } = null!;
+
+    /// <summary>Role của user (Researcher, Lecturer, ...)</summary>
+    public string UserRole { get; set; } = null!;
+
+    /// <summary>
+    /// Trạng thái subscription: Active | Expired | None
+    /// </summary>
+    public string SubscriptionStatus { get; set; } = null!;
+
+    /// <summary>Ngày hết hạn gói (null nếu chưa có gói)</summary>
+    public DateTime? ExpiresAt { get; set; }
+
+    /// <summary>Số ngày còn lại (null nếu không Active)</summary>
+    public int? DaysRemaining { get; set; }
+
+    /// <summary>Thông tin gói AnnualFee đang/đã sử dụng (null nếu Status = None)</summary>
+    public AnnualFeeResponse? AnnualFee { get; set; }
+
+    /// <summary>TransactionId của lần mua gần nhất</summary>
+    public int? LatestTransactionId { get; set; }
+
+    /// <summary>Thời điểm mua gói gần nhất</summary>
+    public DateTime? SubscribedAt { get; set; }
+}
+
