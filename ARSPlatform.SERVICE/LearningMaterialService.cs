@@ -11,22 +11,41 @@ using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
+using ARSPlatform.REPOSITORIES;
 
 namespace ARSPlatform.SERVICES
 {
     public class LearningMaterialService : ILearningMaterialService
     {
         private readonly ILearningMaterialRepository _repository;
-        private readonly AppDbContext _dbContext;
+        private readonly IResearchTopicRepository _researchTopicRepository;
+        private readonly IResearchTopicLearningMaterialRepository _topicMaterialRepository;
+        private readonly IPhasedReportRepository _phasedReportRepository;
+        private readonly ISharedMaterialRepository _sharedMaterialRepository;
+        private readonly INotificationRepository _notificationRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
         private readonly IMapper _mapper;
 
         public LearningMaterialService(
             ILearningMaterialRepository repository,
-            AppDbContext dbContext,
+            IResearchTopicRepository researchTopicRepository,
+            IResearchTopicLearningMaterialRepository topicMaterialRepository,
+            IPhasedReportRepository phasedReportRepository,
+            ISharedMaterialRepository sharedMaterialRepository,
+            INotificationRepository notificationRepository,
+            IUserRepository userRepository,
+            IDbContextFactory<AppDbContext> dbContextFactory,
             IMapper mapper)
         {
             _repository = repository;
-            _dbContext = dbContext;
+            _researchTopicRepository = researchTopicRepository;
+            _topicMaterialRepository = topicMaterialRepository;
+            _phasedReportRepository = phasedReportRepository;
+            _sharedMaterialRepository = sharedMaterialRepository;
+            _notificationRepository = notificationRepository;
+            _userRepository = userRepository;
+            _dbContextFactory = dbContextFactory;
             _mapper = mapper;
         }
 
@@ -81,29 +100,30 @@ namespace ARSPlatform.SERVICES
 
             if (request.TopicId.HasValue)
             {
-                var topic = await _dbContext.ResearchTopics.FirstOrDefaultAsync(t => t.TopicId == request.TopicId.Value);
+                var topic = await _researchTopicRepository.GetByIdAsync(request.TopicId.Value);
                 if (topic == null)
-                {
                     throw new KeyNotFoundException($"Research topic with ID {request.TopicId.Value} not found.");
-                }
 
                 if (request.LecturerId.HasValue && topic.LecturerId != request.LecturerId.Value)
-                {
                     throw new UnauthorizedAccessException("You are not authorized to add materials to this research topic.");
-                }
 
-                var strategy = _dbContext.Database.CreateExecutionStrategy();
+                // Dùng IDbContextFactory CHỈ cho transaction
+                await using var ctx = await _dbContextFactory.CreateDbContextAsync();
+                var strategy = ctx.Database.CreateExecutionStrategy();
                 LearningMaterial? createdMaterial = null;
 
                 await strategy.ExecuteAsync(async () =>
                 {
-                    await using var tx = await _dbContext.Database.BeginTransactionAsync();
+                    await using var tx = await ctx.Database.BeginTransactionAsync();
                     try
                     {
+                        var localMaterialRepo = new LearningMaterialRepository(ctx);
+                        var localTopicMaterialRepo = new ResearchTopicLearningMaterialRepository(ctx);
+
                         var item = _mapper.Map<LearningMaterial>(request);
                         item.CreatedAt = DateTime.UtcNow;
-                        await _repository.AddAsync(item);
-                        await _repository.SaveChangesAsync();
+                        await localMaterialRepo.AddAsync(item);
+                        await localMaterialRepo.SaveChangesAsync();
 
                         var link = new ResearchTopicLearningMaterial
                         {
@@ -111,8 +131,8 @@ namespace ARSPlatform.SERVICES
                             LearningMaterialId = item.LearningMaterialId,
                             CreatedAt = DateTime.UtcNow
                         };
-                        await _dbContext.ResearchTopicLearningMaterials.AddAsync(link);
-                        await _dbContext.SaveChangesAsync();
+                        await localTopicMaterialRepo.AddAsync(link);
+                        await localTopicMaterialRepo.SaveChangesAsync();
 
                         await tx.CommitAsync();
                         createdMaterial = item;
@@ -152,81 +172,47 @@ namespace ARSPlatform.SERVICES
             var item = await _repository.GetByIdAsync(id);
             if (item == null) return (false, 0, "Learning material not found.");
 
-            // 1. Usage Constraint Check: Kiểm tra xem tài liệu có đang được liên kết trong ResearchTopic hoặc PhasedReport
-            var idString = id.ToString();
-            var hasFileUrl = !string.IsNullOrWhiteSpace(item.FileUrl);
-
-            // Kiểm tra ResearchTopic (thông qua GuidanceProjectsUrl)
-            var isUsedInTopic = await _dbContext.ResearchTopics.AnyAsync(t =>
-                t.GuidanceProjectsUrl != null &&
-                (
-                    (hasFileUrl && t.GuidanceProjectsUrl.Contains(item.FileUrl!)) ||
-                    t.GuidanceProjectsUrl == idString ||
-                    t.GuidanceProjectsUrl.Contains($"/materials/{id}") ||
-                    t.GuidanceProjectsUrl.Contains($"/learning-materials/{id}") ||
-                    t.GuidanceProjectsUrl.Contains($"materialId={id}")
-                ));
-
+            // 1. Kiểm tra tài liệu có đang được dùng trong ResearchTopic/PhasedReport không
+            var isUsedInTopic = await _researchTopicRepository.AnyByLearningMaterialIdAsync(id, item.FileUrl);
             if (isUsedInTopic)
-            {
                 throw new InvalidOperationException("Tài liệu đang được sử dụng trong đề tài nghiên cứu, không thể xóa.");
-            }
 
-            // Kiểm tra PhasedReport (thông qua PhasedMaterialsUrl)
-            var isUsedInPhasedReport = await _dbContext.PhasedReports.AnyAsync(p =>
-                p.PhasedMaterialsUrl != null &&
-                (
-                    (hasFileUrl && p.PhasedMaterialsUrl.Contains(item.FileUrl!)) ||
-                    p.PhasedMaterialsUrl == idString ||
-                    p.PhasedMaterialsUrl.Contains($"/materials/{id}") ||
-                    p.PhasedMaterialsUrl.Contains($"/learning-materials/{id}") ||
-                    p.PhasedMaterialsUrl.Contains($"materialId={id}")
-                ));
-
+            var isUsedInPhasedReport = await _phasedReportRepository.AnyByLearningMaterialIdAsync(id, item.FileUrl);
             if (isUsedInPhasedReport)
-            {
                 throw new InvalidOperationException("Tài liệu đang được sử dụng trong đề tài nghiên cứu, không thể xóa.");
-            }
 
-            // 2. Cascade Delete: Gửi thông báo cho đồng nghiệp đang được share và xóa các bản ghi chia sẻ
-            var relatedShares = await _dbContext.SharedMaterials
-                .Include(s => s.Lecturer)
-                .Where(s => s.LearningMaterialId == id || s.PaperId == id)
-                .ToListAsync();
-
+            // 2. Cascade: lấy shares liên quan, gửi notification, xóa shares
+            var relatedShares = (await _sharedMaterialRepository.GetByLearningMaterialIdAsync(id)).ToList();
             var revokedSharesCount = relatedShares.Count;
+
             if (revokedSharesCount > 0)
             {
-                var senderUser = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == item.LecturerId);
+                var senderUser = await _userRepository.GetByIdAsync(item.LecturerId ?? 0);
                 var senderName = senderUser?.FullName ?? item.Lecturer?.FullName ?? "Giảng viên chủ sở hữu";
                 var now = DateTime.UtcNow;
 
-                var notifications = new List<Notification>();
                 foreach (var s in relatedShares)
                 {
                     if (s.SharedWithColleagueId.HasValue)
                     {
-                        notifications.Add(new Notification
+                        var notif = new Notification
                         {
                             UserId = s.SharedWithColleagueId.Value,
                             Message = $"Tài liệu \"{item.Title}\" do Giảng viên {senderName} chia sẻ đã bị chủ sở hữu xóa khỏi hệ thống.",
                             IsRead = false,
                             CreatedAt = now
-                        });
+                        };
+                        await _notificationRepository.AddAsync(notif);
                     }
+                    _sharedMaterialRepository.Delete(s);
                 }
 
-                if (notifications.Any())
-                {
-                    await _dbContext.Notifications.AddRangeAsync(notifications);
-                }
-
-                _dbContext.SharedMaterials.RemoveRange(relatedShares);
+                await _notificationRepository.SaveChangesAsync();
             }
 
             // 3. Xóa tài liệu gốc
             _repository.Delete(item);
-            await _dbContext.SaveChangesAsync();
+            await _repository.SaveChangesAsync();
 
             var message = revokedSharesCount > 0
                 ? $"Xóa tài liệu thành công. Đã thu hồi liên kết chia sẻ tới {revokedSharesCount} giảng viên và gửi thông báo tới họ."

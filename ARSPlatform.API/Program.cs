@@ -38,6 +38,17 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
     options.AddInterceptors(sp.GetRequiredService<NotificationSignalRInterceptor>());
 });
 
+// Register IDbContextFactory — dùng cho services cần transaction scope độc lập (LearningMaterialService, ResearchTopicService)
+builder.Services.AddDbContextFactory<AppDbContext>((sp, options) =>
+{
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlOptions => sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null));
+}, ServiceLifetime.Scoped);
+
 // Add AutoMapper
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 

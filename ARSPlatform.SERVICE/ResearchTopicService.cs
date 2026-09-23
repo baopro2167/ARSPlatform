@@ -4,6 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
@@ -11,7 +12,7 @@ using ARSPlatform.REPO.PAGINATION;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
-using Microsoft.EntityFrameworkCore;
+using ARSPlatform.REPOSITORIES;
 
 namespace ARSPlatform.SERVICES
 {
@@ -20,20 +21,20 @@ namespace ARSPlatform.SERVICES
         private readonly IResearchTopicRepository _repository;
         private readonly ILearningMaterialRepository _learningMaterialRepository;
         private readonly IResearchTopicLearningMaterialRepository _topicMaterialRepository;
-        private readonly AppDbContext _dbContext;
+        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
         private readonly IMapper _mapper;
 
         public ResearchTopicService(
             IResearchTopicRepository repository,
             ILearningMaterialRepository learningMaterialRepository,
             IResearchTopicLearningMaterialRepository topicMaterialRepository,
-            AppDbContext dbContext,
+            IDbContextFactory<AppDbContext> dbContextFactory,
             IMapper mapper)
         {
             _repository = repository;
             _learningMaterialRepository = learningMaterialRepository;
             _topicMaterialRepository = topicMaterialRepository;
-            _dbContext = dbContext;
+            _dbContextFactory = dbContextFactory;
             _mapper = mapper;
         }
 
@@ -203,14 +204,20 @@ namespace ARSPlatform.SERVICES
                 throw new ArgumentException("FileUrl must be a valid http or https URL.");
             }
 
-            var strategy = _dbContext.Database.CreateExecutionStrategy();
+            // Dùng IDbContextFactory chỉ để tạo transaction scope
+            await using var ctx = await _dbContextFactory.CreateDbContextAsync();
+            var strategy = ctx.Database.CreateExecutionStrategy();
+
             LearningMaterial? createdMaterial = null;
 
             await strategy.ExecuteAsync(async () =>
             {
-                await using var tx = await _dbContext.Database.BeginTransactionAsync();
+                await using var tx = await ctx.Database.BeginTransactionAsync();
                 try
                 {
+                    var localMaterialRepo = new LearningMaterialRepository(ctx);
+                    var localTopicMaterialRepo = new ResearchTopicLearningMaterialRepository(ctx);
+
                     var material = new LearningMaterial
                     {
                         Title = request.Title,
@@ -221,8 +228,8 @@ namespace ARSPlatform.SERVICES
                         CreatedAt = DateTime.UtcNow
                     };
 
-                    await _dbContext.LearningMaterials.AddAsync(material);
-                    await _dbContext.SaveChangesAsync();
+                    await localMaterialRepo.AddAsync(material);
+                    await localMaterialRepo.SaveChangesAsync();
 
                     var link = new ResearchTopicLearningMaterial
                     {
@@ -231,8 +238,8 @@ namespace ARSPlatform.SERVICES
                         CreatedAt = DateTime.UtcNow
                     };
 
-                    await _dbContext.ResearchTopicLearningMaterials.AddAsync(link);
-                    await _dbContext.SaveChangesAsync();
+                    await localTopicMaterialRepo.AddAsync(link);
+                    await localTopicMaterialRepo.SaveChangesAsync();
 
                     await tx.CommitAsync();
                     createdMaterial = material;

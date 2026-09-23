@@ -11,6 +11,7 @@ using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using ARSPlatform.REPOSITORIES;
 
 namespace ARSPlatform.SERVICES
 {
@@ -1019,107 +1020,113 @@ namespace ARSPlatform.SERVICES
 
             var childAuditRequests = new List<AuditLogCreateRequest>();
 
-            using var transaction = await _dbContextFactory.CreateDbContext().Database.BeginTransactionAsync();
-            try
+            await using var ctx = await _dbContextFactory.CreateDbContextAsync();
+            var strategy = ctx.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
-                foreach (var medal in matchingMedals)
+                await using var transaction = await ctx.Database.BeginTransactionAsync();
+                var localUserMedalRepo = new UserMedalRepository(ctx);
+                try
                 {
-                    if (existingUserMedals.TryGetValue(medal.Id, out var existing))
+                    foreach (var medal in matchingMedals)
                     {
-                        existing.CurrentProgress = medal.CriteriaThreshold;
-                        existing.IsUnlocked = true;
-                        if (!existing.UnlockedAt.HasValue) existing.UnlockedAt = DateTime.UtcNow;
-                        existing.AwardedByAdminId = adminId;
-                        existing.AwardedReason = request.AwardedReason ?? "Dev role seeding";
-                        existing.CorrelationId = correlationId;
-                        existing.UpdatedAt = DateTime.UtcNow;
-                        _userMedalRepo.Update(existing);
-
-                        awardedRows.Add(new MedalDevGrantRow
+                        if (existingUserMedals.TryGetValue(medal.Id, out var existing))
                         {
-                            Id = existing.Id,
-                            MedalCode = medal.Code,
-                            IsUnlocked = true
-                        });
-                        awardedCount++;
+                            existing.CurrentProgress = medal.CriteriaThreshold;
+                            existing.IsUnlocked = true;
+                            if (!existing.UnlockedAt.HasValue) existing.UnlockedAt = DateTime.UtcNow;
+                            existing.AwardedByAdminId = adminId;
+                            existing.AwardedReason = request.AwardedReason ?? "Dev role seeding";
+                            existing.CorrelationId = correlationId;
+                            existing.UpdatedAt = DateTime.UtcNow;
+                            localUserMedalRepo.Update(existing);
 
-                        childAuditRequests.Add(new AuditLogCreateRequest
+                            awardedRows.Add(new MedalDevGrantRow
+                            {
+                                Id = existing.Id,
+                                MedalCode = medal.Code,
+                                IsUnlocked = true
+                            });
+                            awardedCount++;
+
+                            childAuditRequests.Add(new AuditLogCreateRequest
+                            {
+                                AdminId = adminId,
+                                AdminName = adminName,
+                                Action = "MEDAL_GRANT",
+                                Target = "UserMedal",
+                                TargetId = existing.Id.ToString(),
+                                Details = $"Granted {medal.Code} as part of role seeding (parent: {correlationId})"
+                            });
+                        }
+                        else
                         {
-                            AdminId = adminId,
-                            AdminName = adminName,
-                            Action = "MEDAL_GRANT",
-                            Target = "UserMedal",
-                            TargetId = existing.Id.ToString(),
-                            Details = $"Granted {medal.Code} as part of role seeding (parent: {correlationId})"
-                        });
+                            var newUm = new UserMedal
+                            {
+                                UserId = request.UserId,
+                                MedalId = medal.Id,
+                                CurrentProgress = medal.CriteriaThreshold,
+                                IsUnlocked = true,
+                                UnlockedAt = DateTime.UtcNow,
+                                AwardedAt = DateTime.UtcNow,
+                                AwardedByAdminId = adminId,
+                                AwardedReason = request.AwardedReason ?? "Dev role seeding",
+                                CorrelationId = correlationId,
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = DateTime.UtcNow,
+                                Status = MedalStatus.Active
+                            };
+
+                            await localUserMedalRepo.AddAsync(newUm);
+                            await localUserMedalRepo.SaveChangesAsync();
+
+                            awardedRows.Add(new MedalDevGrantRow
+                            {
+                                Id = newUm.Id,
+                                MedalCode = medal.Code,
+                                IsUnlocked = true
+                            });
+                            awardedCount++;
+
+                            childAuditRequests.Add(new AuditLogCreateRequest
+                            {
+                                AdminId = adminId,
+                                AdminName = adminName,
+                                Action = "MEDAL_GRANT",
+                                Target = "UserMedal",
+                                TargetId = newUm.Id.ToString(),
+                                Details = $"Granted {medal.Code} as part of role seeding (parent: {correlationId})"
+                            });
+                        }
                     }
-                    else
+
+                    await localUserMedalRepo.SaveChangesAsync();
+
+                    // Parent audit log
+                    await _auditLogService.CreateAsync(new AuditLogCreateRequest
                     {
-                        var newUm = new UserMedal
-                        {
-                            UserId = request.UserId,
-                            MedalId = medal.Id,
-                            CurrentProgress = medal.CriteriaThreshold,
-                            IsUnlocked = true,
-                            UnlockedAt = DateTime.UtcNow,
-                            AwardedAt = DateTime.UtcNow,
-                            AwardedByAdminId = adminId,
-                            AwardedReason = request.AwardedReason ?? "Dev role seeding",
-                            CorrelationId = correlationId,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow,
-                            Status = MedalStatus.Active
-                        };
+                        AdminId = adminId,
+                        AdminName = adminName,
+                        Action = "MEDAL_GRANT_ALL_BY_ROLE",
+                        Target = "User",
+                        TargetId = request.UserId.ToString(),
+                        Details = $"Granted all {awardedCount} role medals for role '{primaryRole}' to user {request.UserId} ({user.FullName}) with correlationId: {correlationId}. Reason: {request.AwardedReason}"
+                    });
 
-                        await _userMedalRepo.AddAsync(newUm);
-                        await _userMedalRepo.SaveChangesAsync();
-
-                        awardedRows.Add(new MedalDevGrantRow
-                        {
-                            Id = newUm.Id,
-                            MedalCode = medal.Code,
-                            IsUnlocked = true
-                        });
-                        awardedCount++;
-
-                        childAuditRequests.Add(new AuditLogCreateRequest
-                        {
-                            AdminId = adminId,
-                            AdminName = adminName,
-                            Action = "MEDAL_GRANT",
-                            Target = "UserMedal",
-                            TargetId = newUm.Id.ToString(),
-                            Details = $"Granted {medal.Code} as part of role seeding (parent: {correlationId})"
-                        });
+                    // Child audit logs
+                    foreach (var childLog in childAuditRequests)
+                    {
+                        await _auditLogService.CreateAsync(childLog);
                     }
+
+                    await transaction.CommitAsync();
                 }
-
-                await _userMedalRepo.SaveChangesAsync();
-
-                // Parent audit log
-                await _auditLogService.CreateAsync(new AuditLogCreateRequest
+                catch
                 {
-                    AdminId = adminId,
-                    AdminName = adminName,
-                    Action = "MEDAL_GRANT_ALL_BY_ROLE",
-                    Target = "User",
-                    TargetId = request.UserId.ToString(),
-                    Details = $"Granted all {awardedCount} role medals for role '{primaryRole}' to user {request.UserId} ({user.FullName}) with correlationId: {correlationId}. Reason: {request.AwardedReason}"
-                });
-
-                // Child audit logs
-                foreach (var childLog in childAuditRequests)
-                {
-                    await _auditLogService.CreateAsync(childLog);
+                    await transaction.RollbackAsync();
+                    throw;
                 }
-
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+            });
 
             return new MedalDevGrantAllResponse
             {
