@@ -7,5 +7,7 @@ namespace ARSPlatform.REPO.Interfaces
         Task<IEnumerable<UserMedal>> GetByUserIdWithMedalsAsync(int userId);
         Task<IEnumerable<UserMedal>> GetUnlockedByUserIdAsync(int userId);
         Task<UserMedal?> GetByUserAndMedalIdAsync(int userId, string medalId);
+        Task<int> CountUnlockedAsync();
+        Task<int> CountUnlockedByMedalIdAsync(string medalId);
     }
 }

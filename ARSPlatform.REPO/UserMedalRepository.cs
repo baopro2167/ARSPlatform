@@ -35,5 +35,15 @@ namespace ARSPlatform.REPOSITORIES
                 .Include(um => um.Medal)
                 .FirstOrDefaultAsync(um => um.UserId == userId && um.MedalId == medalId);
         }
+
+        public async Task<int> CountUnlockedAsync()
+        {
+            return await _dbSet.CountAsync(um => um.IsUnlocked);
+        }
+
+        public async Task<int> CountUnlockedByMedalIdAsync(string medalId)
+        {
+            return await _dbSet.CountAsync(um => um.MedalId == medalId && um.IsUnlocked);
+        }
     }
 }

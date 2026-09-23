@@ -24,6 +24,9 @@ namespace ARSPlatform.REPO.Interfaces
             Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
             params Expression<Func<T, object>>[] includes);
         Task<T?> GetByIdAsync(object id);
+        Task<T?> FindAsync(params object[] keyValues);
+        Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null);
+        Task<bool> AnyAsync(Expression<Func<T, bool>>? predicate = null);
         Task AddAsync(T entity);
         Task AddRangeAsync(IEnumerable<T> entities);
         void Update(T entity);
@@ -32,5 +35,8 @@ namespace ARSPlatform.REPO.Interfaces
         Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate);
         IQueryable<T> GetQueryable();
         Task SaveChangesAsync();
+        Task<int> CountAsync(Expression<Func<T, bool>> predicate = null);
+        Task<bool> AnyAsync(Expression<Func<T, bool>> predicate = null);
+        Task<T?> FindAsync(Expression<Func<T, bool>> predicate = null);
     }
 }

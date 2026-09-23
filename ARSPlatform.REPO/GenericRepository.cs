@@ -99,6 +99,21 @@ namespace ARSPlatform.REPOSITORIES
             return await _dbSet.FindAsync(id);
         }
 
+        public virtual async Task<T?> FindAsync(params object[] keyValues)
+        {
+            return await _dbSet.FindAsync(keyValues);
+        }
+
+        public virtual async Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null)
+        {
+            return predicate == null ? await _dbSet.CountAsync() : await _dbSet.CountAsync(predicate);
+        }
+
+        public virtual async Task<bool> AnyAsync(Expression<Func<T, bool>>? predicate = null)
+        {
+            return predicate == null ? await _dbSet.AnyAsync() : await _dbSet.AnyAsync(predicate);
+        }
+
         public virtual async Task AddAsync(T entity)
         {
             await _dbSet.AddAsync(entity);
@@ -134,6 +149,21 @@ namespace ARSPlatform.REPOSITORIES
             return _dbSet;
         }
 
+
+        public virtual async Task<int> CountAsync(Expression<Func<T, bool>> predicate = null)
+        {
+            return predicate == null ? await _dbSet.CountAsync() : await _dbSet.CountAsync(predicate);
+        }
+
+        public virtual async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate = null)
+        {
+            return predicate == null ? await _dbSet.AnyAsync() : await _dbSet.AnyAsync(predicate);
+        }
+
+        public virtual async Task<T?> FindAsync(Expression<Func<T, bool>> predicate = null)
+        {
+            return predicate == null ? await _dbSet.FirstOrDefaultAsync() : await _dbSet.FirstOrDefaultAsync(predicate);
+        }
         public virtual async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();

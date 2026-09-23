@@ -203,7 +203,7 @@ namespace ARSPlatform.SERVICES
             if (medal == null) return false;
 
             // Check if any UserMedal record references this medal
-            var usageCount = await _userMedalRepo.CountUnlockedByMedalIdAsync(id);
+            var usageCount = await _userMedalRepo.GetQueryable().CountAsync(um => um.MedalId == id && um.IsUnlocked);
             if (usageCount > 0)
             {
                 throw new InvalidOperationException(
@@ -222,7 +222,7 @@ namespace ARSPlatform.SERVICES
 
             foreach (var d in defaults)
             {
-                var existing = await _medalRepo.FindAsync(m => m.Id == d.Id || m.Code == d.Code);
+                var existing = await _medalRepo.GetQueryable().FirstOrDefaultAsync(m => m.Id == d.Id || m.Code == d.Code);
                 if (existing == null)
                 {
                     d.CreatedAt = DateTime.UtcNow;
@@ -322,8 +322,8 @@ namespace ARSPlatform.SERVICES
                 .ThenBy(m => m.StageLevel)
                 .ToListAsync();
 
-            var totalUsers = await _userRepo.CountAsync(u => u.IsActive == true);
-            var totalUnlocked = await _userMedalRepo.CountUnlockedAsync();
+            var totalUsers = await _userRepo.GetQueryable().CountAsync(u => u.IsActive == true);
+            var totalUnlocked = await _userMedalRepo.GetQueryable().CountAsync(um => um.IsUnlocked);
             var totalUsersWithMedals = await _userMedalRepo.GetQueryable().Where(um => um.IsUnlocked).Select(um => um.UserId).Distinct().CountAsync();
 
             var items = medals.Select(m => new MedalAnalyticsDto
@@ -516,7 +516,7 @@ namespace ARSPlatform.SERVICES
 
         public async Task<IEnumerable<UserMedalResponse>> GetUserMedalsAsync(int userId, bool includeLocked, int? callerId, bool isAdmin)
         {
-            var targetUserExists = await _userRepo.AnyAsync(u => u.UserId == userId);
+            var targetUserExists = await _userRepo.GetQueryable().AnyAsync(u => u.UserId == userId);
             if (!targetUserExists)
             {
                 throw new KeyNotFoundException($"User with ID {userId} not found.");
@@ -587,7 +587,7 @@ namespace ARSPlatform.SERVICES
 
         public async Task EvaluateUserMedalsAsync(int userId)
         {
-            var user = await _userRepo.FindAsync(u => u.UserId == userId);
+            var user = await _userRepo.GetQueryable().FirstOrDefaultAsync(u => u.UserId == userId);
             if (user == null) return;
 
             // 1. Calculate user metrics across all domain tables
