@@ -1,0 +1,845 @@
+--- MATCH LINE 22 ---
+17:     public class MedalService : IMedalService
+18:     {
+19:         private readonly IMedalRepository _medalRepo;
+20:         private readonly IUserMedalRepository _userMedalRepo;
+21:         private readonly INotificationRepository _notificationRepo;
+22:         private readonly AppDbContext _context;
+23:         private readonly IMapper _mapper;
+24:         private readonly IAuditLogService _auditLogService;
+25: 
+26:         public MedalService(
+27:             IMedalRepository medalRepo,
+
+--- MATCH LINE 30 ---
+25: 
+26:         public MedalService(
+27:             IMedalRepository medalRepo,
+28:             IUserMedalRepository userMedalRepo,
+29:             INotificationRepository notificationRepo,
+30:             AppDbContext context,
+31:             IMapper mapper,
+32:             IAuditLogService auditLogService)
+33:         {
+34:             _medalRepo = medalRepo;
+35:             _userMedalRepo = userMedalRepo;
+
+--- MATCH LINE 37 ---
+32:             IAuditLogService auditLogService)
+33:         {
+34:             _medalRepo = medalRepo;
+35:             _userMedalRepo = userMedalRepo;
+36:             _notificationRepo = notificationRepo;
+37:             _context = context;
+38:             _mapper = mapper;
+39:             _auditLogService = auditLogService;
+40:         }
+41: 
+42:         #region Admin Methods
+
+--- MATCH LINE 173 ---
+168:         {
+169:             var medal = await _medalRepo.GetByIdAsync(id);
+170:             if (medal == null) return false;
+171: 
+172:             // Check if any UserMedal record references this medal
+173:             var usageCount = await _context.UserMedals.CountAsync(um => um.MedalId == id);
+174:             if (usageCount > 0)
+175:             {
+176:                 throw new InvalidOperationException(
+177:                     $"Huy hiệu đang được {usageCount} người dùng sử dụng. Admin nên tắt huy hiệu thay vì xóa.");
+178:             }
+
+--- MATCH LINE 192 ---
+187:             var defaults = GetDefaultMedals();
+188:             var defaultCodes = defaults.Select(d => d.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+189: 
+190:             foreach (var d in defaults)
+191:             {
+192:                 var existing = await _context.Medals.FirstOrDefaultAsync(m => m.Id == d.Id || m.Code == d.Code);
+193:                 if (existing == null)
+194:                 {
+195:                     d.CreatedAt = DateTime.UtcNow;
+196:                     d.UpdatedAt = DateTime.UtcNow;
+197:                     await _medalRepo.AddAsync(d);
+
+--- MATCH LINE 223 ---
+218:                     _medalRepo.Update(existing);
+219:                 }
+220:             }
+221: 
+222:             // Deactivate legacy medals not part of canonical 25 medals
+223:             var legacyMedals = await _context.Medals.Where(m => !defaultCodes.Contains(m.Code) && m.IsActive).ToListAsync();
+224:             foreach (var leg in legacyMedals)
+225:             {
+226:                 leg.IsActive = false;
+227:                 leg.UpdatedAt = DateTime.UtcNow;
+228:                 _medalRepo.Update(leg);
+
+--- MATCH LINE 238 ---
+233:             return await GetAllAsync();
+234:         }
+235: 
+236:         public async Task<IEnumerable<MedalDropdownCategoryDto>> GetMedalsDropdownAsync(string? role = null)
+237:         {
+238:             var query = _context.Medals.AsNoTracking().Where(m => m.IsActive);
+239:             var medals = await query.ToListAsync();
+240: 
+241:             if (!string.IsNullOrWhiteSpace(role) && !string.Equals(role, "ALL", StringComparison.OrdinalIgnoreCase))
+242:             {
+243:                 medals = medals.Where(m => MedalMatchesRoles(m, new[] { role })).ToList();
+
+--- MATCH LINE 285 ---
+280:             return categories;
+281:         }
+282: 
+283:         public async Task<MedalAnalyticsResponse> GetMedalsAnalyticsAsync()
+284:         {
+285:             var medals = await _context.Medals
+286:                 .AsNoTracking()
+287:                 .Include(m => m.UserMedals)
+288:                 .OrderBy(m => m.MetricCode)
+289:                 .ThenBy(m => m.StageLevel)
+290:                 .ToListAsync();
+
+--- MATCH LINE 292 ---
+287:                 .Include(m => m.UserMedals)
+288:                 .OrderBy(m => m.MetricCode)
+289:                 .ThenBy(m => m.StageLevel)
+290:                 .ToListAsync();
+291: 
+292:             var totalUsers = await _context.Users.CountAsync(u => u.IsActive == true);
+293:             var totalUnlocked = await _context.UserMedals.CountAsync(um => um.IsUnlocked);
+294:             var totalUsersWithMedals = await _context.UserMedals
+295:                 .Where(um => um.IsUnlocked)
+296:                 .Select(um => um.UserId)
+297:                 .Distinct()
+
+--- MATCH LINE 293 ---
+288:                 .OrderBy(m => m.MetricCode)
+289:                 .ThenBy(m => m.StageLevel)
+290:                 .ToListAsync();
+291: 
+292:             var totalUsers = await _context.Users.CountAsync(u => u.IsActive == true);
+293:             var totalUnlocked = await _context.UserMedals.CountAsync(um => um.IsUnlocked);
+294:             var totalUsersWithMedals = await _context.UserMedals
+295:                 .Where(um => um.IsUnlocked)
+296:                 .Select(um => um.UserId)
+297:                 .Distinct()
+298:                 .CountAsync();
+
+--- MATCH LINE 294 ---
+289:                 .ThenBy(m => m.StageLevel)
+290:                 .ToListAsync();
+291: 
+292:             var totalUsers = await _context.Users.CountAsync(u => u.IsActive == true);
+293:             var totalUnlocked = await _context.UserMedals.CountAsync(um => um.IsUnlocked);
+294:             var totalUsersWithMedals = await _context.UserMedals
+295:                 .Where(um => um.IsUnlocked)
+296:                 .Select(um => um.UserId)
+297:                 .Distinct()
+298:                 .CountAsync();
+299: 
+
+--- MATCH LINE 328 ---
+323:             };
+324:         }
+325: 
+326:         public async Task<IEnumerable<MedalUserDetailDto>> GetMedalUsersAsync(string medalId)
+327:         {
+328:             var medal = await _context.Medals
+329:                 .AsNoTracking()
+330:                 .FirstOrDefaultAsync(m => m.Id == medalId || m.Code == medalId);
+331: 
+332:             if (medal == null)
+333:             {
+
+--- MATCH LINE 337 ---
+332:             if (medal == null)
+333:             {
+334:                 throw new KeyNotFoundException($"Medal with ID or Code '{medalId}' not found.");
+335:             }
+336: 
+337:             var userMedals = await _context.UserMedals
+338:                 .AsNoTracking()
+339:                 .Include(um => um.User)
+340:                     .ThenInclude(u => u.UserRoles)
+341:                         .ThenInclude(ur => ur.Role)
+342:                 .Where(um => um.MedalId == medal.Id && um.IsUnlocked)
+
+--- MATCH LINE 366 ---
+361:             });
+362:         }
+363: 
+364:         public async Task<UserMedalProgressDto> GetUserMedalProgressAsync(int userId, string medalId)
+365:         {
+366:             var user = await _context.Users
+367:                 .AsNoTracking()
+368:                 .Include(u => u.UserRoles)
+369:                     .ThenInclude(ur => ur.Role)
+370:                 .FirstOrDefaultAsync(u => u.UserId == userId);
+371: 
+
+--- MATCH LINE 377 ---
+372:             if (user == null)
+373:             {
+374:                 throw new KeyNotFoundException($"User with ID {userId} not found.");
+375:             }
+376: 
+377:             var medal = await _context.Medals
+378:                 .AsNoTracking()
+379:                 .FirstOrDefaultAsync(m => m.Id == medalId || m.Code == medalId);
+380: 
+381:             if (medal == null)
+382:             {
+
+--- MATCH LINE 389 ---
+384:             }
+385: 
+386:             // Fresh calculation of user metrics
+387:             await EvaluateUserMedalsAsync(userId);
+388: 
+389:             var userMedal = await _context.UserMedals
+390:                 .AsNoTracking()
+391:                 .FirstOrDefaultAsync(um => um.UserId == userId && um.MedalId == medal.Id);
+392: 
+393:             var currentProgress = userMedal?.CurrentProgress ?? 0;
+394:             var isUnlocked = userMedal?.IsUnlocked ?? (currentProgress >= medal.CriteriaThreshold);
+
+--- MATCH LINE 442 ---
+437:         public async Task<IEnumerable<UserMedalResponse>> GetMyMedalsAsync(int userId)
+438:         {
+439:             // Evaluate dynamically first to guarantee historical metrics are calculated
+440:             await EvaluateUserMedalsAsync(userId);
+441: 
+442:             var activeMedals = await _context.Medals
+443:                 .AsNoTracking()
+444:                 .Where(m => m.IsActive)
+445:                 .OrderBy(m => m.Roles)
+446:                 .ThenBy(m => m.StageLevel)
+447:                 .ToListAsync();
+
+--- MATCH LINE 490 ---
+485:             return _mapper.Map<IEnumerable<UserMedalResponse>>(unlockedMedals);
+486:         }
+487: 
+488:         public async Task<IEnumerable<UserMedalResponse>> GetUserMedalsAsync(int userId, bool includeLocked, int? callerId, bool isAdmin)
+489:         {
+490:             var targetUserExists = await _context.Users.AnyAsync(u => u.UserId == userId);
+491:             if (!targetUserExists)
+492:             {
+493:                 throw new KeyNotFoundException($"User with ID {userId} not found.");
+494:             }
+495: 
+
+--- MATCH LINE 504 ---
+499:             }
+500: 
+501:             // If includeLocked is true, caller must be the user themself, an Admin, or a supervising Lecturer
+502:             if (!isAdmin && (!callerId.HasValue || callerId.Value != userId))
+503:             {
+504:                 var isSupervisor = callerId.HasValue && await _context.ResearchGroups
+505:                     .AnyAsync(rg => rg.LecturerId == callerId.Value && rg.GroupMembers.Any(gm => gm.StudentId == userId));
+506: 
+507:                 if (!isSupervisor)
+508:                 {
+509:                     throw new UnauthorizedAccessException("Not authorized to view locked medals for this user.");
+
+--- MATCH LINE 515 ---
+510:                 }
+511:             }
+512: 
+513:             await EvaluateUserMedalsAsync(userId);
+514: 
+515:             var activeMedals = await _context.Medals
+516:                 .AsNoTracking()
+517:                 .Where(m => m.IsActive)
+518:                 .OrderBy(m => m.Roles)
+519:                 .ThenBy(m => m.StageLevel)
+520:                 .ToListAsync();
+
+--- MATCH LINE 561 ---
+556:                 .ToList();
+557:         }
+558: 
+559:         public async Task EvaluateUserMedalsAsync(int userId)
+560:         {
+561:             var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId);
+562:             if (user == null) return;
+563: 
+564:             // 1. Calculate user metrics across all domain tables
+565:             var publishedPapersCount = await _context.Papers
+566:                 .AsNoTracking()
+
+--- MATCH LINE 565 ---
+560:         {
+561:             var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId);
+562:             if (user == null) return;
+563: 
+564:             // 1. Calculate user metrics across all domain tables
+565:             var publishedPapersCount = await _context.Papers
+566:                 .AsNoTracking()
+567:                 .CountAsync(p => p.CreatorId == userId &&
+568:                     (p.Status == "Published" || p.Status == "PUBLISHED" || p.Status == "Accepted" || p.Status == "Approved"));
+569: 
+570:             var orcidConnectedVal = (user.IsOrcidVerified || !string.IsNullOrWhiteSpace(user.OrcidId)) ? 1 : 0;
+
+--- MATCH LINE 572 ---
+567:                 .CountAsync(p => p.CreatorId == userId &&
+568:                     (p.Status == "Published" || p.Status == "PUBLISHED" || p.Status == "Accepted" || p.Status == "Approved"));
+569: 
+570:             var orcidConnectedVal = (user.IsOrcidVerified || !string.IsNullOrWhiteSpace(user.OrcidId)) ? 1 : 0;
+571: 
+572:             var orcidVerifiedPapersCount = await _context.Papers
+573:                 .AsNoTracking()
+574:                 .CountAsync(p => p.CreatorId == userId &&
+575:                     (p.AuthorshipVerificationStatus == "APPROVED" ||
+576:                      p.AuthorshipVerificationStatus == "VERIFIED" ||
+577:                      p.AuthorshipVerificationStatus == "MANUALLY_VERIFIED" ||
+
+--- MATCH LINE 581 ---
+576:                      p.AuthorshipVerificationStatus == "VERIFIED" ||
+577:                      p.AuthorshipVerificationStatus == "MANUALLY_VERIFIED" ||
+578:                      p.AuthorshipVerificationStatus == "AUTOMATICALLY_VERIFIED" ||
+579:                      (user.IsOrcidVerified && (p.Status == "Published" || p.Status == "PUBLISHED"))));
+580: 
+581:             var hostedSeminarsCount = await _context.Seminars
+582:                 .AsNoTracking()
+583:                 .CountAsync(s => s.OrganizerId == userId &&
+584:                     (s.Status == "Completed" || s.Status == "COMPLETED" || s.EndTime <= DateTime.UtcNow));
+585: 
+586:             var attendedSeminarsCount = await _context.SeminarParticipants
+
+--- MATCH LINE 586 ---
+581:             var hostedSeminarsCount = await _context.Seminars
+582:                 .AsNoTracking()
+583:                 .CountAsync(s => s.OrganizerId == userId &&
+584:                     (s.Status == "Completed" || s.Status == "COMPLETED" || s.EndTime <= DateTime.UtcNow));
+585: 
+586:             var attendedSeminarsCount = await _context.SeminarParticipants
+587:                 .AsNoTracking()
+588:                 .CountAsync(sp => sp.UserId == userId &&
+589:                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson) || sp.InvitationStatus == "Accepted"));
+590: 
+591:             var completedReviewsCount = await _context.DetailedEvaluations
+
+--- MATCH LINE 591 ---
+586:             var attendedSeminarsCount = await _context.SeminarParticipants
+587:                 .AsNoTracking()
+588:                 .CountAsync(sp => sp.UserId == userId &&
+589:                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson) || sp.InvitationStatus == "Accepted"));
+590: 
+591:             var completedReviewsCount = await _context.DetailedEvaluations
+592:                 .AsNoTracking()
+593:                 .Where(de => de.ReviewerId == userId)
+594:                 .Select(de => de.ReviewRequestId)
+595:                 .Distinct()
+596:                 .CountAsync();
+
+--- MATCH LINE 598 ---
+593:                 .Where(de => de.ReviewerId == userId)
+594:                 .Select(de => de.ReviewRequestId)
+595:                 .Distinct()
+596:                 .CountAsync();
+597: 
+598:             var guidedGroupsCount = await _context.ResearchGroups
+599:                 .AsNoTracking()
+600:                 .CountAsync(rg => rg.LecturerId == userId &&
+601:                     rg.PhasedReports.Any() &&
+602:                     rg.PhasedReports.All(pr => pr.Status == "APPROVED" || pr.Status == "Completed"));
+603: 
+
+--- MATCH LINE 604 ---
+599:                 .AsNoTracking()
+600:                 .CountAsync(rg => rg.LecturerId == userId &&
+601:                     rg.PhasedReports.Any() &&
+602:                     rg.PhasedReports.All(pr => pr.Status == "APPROVED" || pr.Status == "Completed"));
+603: 
+604:             var flawlessPhasesCount = await _context.PhasedReports
+605:                 .AsNoTracking()
+606:                 .CountAsync(pr => pr.ResearchGroup != null &&
+607:                     pr.ResearchGroup.GroupMembers.Any(gm => gm.StudentId == userId) &&
+608:                     (pr.Status == "APPROVED" || pr.Status == "Completed"));
+609: 
+
+--- MATCH LINE 612 ---
+607:                     pr.ResearchGroup.GroupMembers.Any(gm => gm.StudentId == userId) &&
+608:                     (pr.Status == "APPROVED" || pr.Status == "Completed"));
+609: 
+610:             if (flawlessPhasesCount == 0)
+611:             {
+612:                 flawlessPhasesCount = await _context.GroupMembers
+613:                     .AsNoTracking()
+614:                     .CountAsync(gm => gm.StudentId == userId);
+615:             }
+616: 
+617:             // 7 Canonical Metric Engine Metrics
+
+--- MATCH LINE 618 ---
+613:                     .AsNoTracking()
+614:                     .CountAsync(gm => gm.StudentId == userId);
+615:             }
+616: 
+617:             // 7 Canonical Metric Engine Metrics
+618:             var seminarHostQualityCount = await _context.SeminarParticipants
+619:                 .AsNoTracking()
+620:                 .CountAsync(sp => sp.Seminar.OrganizerId == userId &&
+621:                     (sp.Seminar.Status == "Completed" || sp.Seminar.Status == "COMPLETED" || sp.Seminar.EndTime <= DateTime.UtcNow) &&
+622:                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson)));
+623: 
+
+--- MATCH LINE 624 ---
+619:                 .AsNoTracking()
+620:                 .CountAsync(sp => sp.Seminar.OrganizerId == userId &&
+621:                     (sp.Seminar.Status == "Completed" || sp.Seminar.Status == "COMPLETED" || sp.Seminar.EndTime <= DateTime.UtcNow) &&
+622:                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson)));
+623: 
+624:             var seminarParticipantCount = await _context.SeminarParticipants
+625:                 .AsNoTracking()
+626:                 .CountAsync(sp => sp.UserId == userId &&
+627:                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson)));
+628: 
+629:             var userPostIds = await _context.ForumPosts
+
+--- MATCH LINE 629 ---
+624:             var seminarParticipantCount = await _context.SeminarParticipants
+625:                 .AsNoTracking()
+626:                 .CountAsync(sp => sp.UserId == userId &&
+627:                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson)));
+628: 
+629:             var userPostIds = await _context.ForumPosts
+630:                 .AsNoTracking()
+631:                 .Where(p => p.UserId == userId)
+632:                 .Select(p => p.ForumPostId)
+633:                 .ToListAsync();
+634: 
+
+--- MATCH LINE 638 ---
+633:                 .ToListAsync();
+634: 
+635:             int communityPostReachCount = 0;
+636:             if (userPostIds.Any())
+637:             {
+638:                 var postLikes = await _context.ForumPostLikes
+639:                     .AsNoTracking()
+640:                     .CountAsync(l => userPostIds.Contains(l.ForumPostId));
+641:                 var postComments = await _context.ForumComments
+642:                     .AsNoTracking()
+643:                     .CountAsync(c => c.ForumPostId.HasValue && userPostIds.Contains(c.ForumPostId.Value));
+
+--- MATCH LINE 641 ---
+636:             if (userPostIds.Any())
+637:             {
+638:                 var postLikes = await _context.ForumPostLikes
+639:                     .AsNoTracking()
+640:                     .CountAsync(l => userPostIds.Contains(l.ForumPostId));
+641:                 var postComments = await _context.ForumComments
+642:                     .AsNoTracking()
+643:                     .CountAsync(c => c.ForumPostId.HasValue && userPostIds.Contains(c.ForumPostId.Value));
+644:                 communityPostReachCount = postLikes + postComments;
+645:             }
+646: 
+
+--- MATCH LINE 647 ---
+642:                     .AsNoTracking()
+643:                     .CountAsync(c => c.ForumPostId.HasValue && userPostIds.Contains(c.ForumPostId.Value));
+644:                 communityPostReachCount = postLikes + postComments;
+645:             }
+646: 
+647:             var postLikesGiven = await _context.ForumPostLikes
+648:                 .AsNoTracking()
+649:                 .CountAsync(l => l.UserId == userId);
+650:             var commentVotesGiven = await _context.CommentVotes
+651:                 .AsNoTracking()
+652:                 .CountAsync(v => v.UserId == userId);
+
+--- MATCH LINE 650 ---
+645:             }
+646: 
+647:             var postLikesGiven = await _context.ForumPostLikes
+648:                 .AsNoTracking()
+649:                 .CountAsync(l => l.UserId == userId);
+650:             var commentVotesGiven = await _context.CommentVotes
+651:                 .AsNoTracking()
+652:                 .CountAsync(v => v.UserId == userId);
+653:             var commentsWritten = await _context.ForumComments
+654:                 .AsNoTracking()
+655:                 .CountAsync(c => c.UserId == userId);
+
+--- MATCH LINE 653 ---
+648:                 .AsNoTracking()
+649:                 .CountAsync(l => l.UserId == userId);
+650:             var commentVotesGiven = await _context.CommentVotes
+651:                 .AsNoTracking()
+652:                 .CountAsync(v => v.UserId == userId);
+653:             var commentsWritten = await _context.ForumComments
+654:                 .AsNoTracking()
+655:                 .CountAsync(c => c.UserId == userId);
+656:             int communityEngagementCount = postLikesGiven + commentVotesGiven + commentsWritten;
+657: 
+658:             var userCommentIds = await _context.ForumComments
+
+--- MATCH LINE 658 ---
+653:             var commentsWritten = await _context.ForumComments
+654:                 .AsNoTracking()
+655:                 .CountAsync(c => c.UserId == userId);
+656:             int communityEngagementCount = postLikesGiven + commentVotesGiven + commentsWritten;
+657: 
+658:             var userCommentIds = await _context.ForumComments
+659:                 .AsNoTracking()
+660:                 .Where(c => c.UserId == userId)
+661:                 .Select(c => c.ForumCommentId)
+662:                 .ToListAsync();
+663: 
+
+--- MATCH LINE 667 ---
+662:                 .ToListAsync();
+663: 
+664:             int communityTopCommentCount = 0;
+665:             if (userCommentIds.Any())
+666:             {
+667:                 var maxVotes = await _context.CommentVotes
+668:                     .AsNoTracking()
+669:                     .Where(v => userCommentIds.Contains(v.ForumCommentId))
+670:                     .GroupBy(v => v.ForumCommentId)
+671:                     .Select(g => g.Count())
+672:                     .OrderByDescending(c => c)
+
+--- MATCH LINE 675 ---
+670:                     .GroupBy(v => v.ForumCommentId)
+671:                     .Select(g => g.Count())
+672:                     .OrderByDescending(c => c)
+673:                     .FirstOrDefaultAsync();
+674: 
+675:                 var maxUpvoteCol = await _context.ForumComments
+676:                     .AsNoTracking()
+677:                     .Where(c => c.UserId == userId && c.UpvoteCount.HasValue)
+678:                     .Select(c => c.UpvoteCount!.Value)
+679:                     .OrderByDescending(v => v)
+680:                     .FirstOrDefaultAsync();
+
+--- MATCH LINE 686 ---
+681: 
+682:                 communityTopCommentCount = Math.Max(maxVotes, maxUpvoteCol);
+683:             }
+684: 
+685:             // 2. Fetch all active medals
+686:             var medals = await _context.Medals
+687:                 .AsNoTracking()
+688:                 .Where(m => m.IsActive)
+689:                 .ToListAsync();
+690: 
+691:             // 3. Fetch existing UserMedal records for this user
+
+--- MATCH LINE 692 ---
+687:                 .AsNoTracking()
+688:                 .Where(m => m.IsActive)
+689:                 .ToListAsync();
+690: 
+691:             // 3. Fetch existing UserMedal records for this user
+692:             var existingUserMedals = await _context.UserMedals
+693:                 .Where(um => um.UserId == userId)
+694:                 .ToDictionaryAsync(um => um.MedalId);
+695: 
+696:             var newlyUnlockedMedals = new List<Medal>();
+697: 
+
+--- MATCH LINE 742 ---
+737:                             newlyUnlockedMedals.Add(medal);
+738:                         }
+739:                     }
+740: 
+741:                     userMedal.UpdatedAt = DateTime.UtcNow;
+742:                     _context.UserMedals.Update(userMedal);
+743:                 }
+744:                 else
+745:                 {
+746:                     var isUnlocked = currentProgress >= medal.CriteriaThreshold;
+747:                     var newUserMedal = new UserMedal
+
+--- MATCH LINE 759 ---
+754:                         AwardedAt = DateTime.UtcNow,
+755:                         CreatedAt = DateTime.UtcNow,
+756:                         UpdatedAt = DateTime.UtcNow
+757:                     };
+758: 
+759:                     await _context.UserMedals.AddAsync(newUserMedal);
+760: 
+761:                     if (isUnlocked)
+762:                     {
+763:                         newlyUnlockedMedals.Add(medal);
+764:                     }
+
+--- MATCH LINE 769 ---
+764:                     }
+765:                 }
+766:             }
+767: 
+768:             // Save user medals updates
+769:             await _context.SaveChangesAsync();
+770: 
+771:             // 4. Send in-app notification for each newly unlocked medal
+772:             foreach (var medal in newlyUnlockedMedals)
+773:             {
+774:                 var notif = new Notification
+
+--- MATCH LINE 809 ---
+804:             if (request.ForceUnlocked && string.IsNullOrWhiteSpace(request.AwardedReason))
+805:             {
+806:                 throw new ArgumentException("AwardedReason is required when forceUnlocked is true.");
+807:             }
+808: 
+809:             var user = await _context.Users
+810:                 .Include(u => u.UserRoles)
+811:                 .ThenInclude(ur => ur.Role)
+812:                 .FirstOrDefaultAsync(u => u.UserId == request.UserId);
+813: 
+814:             if (user == null)
+
+--- MATCH LINE 820 ---
+815:             {
+816:                 throw new KeyNotFoundException($"User with ID '{request.UserId}' not found.");
+817:             }
+818: 
+819:             var medalCodeNormalized = request.MedalCode.Trim();
+820:             var medal = await _context.Medals
+821:                 .FirstOrDefaultAsync(m => m.Code == medalCodeNormalized || m.Code.ToLower() == medalCodeNormalized.ToLower());
+822: 
+823:             if (medal == null)
+824:             {
+825:                 throw new KeyNotFoundException($"Medal with code '{request.MedalCode}' not found.");
+
+--- MATCH LINE 842 ---
+837:                 throw new InvalidOperationException($"Medal '{medal.Code}' does not apply to any role possessed by user {user.UserId} (User Roles: {string.Join(", ", userRoles)}).");
+838:             }
+839: 
+840:             var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+841: 
+842:             var existing = await _context.UserMedals
+843:                 .Include(um => um.Medal)
+844:                 .FirstOrDefaultAsync(um => um.UserId == request.UserId && um.MedalId == medal.Id);
+845: 
+846:             if (existing != null)
+847:             {
+
+--- MATCH LINE 868 ---
+863:                 existing.AwardedByAdminId = adminId;
+864:                 existing.AwardedReason = request.AwardedReason ?? existing.AwardedReason;
+865:                 existing.CorrelationId = correlationId;
+866:                 existing.UpdatedAt = DateTime.UtcNow;
+867: 
+868:                 _context.UserMedals.Update(existing);
+869:                 await _context.SaveChangesAsync();
+870: 
+871:                 await _auditLogService.CreateAsync(new AuditLogCreateRequest
+872:                 {
+873:                     AdminId = adminId,
+
+--- MATCH LINE 869 ---
+864:                 existing.AwardedReason = request.AwardedReason ?? existing.AwardedReason;
+865:                 existing.CorrelationId = correlationId;
+866:                 existing.UpdatedAt = DateTime.UtcNow;
+867: 
+868:                 _context.UserMedals.Update(existing);
+869:                 await _context.SaveChangesAsync();
+870: 
+871:                 await _auditLogService.CreateAsync(new AuditLogCreateRequest
+872:                 {
+873:                     AdminId = adminId,
+874:                     AdminName = adminName,
+
+--- MATCH LINE 906 ---
+901:                 Status = MedalStatus.Active
+902:             };
+903: 
+904:             try
+905:             {
+906:                 await _context.UserMedals.AddAsync(newRow);
+907:                 await _context.SaveChangesAsync();
+908:             }
+909:             catch (DbUpdateException)
+910:             {
+911:                 _context.ChangeTracker.Clear();
+
+--- MATCH LINE 907 ---
+902:             };
+903: 
+904:             try
+905:             {
+906:                 await _context.UserMedals.AddAsync(newRow);
+907:                 await _context.SaveChangesAsync();
+908:             }
+909:             catch (DbUpdateException)
+910:             {
+911:                 _context.ChangeTracker.Clear();
+912:                 var raced = await _context.UserMedals
+
+--- MATCH LINE 911 ---
+906:                 await _context.UserMedals.AddAsync(newRow);
+907:                 await _context.SaveChangesAsync();
+908:             }
+909:             catch (DbUpdateException)
+910:             {
+911:                 _context.ChangeTracker.Clear();
+912:                 var raced = await _context.UserMedals
+913:                     .Include(um => um.Medal)
+914:                     .FirstOrDefaultAsync(um => um.UserId == request.UserId && um.MedalId == medal.Id);
+915:                 if (raced != null)
+916:                 {
+
+--- MATCH LINE 912 ---
+907:                 await _context.SaveChangesAsync();
+908:             }
+909:             catch (DbUpdateException)
+910:             {
+911:                 _context.ChangeTracker.Clear();
+912:                 var raced = await _context.UserMedals
+913:                     .Include(um => um.Medal)
+914:                     .FirstOrDefaultAsync(um => um.UserId == request.UserId && um.MedalId == medal.Id);
+915:                 if (raced != null)
+916:                 {
+917:                     return (_mapper.Map<UserMedalResponse>(raced), false);
+
+--- MATCH LINE 944 ---
+939:             if (request.UserId <= 0)
+940:             {
+941:                 throw new ArgumentException("Valid UserId is required.");
+942:             }
+943: 
+944:             var user = await _context.Users
+945:                 .Include(u => u.UserRoles)
+946:                 .ThenInclude(ur => ur.Role)
+947:                 .FirstOrDefaultAsync(u => u.UserId == request.UserId);
+948: 
+949:             if (user == null)
+
+--- MATCH LINE 970 ---
+965:                 string.Equals(r, "Graduate Student", StringComparison.OrdinalIgnoreCase))
+966:                 ?? userRoles.FirstOrDefault()
+967:                 ?? "Researcher";
+968: 
+969:             // Fetch active medals
+970:             var query = _context.Medals.Where(m => m.IsActive).AsQueryable();
+971: 
+972:             if (!request.IncludePlatinum)
+973:             {
+974:                 query = query.Where(m => m.Tier.ToLower() != "platinum");
+975:             }
+
+--- MATCH LINE 995 ---
+990:             var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+991:             var awardedRows = new List<MedalDevGrantRow>();
+992:             var awardedCount = 0;
+993:             var skippedCount = 0;
+994: 
+995:             var existingUserMedals = await _context.UserMedals
+996:                 .Where(um => um.UserId == request.UserId)
+997:                 .ToDictionaryAsync(um => um.MedalId);
+998: 
+999:             var childAuditRequests = new List<AuditLogCreateRequest>();
+1000: 
+
+--- MATCH LINE 1001 ---
+996:                 .Where(um => um.UserId == request.UserId)
+997:                 .ToDictionaryAsync(um => um.MedalId);
+998: 
+999:             var childAuditRequests = new List<AuditLogCreateRequest>();
+1000: 
+1001:             using var transaction = await _context.Database.BeginTransactionAsync();
+1002:             try
+1003:             {
+1004:                 foreach (var medal in matchingMedals)
+1005:                 {
+1006:                     if (existingUserMedals.TryGetValue(medal.Id, out var existing))
+
+--- MATCH LINE 1015 ---
+1010:                         if (!existing.UnlockedAt.HasValue) existing.UnlockedAt = DateTime.UtcNow;
+1011:                         existing.AwardedByAdminId = adminId;
+1012:                         existing.AwardedReason = request.AwardedReason ?? "Dev role seeding";
+1013:                         existing.CorrelationId = correlationId;
+1014:                         existing.UpdatedAt = DateTime.UtcNow;
+1015:                         _context.UserMedals.Update(existing);
+1016: 
+1017:                         awardedRows.Add(new MedalDevGrantRow
+1018:                         {
+1019:                             Id = existing.Id,
+1020:                             MedalCode = medal.Code,
+
+--- MATCH LINE 1053 ---
+1048:                             CreatedAt = DateTime.UtcNow,
+1049:                             UpdatedAt = DateTime.UtcNow,
+1050:                             Status = MedalStatus.Active
+1051:                         };
+1052: 
+1053:                         await _context.UserMedals.AddAsync(newUm);
+1054:                         await _context.SaveChangesAsync();
+1055: 
+1056:                         awardedRows.Add(new MedalDevGrantRow
+1057:                         {
+1058:                             Id = newUm.Id,
+
+--- MATCH LINE 1054 ---
+1049:                             UpdatedAt = DateTime.UtcNow,
+1050:                             Status = MedalStatus.Active
+1051:                         };
+1052: 
+1053:                         await _context.UserMedals.AddAsync(newUm);
+1054:                         await _context.SaveChangesAsync();
+1055: 
+1056:                         awardedRows.Add(new MedalDevGrantRow
+1057:                         {
+1058:                             Id = newUm.Id,
+1059:                             MedalCode = medal.Code,
+
+--- MATCH LINE 1076 ---
+1071:                             Details = $"Granted {medal.Code} as part of role seeding (parent: {correlationId})"
+1072:                         });
+1073:                     }
+1074:                 }
+1075: 
+1076:                 await _context.SaveChangesAsync();
+1077: 
+1078:                 // Parent audit log
+1079:                 await _auditLogService.CreateAsync(new AuditLogCreateRequest
+1080:                 {
+1081:                     AdminId = adminId,
+
+--- MATCH LINE 1705 ---
+1700:         /// Admin bật/tắt trạng thái hiển thị của 1 bản ghi UserMedal (cấp huy hiệu cho user cụ thể).
+1701:         /// Chỉ áp dụng cho các UserMedal đã được cấp (AwardedByAdminId != null) - theo ticket BE-MEDAL-GRANT-01.
+1702:         /// </summary>
+1703:         public async Task<UserMedalResponse> UpdateUserMedalStatusAsync(long userMedalId, MedalStatus newStatus, int adminId, string adminName)
+1704:         {
+1705:             var userMedal = await _context.UserMedals
+1706:                 .Include(um => um.Medal)
+1707:                 .FirstOrDefaultAsync(um => um.Id == userMedalId);
+1708: 
+1709:             if (userMedal == null)
+1710:             {
+
+--- MATCH LINE 1723 ---
+1718:                 return _mapper.Map<UserMedalResponse>(userMedal);
+1719:             }
+1720: 
+1721:             userMedal.Status = newStatus;
+1722:             userMedal.UpdatedAt = DateTime.UtcNow;
+1723:             _context.UserMedals.Update(userMedal);
+1724:             await _context.SaveChangesAsync();
+1725: 
+1726:             var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+1727:             var medalCode = userMedal.Medal?.Code ?? userMedal.MedalId;
+1728: 
+
+--- MATCH LINE 1724 ---
+1719:             }
+1720: 
+1721:             userMedal.Status = newStatus;
+1722:             userMedal.UpdatedAt = DateTime.UtcNow;
+1723:             _context.UserMedals.Update(userMedal);
+1724:             await _context.SaveChangesAsync();
+1725: 
+1726:             var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+1727:             var medalCode = userMedal.Medal?.Code ?? userMedal.MedalId;
+1728: 
+1729:             await _auditLogService.CreateAsync(new AuditLogCreateRequest
+

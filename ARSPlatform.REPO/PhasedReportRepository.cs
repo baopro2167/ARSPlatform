@@ -46,5 +46,21 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await GetByGroupMemberIdPagedAsync(groupMemberId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
+
+        public async Task<bool> AnyByLearningMaterialIdAsync(int materialId, string? fileUrl)
+        {
+            var idString = materialId.ToString();
+            var hasFileUrl = !string.IsNullOrWhiteSpace(fileUrl);
+
+            return await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(_dbSet, p =>
+                p.PhasedMaterialsUrl != null &&
+                (
+                    (hasFileUrl && p.PhasedMaterialsUrl.Contains(fileUrl!)) ||
+                    p.PhasedMaterialsUrl == idString ||
+                    p.PhasedMaterialsUrl.Contains($"/materials/{materialId}") ||
+                    p.PhasedMaterialsUrl.Contains($"/learning-materials/{materialId}") ||
+                    p.PhasedMaterialsUrl.Contains($"materialId={materialId}")
+                ));
+        }
     }
 }

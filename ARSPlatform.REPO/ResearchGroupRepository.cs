@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
@@ -39,6 +40,13 @@ namespace ARSPlatform.REPOSITORIES
         public async Task<PagedResult<ResearchGroup>> GetByTopicIdPagedAsync(int topicId, int pageNumber, int pageSize)
         {
             return await GetByTopicIdPagedAsync(topicId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+
+        public async Task<ResearchGroup?> GetWithMembersAsync(int groupId)
+        {
+            return await _dbSet
+                .Include(g => g.GroupMembers)
+                .FirstOrDefaultAsync(g => g.ResearchGroupId == groupId);
         }
     }
 }

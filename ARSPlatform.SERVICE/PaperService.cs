@@ -50,7 +50,9 @@ namespace ARSPlatform.SERVICES
         private readonly IExternalApiService _externalApiService;
         private readonly IOpenAlexService _openAlexService;
         private readonly IMapper _mapper;
-        private readonly AppDbContext _dbContext;
+        private readonly IUserRepository _userRepository;
+        private readonly INotificationRepository _notificationRepository;
+        private readonly IReviewRequestRepository _reviewRequestRepository;
         private readonly IUserRewardService _userRewardService;
         private readonly INotificationService _notificationService;
         private readonly IUserSubscriptionRepository _userSubscriptionRepository;
@@ -63,7 +65,9 @@ namespace ARSPlatform.SERVICES
             IExternalApiService externalApiService,
             IOpenAlexService openAlexService,
             IMapper mapper,
-            AppDbContext dbContext,
+            IUserRepository userRepository,
+            INotificationRepository notificationRepository,
+            IReviewRequestRepository reviewRequestRepository,
             IUserRewardService userRewardService,
             INotificationService notificationService,
             IUserSubscriptionRepository userSubscriptionRepository,
@@ -73,7 +77,9 @@ namespace ARSPlatform.SERVICES
             _externalApiService = externalApiService;
             _openAlexService = openAlexService;
             _mapper = mapper;
-            _dbContext = dbContext;
+            _userRepository = userRepository;
+            _notificationRepository = notificationRepository;
+            _reviewRequestRepository = reviewRequestRepository;
             _userRewardService = userRewardService;
             _notificationService = notificationService;
             _userSubscriptionRepository = userSubscriptionRepository;
@@ -744,43 +750,29 @@ namespace ARSPlatform.SERVICES
         public async Task<List<PaperWithReviewerResponse>> GetPapersByReviewerAsync(
             int reviewerId)
         {
-            /*
-                Lấy danh sách paper được phân công cho 1 reviewer
-                thông qua bảng ReviewRequest (ReviewerId -> PaperId).
-                Response gồm paper + ReviewerId + ReviewerName (User.FullName).
-            */
-            var query =
-                from rr in _dbContext.ReviewRequests.AsNoTracking()
-                join p in _dbContext.Papers.AsNoTracking()
-                    on rr.PaperId equals p.PaperId
-                join u in _dbContext.Users.AsNoTracking()
-                    on rr.ReviewerId equals u.UserId
-                where rr.ReviewerId == reviewerId
-                orderby rr.CreatedAt descending
-                select new PaperWithReviewerResponse
-                {
-                    PaperId = p.PaperId,
-                    Title = p.Title,
-                    Abstract = p.Abstract,
-                    FileUrl = p.FileUrl,
-                    Status = p.Status,
-                    PaperType = string.IsNullOrWhiteSpace(p.PaperType) ? "Journal" : p.PaperType,
-                    CreatedAt = p.CreatedAt,
-                    UpdatedAt = p.UpdatedAt,
-                    PublicationDate = p.PublicationDate,
-                    Quartile = p.Quartile,
-                    SourceName = p.SourceName,
-                    Doi = p.Doi,
-                    SubFieldId = p.SubFieldId,
-                    AuthorId = p.CreatorId,
-                    AuthorName = p.Creator != null ? p.Creator.FullName : string.Empty,
-                    ReviewerId = u.UserId,
-                    ReviewerName = u.FullName ?? string.Empty,
-                    ReviewRequestStatus = rr.Status,
-                    ReviewRequestId = rr.ReviewRequestId
-                };
-
-            return await query.ToListAsync();
+            var requests = await _reviewRequestRepository.GetReviewerPaperSnapshotsAsync(reviewerId);
+            return requests.Select(rr => new PaperWithReviewerResponse
+            {
+                PaperId = rr.Paper!.PaperId,
+                Title = rr.Paper.Title,
+                Abstract = rr.Paper.Abstract,
+                FileUrl = rr.Paper.FileUrl,
+                Status = rr.Paper.Status,
+                PaperType = string.IsNullOrWhiteSpace(rr.Paper.PaperType) ? "Journal" : rr.Paper.PaperType,
+                CreatedAt = rr.Paper.CreatedAt,
+                UpdatedAt = rr.Paper.UpdatedAt,
+                PublicationDate = rr.Paper.PublicationDate,
+                Quartile = rr.Paper.Quartile,
+                SourceName = rr.Paper.SourceName,
+                Doi = rr.Paper.Doi,
+                SubFieldId = rr.Paper.SubFieldId,
+                AuthorId = rr.Paper.CreatorId,
+                AuthorName = rr.Paper.Creator != null ? rr.Paper.Creator.FullName : string.Empty,
+                ReviewerId = rr.Reviewer!.UserId,
+                ReviewerName = rr.Reviewer.FullName ?? string.Empty,
+                ReviewRequestStatus = rr.Status,
+                ReviewRequestId = rr.ReviewRequestId
+            }).ToList();
         }
 
         public async Task<PaperAuthorshipVerificationResponse?>
@@ -1575,7 +1567,7 @@ namespace ARSPlatform.SERVICES
 
             try
             {
-                var creator = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == paper.CreatorId);
+                var creator = paper.CreatorId.HasValue ? await _userRepository.GetByIdAsync(paper.CreatorId.Value) : null;
                 var creatorName = creator?.FullName ?? "Tác giả chính";
 
                 var candidateUserIds = new HashSet<int>();
@@ -1590,9 +1582,8 @@ namespace ARSPlatform.SERVICES
                     {
                         if (OrcidIdUtility.TryNormalizeAndValidate(author.OrcidId, out var normalizedOrcid))
                         {
-                            var matchedUser = await _dbContext.Users.AsNoTracking()
-                                .FirstOrDefaultAsync(u => u.OrcidId == normalizedOrcid && u.UserId != paper.CreatorId);
-                            if (matchedUser != null)
+                            var matchedUser = await _userRepository.GetByOrcidAsync(normalizedOrcid);
+                            if (matchedUser != null && matchedUser.UserId != paper.CreatorId)
                             {
                                 candidateUserIds.Add(matchedUser.UserId);
                             }
@@ -1600,9 +1591,8 @@ namespace ARSPlatform.SERVICES
                     }
                     else if (!string.IsNullOrWhiteSpace(author.Email))
                     {
-                        var matchedUser = await _dbContext.Users.AsNoTracking()
-                            .FirstOrDefaultAsync(u => u.Email == author.Email.Trim() && u.UserId != paper.CreatorId);
-                        if (matchedUser != null)
+                        var matchedUser = await _userRepository.GetByEmailAsync(author.Email.Trim());
+                        if (matchedUser != null && matchedUser.UserId != paper.CreatorId)
                         {
                             candidateUserIds.Add(matchedUser.UserId);
                         }
@@ -1621,9 +1611,9 @@ namespace ARSPlatform.SERVICES
                             IsRead = false,
                             CreatedAt = now
                         };
-                        await _dbContext.Notifications.AddAsync(notif);
+                        await _notificationRepository.AddAsync(notif);
                     }
-                    await _dbContext.SaveChangesAsync();
+                    await _notificationRepository.SaveChangesAsync();
                 }
             }
             catch

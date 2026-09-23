@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ARSPlatform.MODEL;
+using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
 
@@ -15,19 +16,21 @@ namespace ARSPlatform.SERVICES
         private static readonly string[] SupportedRanges = ["daily", "weekly", "monthly", "yearly"];
         private static readonly string[] SupportedMetrics = ["user_registrations", "revenue"];
 
-        private readonly AppDbContext _dbContext;
+        private readonly IUserRepository _userRepository;
+        private readonly IPaperRepository _paperRepository;
 
-        public AnalyticsService(AppDbContext dbContext)
+        public AnalyticsService(IUserRepository userRepository, IPaperRepository paperRepository)
         {
-            _dbContext = dbContext;
+            _userRepository = userRepository;
+            _paperRepository = paperRepository;
         }
 
         public async Task<AnalyticsSummaryResponse> GetSummaryAsync(CancellationToken cancellationToken)
         {
             return new AnalyticsSummaryResponse
             {
-                TotalMembers = await _dbContext.Users.AsNoTracking().CountAsync(cancellationToken),
-                TotalPapers = await _dbContext.Papers.AsNoTracking().CountAsync(cancellationToken)
+                TotalMembers = await _userRepository.CountAllAsync(cancellationToken),
+                TotalPapers = await _paperRepository.CountAllAsync(cancellationToken)
             };
         }
 
@@ -71,11 +74,7 @@ namespace ARSPlatform.SERVICES
 
         private async Task<List<AnalyticsTimeseriesPointResponse>> GetUserRegistrationPointsAsync(string range, CancellationToken cancellationToken)
         {
-            var dates = await _dbContext.Users
-                .AsNoTracking()
-                .Where(user => user.CreatedAt.HasValue)
-                .Select(user => user.CreatedAt!.Value)
-                .ToListAsync(cancellationToken);
+            var dates = await _userRepository.GetRegistrationDatesAsync(cancellationToken);
 
             return dates
                 .GroupBy(date => BucketDate(date, range))

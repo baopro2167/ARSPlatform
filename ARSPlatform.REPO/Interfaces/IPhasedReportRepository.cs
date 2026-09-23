@@ -10,5 +10,6 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<PhasedReport>> GetByResearchGroupIdPagedAsync(int researchGroupId, int pageNumber, int pageSize);
         Task<PagedResult<PhasedReport>> GetByGroupMemberIdPagedAsync(int groupMemberId, PaginationParams paginationParams);
         Task<PagedResult<PhasedReport>> GetByGroupMemberIdPagedAsync(int groupMemberId, int pageNumber, int pageSize);
+        Task<bool> AnyByLearningMaterialIdAsync(int materialId, string? fileUrl);
     }
 }

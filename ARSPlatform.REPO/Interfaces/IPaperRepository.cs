@@ -12,5 +12,6 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<Paper>> GetByAuthorIdPagedAsync(int authorId, int pageNumber, int pageSize);
         Task<PagedResult<Paper>> GetBySubFieldIdPagedAsync(int subFieldId, PaginationParams paginationParams);
         Task<PagedResult<Paper>> GetBySubFieldIdPagedAsync(int subFieldId, int pageNumber, int pageSize);
+        Task<int> CountAllAsync(System.Threading.CancellationToken cancellationToken = default);
     }
 }

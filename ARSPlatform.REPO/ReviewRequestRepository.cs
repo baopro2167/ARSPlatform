@@ -67,5 +67,17 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await GetByPaperIdPagedAsync(paperId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
+
+        public async Task<IEnumerable<ReviewRequest>> GetReviewerPaperSnapshotsAsync(int reviewerId)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Include(r => r.Paper)
+                    .ThenInclude(p => p.Creator)
+                .Include(r => r.Reviewer)
+                .Where(r => r.ReviewerId == reviewerId)
+                .OrderByDescending(r => r.CreatedAt)
+                .ToListAsync();
+        }
     }
 }

@@ -104,6 +104,11 @@ namespace ARSPlatform.REPOSITORIES
             await _dbSet.AddAsync(entity);
         }
 
+        public virtual async Task AddRangeAsync(IEnumerable<T> entities)
+        {
+            await _dbSet.AddRangeAsync(entities);
+        }
+
         public virtual void Update(T entity)
         {
             _dbSet.Update(entity);
@@ -112,6 +117,11 @@ namespace ARSPlatform.REPOSITORIES
         public virtual void Delete(T entity)
         {
             _dbSet.Remove(entity);
+        }
+
+        public virtual void RemoveRange(IEnumerable<T> entities)
+        {
+            _dbSet.RemoveRange(entities);
         }
 
         public virtual async Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate)

@@ -19,13 +19,20 @@ namespace ARSPlatform.SERVICES
     {
         private readonly IGroupMemberRepository _repository;
         private readonly IMapper _mapper;
-        private readonly AppDbContext _dbContext;
+        private readonly IResearchGroupRepository _researchGroupRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly INotificationRepository _notificationRepository;
 
-        public GroupMemberService(IGroupMemberRepository repository, IMapper mapper, AppDbContext dbContext)
+        public GroupMemberService(IGroupMemberRepository repository, IMapper mapper, 
+            IResearchGroupRepository researchGroupRepository,
+            IUserRepository userRepository,
+            INotificationRepository notificationRepository)
         {
             _repository = repository;
             _mapper = mapper;
-            _dbContext = dbContext;
+            _researchGroupRepository = researchGroupRepository;
+            _userRepository = userRepository;
+            _notificationRepository = notificationRepository;
         }
 
         public async Task<IEnumerable<GroupMemberResponse>> GetAllAsync(int? groupId = null)
@@ -80,37 +87,29 @@ namespace ARSPlatform.SERVICES
 
             var normalizedStatus = status.Trim().ToUpperInvariant();
 
-            // Repository không có sẵn method này → query trực tiếp qua DbContext
-            // để vẫn include được Student + ResearchGroup.
-            var query = _dbContext.GroupMembers
-                .Include(x => x.Student!)
-                .Include(x => x.ResearchGroup!)
-                .AsQueryable();
-
-            query = query.Where(x =>
-                x.ActivityStatus != null &&
-                x.ActivityStatus.ToUpper() == normalizedStatus);
-
+            Expression<Func<GroupMember, bool>> predicate;
             if (groupId.HasValue)
             {
-                query = query.Where(x => x.ResearchGroupId == groupId.Value);
+                predicate = x => x.ActivityStatus != null && x.ActivityStatus.ToUpper() == normalizedStatus && x.ResearchGroupId == groupId.Value;
+            }
+            else
+            {
+                predicate = x => x.ActivityStatus != null && x.ActivityStatus.ToUpper() == normalizedStatus;
             }
 
-            var totalCount = await query.CountAsync();
+            var paged = await _repository.GetPagedAsync(
+                paginationParams,
+                predicate: predicate,
+                orderBy: q => q.OrderByDescending(x => x.JoinedAt ?? DateTime.MinValue).ThenByDescending(x => x.GroupMemberId),
+                includes: new Expression<Func<GroupMember, object>>[] { x => x.Student!, x => x.ResearchGroup! }
+            );
 
-            var items = await query
-                .OrderByDescending(x => x.JoinedAt ?? DateTime.MinValue)
-                .ThenByDescending(x => x.GroupMemberId)
-                .Skip((paginationParams.PageNumber - 1) * paginationParams.PageSize)
-                .Take(paginationParams.PageSize)
-                .ToListAsync();
-
-            var dtos = _mapper.Map<List<GroupMemberResponse>>(items);
+            var dtos = _mapper.Map<List<GroupMemberResponse>>(paged.Items);
             return new PagedResult<GroupMemberResponse>(
                 dtos,
-                totalCount,
-                paginationParams.PageNumber,
-                paginationParams.PageSize);
+                paged.TotalCount,
+                paged.PageNumber,
+                paged.PageSize);
         }
 
         public async Task<GroupMemberResponse?> GetByIdAsync(int id)
@@ -136,7 +135,7 @@ namespace ARSPlatform.SERVICES
             {
                 try
                 {
-                    var group = await _dbContext.ResearchGroups.AsNoTracking().FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
+                    var group = await _researchGroupRepository.GetByIdAsync(item.ResearchGroupId.Value);
                     var groupName = group?.Name ?? "Nhóm nghiên cứu";
                     var notif = new Notification
                     {
@@ -145,8 +144,8 @@ namespace ARSPlatform.SERVICES
                         IsRead = false,
                         CreatedAt = DateTime.UtcNow
                     };
-                    await _dbContext.Notifications.AddAsync(notif);
-                    await _dbContext.SaveChangesAsync();
+                    await _notificationRepository.AddAsync(notif);
+                    await _notificationRepository.SaveChangesAsync();
                 }
                 catch
                 {
@@ -173,8 +172,8 @@ namespace ARSPlatform.SERVICES
             {
                 try
                 {
-                    var group = await _dbContext.ResearchGroups.AsNoTracking().FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
-                    var student = item.StudentId.HasValue ? await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == item.StudentId.Value) : null;
+                    var group = await _researchGroupRepository.GetByIdAsync(item.ResearchGroupId.Value);
+                    var student = item.StudentId.HasValue ? await _userRepository.GetByIdAsync(item.StudentId.Value) : null;
                     var groupName = group?.Name ?? "Nhóm nghiên cứu";
                     var studentName = student?.FullName ?? "Thành viên";
 
@@ -190,8 +189,8 @@ namespace ARSPlatform.SERVICES
                                 IsRead = false,
                                 CreatedAt = DateTime.UtcNow
                             };
-                            await _dbContext.Notifications.AddAsync(notif);
-                            await _dbContext.SaveChangesAsync();
+                            await _notificationRepository.AddAsync(notif);
+                            await _notificationRepository.SaveChangesAsync();
                         }
                     }
                 }
@@ -273,9 +272,7 @@ namespace ARSPlatform.SERVICES
             {
                 try
                 {
-                    var group = await _dbContext.ResearchGroups
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
+                    var group = await _researchGroupRepository.GetByIdAsync(item.ResearchGroupId.Value);
                     var groupName = group?.Name ?? "Nhóm nghiên cứu";
 
                     var noteSuffix = string.IsNullOrWhiteSpace(item.RequestNote)
@@ -308,8 +305,8 @@ namespace ARSPlatform.SERVICES
                         IsRead = false,
                         CreatedAt = DateTime.UtcNow
                     };
-                    await _dbContext.Notifications.AddAsync(notif);
-                    await _dbContext.SaveChangesAsync();
+                    await _notificationRepository.AddAsync(notif);
+                    await _notificationRepository.SaveChangesAsync();
                 }
                 catch
                 {
@@ -380,7 +377,7 @@ namespace ARSPlatform.SERVICES
             {
                 try
                 {
-                    var group = await _dbContext.ResearchGroups.AsNoTracking().FirstOrDefaultAsync(g => g.ResearchGroupId == item.ResearchGroupId.Value);
+                    var group = await _researchGroupRepository.GetByIdAsync(item.ResearchGroupId.Value);
                     var groupName = group?.Name ?? "Nhóm nghiên cứu";
                     var notif = new Notification
                     {
@@ -389,8 +386,8 @@ namespace ARSPlatform.SERVICES
                         IsRead = false,
                         CreatedAt = DateTime.UtcNow
                     };
-                    await _dbContext.Notifications.AddAsync(notif);
-                    await _dbContext.SaveChangesAsync();
+                    await _notificationRepository.AddAsync(notif);
+                    await _notificationRepository.SaveChangesAsync();
                 }
                 catch
                 {

@@ -25,8 +25,10 @@ namespace ARSPlatform.REPO.Interfaces
             params Expression<Func<T, object>>[] includes);
         Task<T?> GetByIdAsync(object id);
         Task AddAsync(T entity);
+        Task AddRangeAsync(IEnumerable<T> entities);
         void Update(T entity);
         void Delete(T entity);
+        void RemoveRange(IEnumerable<T> entities);
         Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate);
         IQueryable<T> GetQueryable();
         Task SaveChangesAsync();

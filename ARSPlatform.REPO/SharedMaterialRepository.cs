@@ -14,6 +14,14 @@ namespace ARSPlatform.REPOSITORIES
         {
         }
 
+        public async Task<System.Collections.Generic.IEnumerable<SharedMaterial>> GetByLearningMaterialIdAsync(int materialId)
+        {
+            return await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.Include(_dbSet, s => s.Lecturer!)
+                .Where(s => s.LearningMaterialId == materialId || s.PaperId == materialId)
+            );
+        }
+
         public async Task<PagedResult<SharedMaterial>> GetByLecturerIdPagedAsync(int lecturerId, PaginationParams paginationParams)
         {
             return await GetPagedAsync(

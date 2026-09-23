@@ -46,5 +46,19 @@ namespace ARSPlatform.REPOSITORIES
                 .FirstOrDefaultAsync(u =>
                     u.OrcidId == orcidId);
         }
+
+        public async Task<int> CountAllAsync(System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await _dbSet.CountAsync(cancellationToken);
+        }
+
+        public async Task<System.Collections.Generic.List<System.DateTime>> GetRegistrationDatesAsync(System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Where(user => user.CreatedAt.HasValue)
+                .Select(user => user.CreatedAt!.Value)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

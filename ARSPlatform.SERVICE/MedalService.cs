@@ -19,7 +19,18 @@ namespace ARSPlatform.SERVICES
         private readonly IMedalRepository _medalRepo;
         private readonly IUserMedalRepository _userMedalRepo;
         private readonly INotificationRepository _notificationRepo;
-        private readonly AppDbContext _context;
+        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IUserRepository _userRepo;
+        private readonly IGroupMemberRepository _groupMemberRepo;
+        private readonly ISeminarParticipantRepository _seminarParticipantRepo;
+        private readonly IForumCommentRepository _forumCommentRepo;
+        private readonly ICommentVoteRepository _commentVoteRepo;
+        private readonly IDetailedEvaluationRepository _detailedEvaluationRepo;
+        private readonly IPhasedReportRepository _phasedReportRepo;
+        private readonly IResearchGroupRepository _researchGroupRepo;
+        private readonly ISeminarRepository _seminarRepo;
+        private readonly IForumPostRepository _forumPostRepo;
+        private readonly IPaperRepository _paperRepo;
         private readonly IMapper _mapper;
         private readonly IAuditLogService _auditLogService;
 
@@ -27,14 +38,36 @@ namespace ARSPlatform.SERVICES
             IMedalRepository medalRepo,
             IUserMedalRepository userMedalRepo,
             INotificationRepository notificationRepo,
-            AppDbContext context,
+            IDbContextFactory<AppDbContext> dbContextFactory,
+            IUserRepository userRepo,
+            IGroupMemberRepository groupMemberRepo,
+            ISeminarParticipantRepository seminarParticipantRepo,
+            IForumCommentRepository forumCommentRepo,
+            ICommentVoteRepository commentVoteRepo,
+            IDetailedEvaluationRepository detailedEvaluationRepo,
+            IPhasedReportRepository phasedReportRepo,
+            IResearchGroupRepository researchGroupRepo,
+            ISeminarRepository seminarRepo,
+            IForumPostRepository forumPostRepo,
+            IPaperRepository paperRepo,
             IMapper mapper,
             IAuditLogService auditLogService)
         {
             _medalRepo = medalRepo;
             _userMedalRepo = userMedalRepo;
             _notificationRepo = notificationRepo;
-            _context = context;
+            _dbContextFactory = dbContextFactory;
+            _userRepo = userRepo;
+            _groupMemberRepo = groupMemberRepo;
+            _seminarParticipantRepo = seminarParticipantRepo;
+            _forumCommentRepo = forumCommentRepo;
+            _commentVoteRepo = commentVoteRepo;
+            _detailedEvaluationRepo = detailedEvaluationRepo;
+            _phasedReportRepo = phasedReportRepo;
+            _researchGroupRepo = researchGroupRepo;
+            _seminarRepo = seminarRepo;
+            _forumPostRepo = forumPostRepo;
+            _paperRepo = paperRepo;
             _mapper = mapper;
             _auditLogService = auditLogService;
         }
@@ -170,7 +203,7 @@ namespace ARSPlatform.SERVICES
             if (medal == null) return false;
 
             // Check if any UserMedal record references this medal
-            var usageCount = await _context.UserMedals.CountAsync(um => um.MedalId == id);
+            var usageCount = await _userMedalRepo.CountUnlockedByMedalIdAsync(id);
             if (usageCount > 0)
             {
                 throw new InvalidOperationException(
@@ -189,7 +222,7 @@ namespace ARSPlatform.SERVICES
 
             foreach (var d in defaults)
             {
-                var existing = await _context.Medals.FirstOrDefaultAsync(m => m.Id == d.Id || m.Code == d.Code);
+                var existing = await _medalRepo.FindAsync(m => m.Id == d.Id || m.Code == d.Code);
                 if (existing == null)
                 {
                     d.CreatedAt = DateTime.UtcNow;
@@ -220,7 +253,7 @@ namespace ARSPlatform.SERVICES
             }
 
             // Deactivate legacy medals not part of canonical 25 medals
-            var legacyMedals = await _context.Medals.Where(m => !defaultCodes.Contains(m.Code) && m.IsActive).ToListAsync();
+            var legacyMedals = await _medalRepo.GetQueryable().Where(m => !defaultCodes.Contains(m.Code) && m.IsActive).ToListAsync();
             foreach (var leg in legacyMedals)
             {
                 leg.IsActive = false;
@@ -235,7 +268,7 @@ namespace ARSPlatform.SERVICES
 
         public async Task<IEnumerable<MedalDropdownCategoryDto>> GetMedalsDropdownAsync(string? role = null)
         {
-            var query = _context.Medals.AsNoTracking().Where(m => m.IsActive);
+            var query = _medalRepo.GetQueryable().AsNoTracking().Where(m => m.IsActive);
             var medals = await query.ToListAsync();
 
             if (!string.IsNullOrWhiteSpace(role) && !string.Equals(role, "ALL", StringComparison.OrdinalIgnoreCase))
@@ -282,20 +315,16 @@ namespace ARSPlatform.SERVICES
 
         public async Task<MedalAnalyticsResponse> GetMedalsAnalyticsAsync()
         {
-            var medals = await _context.Medals
+            var medals = await _medalRepo.GetQueryable()
                 .AsNoTracking()
                 .Include(m => m.UserMedals)
                 .OrderBy(m => m.MetricCode)
                 .ThenBy(m => m.StageLevel)
                 .ToListAsync();
 
-            var totalUsers = await _context.Users.CountAsync(u => u.IsActive == true);
-            var totalUnlocked = await _context.UserMedals.CountAsync(um => um.IsUnlocked);
-            var totalUsersWithMedals = await _context.UserMedals
-                .Where(um => um.IsUnlocked)
-                .Select(um => um.UserId)
-                .Distinct()
-                .CountAsync();
+            var totalUsers = await _userRepo.CountAsync(u => u.IsActive == true);
+            var totalUnlocked = await _userMedalRepo.CountUnlockedAsync();
+            var totalUsersWithMedals = await _userMedalRepo.GetQueryable().Where(um => um.IsUnlocked).Select(um => um.UserId).Distinct().CountAsync();
 
             var items = medals.Select(m => new MedalAnalyticsDto
             {
@@ -325,7 +354,7 @@ namespace ARSPlatform.SERVICES
 
         public async Task<IEnumerable<MedalUserDetailDto>> GetMedalUsersAsync(string medalId)
         {
-            var medal = await _context.Medals
+            var medal = await _medalRepo.GetQueryable()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(m => m.Id == medalId || m.Code == medalId);
 
@@ -334,7 +363,7 @@ namespace ARSPlatform.SERVICES
                 throw new KeyNotFoundException($"Medal with ID or Code '{medalId}' not found.");
             }
 
-            var userMedals = await _context.UserMedals
+            var userMedals = await _userMedalRepo.GetQueryable()
                 .AsNoTracking()
                 .Include(um => um.User)
                     .ThenInclude(u => u.UserRoles)
@@ -363,7 +392,7 @@ namespace ARSPlatform.SERVICES
 
         public async Task<UserMedalProgressDto> GetUserMedalProgressAsync(int userId, string medalId)
         {
-            var user = await _context.Users
+            var user = await _userRepo.GetQueryable()
                 .AsNoTracking()
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
@@ -374,7 +403,7 @@ namespace ARSPlatform.SERVICES
                 throw new KeyNotFoundException($"User with ID {userId} not found.");
             }
 
-            var medal = await _context.Medals
+            var medal = await _medalRepo.GetQueryable()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(m => m.Id == medalId || m.Code == medalId);
 
@@ -386,7 +415,7 @@ namespace ARSPlatform.SERVICES
             // Fresh calculation of user metrics
             await EvaluateUserMedalsAsync(userId);
 
-            var userMedal = await _context.UserMedals
+            var userMedal = await _userMedalRepo.GetQueryable()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(um => um.UserId == userId && um.MedalId == medal.Id);
 
@@ -439,7 +468,7 @@ namespace ARSPlatform.SERVICES
             // Evaluate dynamically first to guarantee historical metrics are calculated
             await EvaluateUserMedalsAsync(userId);
 
-            var activeMedals = await _context.Medals
+            var activeMedals = await _medalRepo.GetQueryable()
                 .AsNoTracking()
                 .Where(m => m.IsActive)
                 .OrderBy(m => m.Roles)
@@ -487,7 +516,7 @@ namespace ARSPlatform.SERVICES
 
         public async Task<IEnumerable<UserMedalResponse>> GetUserMedalsAsync(int userId, bool includeLocked, int? callerId, bool isAdmin)
         {
-            var targetUserExists = await _context.Users.AnyAsync(u => u.UserId == userId);
+            var targetUserExists = await _userRepo.AnyAsync(u => u.UserId == userId);
             if (!targetUserExists)
             {
                 throw new KeyNotFoundException($"User with ID {userId} not found.");
@@ -501,7 +530,7 @@ namespace ARSPlatform.SERVICES
             // If includeLocked is true, caller must be the user themself, an Admin, or a supervising Lecturer
             if (!isAdmin && (!callerId.HasValue || callerId.Value != userId))
             {
-                var isSupervisor = callerId.HasValue && await _context.ResearchGroups
+                var isSupervisor = callerId.HasValue && await _researchGroupRepo.GetQueryable()
                     .AnyAsync(rg => rg.LecturerId == callerId.Value && rg.GroupMembers.Any(gm => gm.StudentId == userId));
 
                 if (!isSupervisor)
@@ -512,7 +541,7 @@ namespace ARSPlatform.SERVICES
 
             await EvaluateUserMedalsAsync(userId);
 
-            var activeMedals = await _context.Medals
+            var activeMedals = await _medalRepo.GetQueryable()
                 .AsNoTracking()
                 .Where(m => m.IsActive)
                 .OrderBy(m => m.Roles)
@@ -558,18 +587,18 @@ namespace ARSPlatform.SERVICES
 
         public async Task EvaluateUserMedalsAsync(int userId)
         {
-            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId);
+            var user = await _userRepo.FindAsync(u => u.UserId == userId);
             if (user == null) return;
 
             // 1. Calculate user metrics across all domain tables
-            var publishedPapersCount = await _context.Papers
+            var publishedPapersCount = await _paperRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(p => p.CreatorId == userId &&
                     (p.Status == "Published" || p.Status == "PUBLISHED" || p.Status == "Accepted" || p.Status == "Approved"));
 
             var orcidConnectedVal = (user.IsOrcidVerified || !string.IsNullOrWhiteSpace(user.OrcidId)) ? 1 : 0;
 
-            var orcidVerifiedPapersCount = await _context.Papers
+            var orcidVerifiedPapersCount = await _paperRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(p => p.CreatorId == userId &&
                     (p.AuthorshipVerificationStatus == "APPROVED" ||
@@ -578,30 +607,30 @@ namespace ARSPlatform.SERVICES
                      p.AuthorshipVerificationStatus == "AUTOMATICALLY_VERIFIED" ||
                      (user.IsOrcidVerified && (p.Status == "Published" || p.Status == "PUBLISHED"))));
 
-            var hostedSeminarsCount = await _context.Seminars
+            var hostedSeminarsCount = await _seminarRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(s => s.OrganizerId == userId &&
                     (s.Status == "Completed" || s.Status == "COMPLETED" || s.EndTime <= DateTime.UtcNow));
 
-            var attendedSeminarsCount = await _context.SeminarParticipants
+            var attendedSeminarsCount = await _seminarParticipantRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(sp => sp.UserId == userId &&
                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson) || sp.InvitationStatus == "Accepted"));
 
-            var completedReviewsCount = await _context.DetailedEvaluations
+            var completedReviewsCount = await _detailedEvaluationRepo.GetQueryable()
                 .AsNoTracking()
                 .Where(de => de.ReviewerId == userId)
                 .Select(de => de.ReviewRequestId)
                 .Distinct()
                 .CountAsync();
 
-            var guidedGroupsCount = await _context.ResearchGroups
+            var guidedGroupsCount = await _researchGroupRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(rg => rg.LecturerId == userId &&
                     rg.PhasedReports.Any() &&
                     rg.PhasedReports.All(pr => pr.Status == "APPROVED" || pr.Status == "Completed"));
 
-            var flawlessPhasesCount = await _context.PhasedReports
+            var flawlessPhasesCount = await _phasedReportRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(pr => pr.ResearchGroup != null &&
                     pr.ResearchGroup.GroupMembers.Any(gm => gm.StudentId == userId) &&
@@ -609,24 +638,24 @@ namespace ARSPlatform.SERVICES
 
             if (flawlessPhasesCount == 0)
             {
-                flawlessPhasesCount = await _context.GroupMembers
+                flawlessPhasesCount = await _groupMemberRepo.GetQueryable()
                     .AsNoTracking()
                     .CountAsync(gm => gm.StudentId == userId);
             }
 
             // 7 Canonical Metric Engine Metrics
-            var seminarHostQualityCount = await _context.SeminarParticipants
+            var seminarHostQualityCount = await _seminarParticipantRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(sp => sp.Seminar.OrganizerId == userId &&
                     (sp.Seminar.Status == "Completed" || sp.Seminar.Status == "COMPLETED" || sp.Seminar.EndTime <= DateTime.UtcNow) &&
                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson)));
 
-            var seminarParticipantCount = await _context.SeminarParticipants
+            var seminarParticipantCount = await _seminarParticipantRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(sp => sp.UserId == userId &&
                     (sp.FeedbackSubmittedAt != null || !string.IsNullOrWhiteSpace(sp.FeedbackJson)));
 
-            var userPostIds = await _context.ForumPosts
+            var userPostIds = await _forumPostRepo.GetQueryable()
                 .AsNoTracking()
                 .Where(p => p.UserId == userId)
                 .Select(p => p.ForumPostId)
@@ -635,27 +664,27 @@ namespace ARSPlatform.SERVICES
             int communityPostReachCount = 0;
             if (userPostIds.Any())
             {
-                var postLikes = await _context.ForumPostLikes
+                var postLikes = await _forumPostRepo.GetQueryable()
                     .AsNoTracking()
                     .CountAsync(l => userPostIds.Contains(l.ForumPostId));
-                var postComments = await _context.ForumComments
+                var postComments = await _forumCommentRepo.GetQueryable()
                     .AsNoTracking()
                     .CountAsync(c => c.ForumPostId.HasValue && userPostIds.Contains(c.ForumPostId.Value));
                 communityPostReachCount = postLikes + postComments;
             }
 
-            var postLikesGiven = await _context.ForumPostLikes
+            var postLikesGiven = await _forumPostRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(l => l.UserId == userId);
-            var commentVotesGiven = await _context.CommentVotes
+            var commentVotesGiven = await _commentVoteRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(v => v.UserId == userId);
-            var commentsWritten = await _context.ForumComments
+            var commentsWritten = await _forumCommentRepo.GetQueryable()
                 .AsNoTracking()
                 .CountAsync(c => c.UserId == userId);
             int communityEngagementCount = postLikesGiven + commentVotesGiven + commentsWritten;
 
-            var userCommentIds = await _context.ForumComments
+            var userCommentIds = await _forumCommentRepo.GetQueryable()
                 .AsNoTracking()
                 .Where(c => c.UserId == userId)
                 .Select(c => c.ForumCommentId)
@@ -664,7 +693,7 @@ namespace ARSPlatform.SERVICES
             int communityTopCommentCount = 0;
             if (userCommentIds.Any())
             {
-                var maxVotes = await _context.CommentVotes
+                var maxVotes = await _commentVoteRepo.GetQueryable()
                     .AsNoTracking()
                     .Where(v => userCommentIds.Contains(v.ForumCommentId))
                     .GroupBy(v => v.ForumCommentId)
@@ -672,7 +701,7 @@ namespace ARSPlatform.SERVICES
                     .OrderByDescending(c => c)
                     .FirstOrDefaultAsync();
 
-                var maxUpvoteCol = await _context.ForumComments
+                var maxUpvoteCol = await _forumCommentRepo.GetQueryable()
                     .AsNoTracking()
                     .Where(c => c.UserId == userId && c.UpvoteCount.HasValue)
                     .Select(c => c.UpvoteCount!.Value)
@@ -683,13 +712,13 @@ namespace ARSPlatform.SERVICES
             }
 
             // 2. Fetch all active medals
-            var medals = await _context.Medals
+            var medals = await _medalRepo.GetQueryable()
                 .AsNoTracking()
                 .Where(m => m.IsActive)
                 .ToListAsync();
 
             // 3. Fetch existing UserMedal records for this user
-            var existingUserMedals = await _context.UserMedals
+            var existingUserMedals = await _userMedalRepo.GetQueryable()
                 .Where(um => um.UserId == userId)
                 .ToDictionaryAsync(um => um.MedalId);
 
@@ -739,7 +768,7 @@ namespace ARSPlatform.SERVICES
                     }
 
                     userMedal.UpdatedAt = DateTime.UtcNow;
-                    _context.UserMedals.Update(userMedal);
+                    _userMedalRepo.Update(userMedal);
                 }
                 else
                 {
@@ -756,7 +785,7 @@ namespace ARSPlatform.SERVICES
                         UpdatedAt = DateTime.UtcNow
                     };
 
-                    await _context.UserMedals.AddAsync(newUserMedal);
+                    await _userMedalRepo.AddAsync(newUserMedal);
 
                     if (isUnlocked)
                     {
@@ -766,7 +795,7 @@ namespace ARSPlatform.SERVICES
             }
 
             // Save user medals updates
-            await _context.SaveChangesAsync();
+            await _userMedalRepo.SaveChangesAsync();
 
             // 4. Send in-app notification for each newly unlocked medal
             foreach (var medal in newlyUnlockedMedals)
@@ -806,10 +835,7 @@ namespace ARSPlatform.SERVICES
                 throw new ArgumentException("AwardedReason is required when forceUnlocked is true.");
             }
 
-            var user = await _context.Users
-                .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
-                .FirstOrDefaultAsync(u => u.UserId == request.UserId);
+            var user = await _userRepo.GetWithRoleByIdAsync(request.UserId);
 
             if (user == null)
             {
@@ -817,7 +843,7 @@ namespace ARSPlatform.SERVICES
             }
 
             var medalCodeNormalized = request.MedalCode.Trim();
-            var medal = await _context.Medals
+            var medal = await _medalRepo.GetQueryable()
                 .FirstOrDefaultAsync(m => m.Code == medalCodeNormalized || m.Code.ToLower() == medalCodeNormalized.ToLower());
 
             if (medal == null)
@@ -839,7 +865,7 @@ namespace ARSPlatform.SERVICES
 
             var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
 
-            var existing = await _context.UserMedals
+            var existing = await _userMedalRepo.GetQueryable()
                 .Include(um => um.Medal)
                 .FirstOrDefaultAsync(um => um.UserId == request.UserId && um.MedalId == medal.Id);
 
@@ -865,8 +891,8 @@ namespace ARSPlatform.SERVICES
                 existing.CorrelationId = correlationId;
                 existing.UpdatedAt = DateTime.UtcNow;
 
-                _context.UserMedals.Update(existing);
-                await _context.SaveChangesAsync();
+                _userMedalRepo.Update(existing);
+                await _userMedalRepo.SaveChangesAsync();
 
                 await _auditLogService.CreateAsync(new AuditLogCreateRequest
                 {
@@ -903,13 +929,13 @@ namespace ARSPlatform.SERVICES
 
             try
             {
-                await _context.UserMedals.AddAsync(newRow);
-                await _context.SaveChangesAsync();
+                await _userMedalRepo.AddAsync(newRow);
+                await _userMedalRepo.SaveChangesAsync();
             }
             catch (DbUpdateException)
             {
-                _context.ChangeTracker.Clear();
-                var raced = await _context.UserMedals
+                // handled by factory
+                var raced = await _userMedalRepo.GetQueryable()
                     .Include(um => um.Medal)
                     .FirstOrDefaultAsync(um => um.UserId == request.UserId && um.MedalId == medal.Id);
                 if (raced != null)
@@ -941,10 +967,7 @@ namespace ARSPlatform.SERVICES
                 throw new ArgumentException("Valid UserId is required.");
             }
 
-            var user = await _context.Users
-                .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
-                .FirstOrDefaultAsync(u => u.UserId == request.UserId);
+            var user = await _userRepo.GetWithRoleByIdAsync(request.UserId);
 
             if (user == null)
             {
@@ -967,7 +990,7 @@ namespace ARSPlatform.SERVICES
                 ?? "Researcher";
 
             // Fetch active medals
-            var query = _context.Medals.Where(m => m.IsActive).AsQueryable();
+            var query = _medalRepo.GetQueryable().Where(m => m.IsActive);
 
             if (!request.IncludePlatinum)
             {
@@ -992,13 +1015,11 @@ namespace ARSPlatform.SERVICES
             var awardedCount = 0;
             var skippedCount = 0;
 
-            var existingUserMedals = await _context.UserMedals
-                .Where(um => um.UserId == request.UserId)
-                .ToDictionaryAsync(um => um.MedalId);
+            var existingUserMedals = await _userMedalRepo.GetQueryable().Where(um => um.UserId == request.UserId).ToDictionaryAsync(um => um.MedalId);
 
             var childAuditRequests = new List<AuditLogCreateRequest>();
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            using var transaction = await _dbContextFactory.CreateDbContext().Database.BeginTransactionAsync();
             try
             {
                 foreach (var medal in matchingMedals)
@@ -1012,7 +1033,7 @@ namespace ARSPlatform.SERVICES
                         existing.AwardedReason = request.AwardedReason ?? "Dev role seeding";
                         existing.CorrelationId = correlationId;
                         existing.UpdatedAt = DateTime.UtcNow;
-                        _context.UserMedals.Update(existing);
+                        _userMedalRepo.Update(existing);
 
                         awardedRows.Add(new MedalDevGrantRow
                         {
@@ -1050,8 +1071,8 @@ namespace ARSPlatform.SERVICES
                             Status = MedalStatus.Active
                         };
 
-                        await _context.UserMedals.AddAsync(newUm);
-                        await _context.SaveChangesAsync();
+                        await _userMedalRepo.AddAsync(newUm);
+                        await _userMedalRepo.SaveChangesAsync();
 
                         awardedRows.Add(new MedalDevGrantRow
                         {
@@ -1073,7 +1094,7 @@ namespace ARSPlatform.SERVICES
                     }
                 }
 
-                await _context.SaveChangesAsync();
+                await _userMedalRepo.SaveChangesAsync();
 
                 // Parent audit log
                 await _auditLogService.CreateAsync(new AuditLogCreateRequest
@@ -1702,9 +1723,7 @@ namespace ARSPlatform.SERVICES
         /// </summary>
         public async Task<UserMedalResponse> UpdateUserMedalStatusAsync(long userMedalId, MedalStatus newStatus, int adminId, string adminName)
         {
-            var userMedal = await _context.UserMedals
-                .Include(um => um.Medal)
-                .FirstOrDefaultAsync(um => um.Id == userMedalId);
+            var userMedal = await _userMedalRepo.GetQueryable().Include(um => um.Medal).FirstOrDefaultAsync(um => um.Id == userMedalId);
 
             if (userMedal == null)
             {
@@ -1720,8 +1739,8 @@ namespace ARSPlatform.SERVICES
 
             userMedal.Status = newStatus;
             userMedal.UpdatedAt = DateTime.UtcNow;
-            _context.UserMedals.Update(userMedal);
-            await _context.SaveChangesAsync();
+            _userMedalRepo.Update(userMedal);
+            await _userMedalRepo.SaveChangesAsync();
 
             var correlationId = "evt_" + Guid.NewGuid().ToString("N").Substring(0, 12);
             var medalCode = userMedal.Medal?.Code ?? userMedal.MedalId;

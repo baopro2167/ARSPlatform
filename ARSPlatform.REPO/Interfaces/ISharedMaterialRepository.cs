@@ -14,5 +14,6 @@ namespace ARSPlatform.REPO.Interfaces
         Task<List<SharedMaterial>> GetFeedAsync(int userId, bool includeExpired = false, string? status = null, int? learningMaterialId = null, string? role = null);
         Task<SharedMaterial?> GetWithDetailsByIdAsync(int id);
         Task<SharedMaterial?> FindPendingDuplicateAsync(int lecturerId, int colleagueId, int? learningMaterialId, int? paperId);
+        Task<System.Collections.Generic.IEnumerable<SharedMaterial>> GetByLearningMaterialIdAsync(int materialId);
     }
 }

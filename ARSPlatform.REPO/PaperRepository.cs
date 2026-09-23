@@ -60,5 +60,10 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await GetBySubFieldIdPagedAsync(subFieldId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
+
+        public async Task<int> CountAllAsync(System.Threading.CancellationToken cancellationToken = default)
+        {
+            return await _dbSet.CountAsync(cancellationToken);
+        }
     }
 }

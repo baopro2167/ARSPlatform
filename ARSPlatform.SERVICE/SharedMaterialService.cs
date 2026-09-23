@@ -17,16 +17,25 @@ namespace ARSPlatform.SERVICES
     public class SharedMaterialService : ISharedMaterialService
     {
         private readonly ISharedMaterialRepository _repository;
-        private readonly AppDbContext _dbContext;
+        private readonly IUserRepository _userRepository;
+        private readonly ILearningMaterialRepository _learningMaterialRepository;
+        private readonly IPaperRepository _paperRepository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IMapper _mapper;
 
         public SharedMaterialService(
             ISharedMaterialRepository repository,
-            AppDbContext dbContext,
+            IUserRepository userRepository,
+            ILearningMaterialRepository learningMaterialRepository,
+            IPaperRepository paperRepository,
+            INotificationRepository notificationRepository,
             IMapper mapper)
         {
             _repository = repository;
-            _dbContext = dbContext;
+            _userRepository = userRepository;
+            _learningMaterialRepository = learningMaterialRepository;
+            _paperRepository = paperRepository;
+            _notificationRepository = notificationRepository;
             _mapper = mapper;
         }
 
@@ -102,14 +111,13 @@ namespace ARSPlatform.SERVICES
                 throw new ArgumentException("You cannot share learning materials with yourself.");
             }
 
-            var colleague = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == colleagueId);
+            var colleague = await _userRepository.GetByIdAsync(colleagueId);
             if (colleague == null || colleague.IsActive == false)
             {
                 throw new KeyNotFoundException($"Colleague with ID {colleagueId} was not found or is inactive.");
             }
 
-            var learningMaterial = await _dbContext.LearningMaterials.AsNoTracking()
-                .FirstOrDefaultAsync(m => m.LearningMaterialId == materialId.Value);
+            var learningMaterial = await _learningMaterialRepository.GetByIdAsync(materialId.Value);
 
             int? resolvedLearningMaterialId = null;
             int? resolvedPaperId = null;
@@ -124,8 +132,7 @@ namespace ARSPlatform.SERVICES
             }
             else
             {
-                var paper = await _dbContext.Papers.AsNoTracking()
-                    .FirstOrDefaultAsync(p => p.PaperId == materialId.Value);
+                var paper = await _paperRepository.GetByIdAsync(materialId.Value);
                 if (paper != null)
                 {
                     if (!isAdmin && paper.CreatorId.HasValue && paper.CreatorId.Value != senderId)
@@ -169,7 +176,7 @@ namespace ARSPlatform.SERVICES
             var loaded = await _repository.GetWithDetailsByIdAsync(entity.SharedMaterialId);
 
             // Gửi thông báo cho giảng viên được chia sẻ
-            var senderUser = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == senderId);
+            var senderUser = await _userRepository.GetByIdAsync(senderId);
             var senderName = senderUser?.FullName ?? "Một giảng viên";
             var matTitle = loaded?.LearningMaterial?.Title ?? loaded?.Paper?.Title ?? "Tài liệu học tập";
 
@@ -180,8 +187,8 @@ namespace ARSPlatform.SERVICES
                 IsRead = false,
                 CreatedAt = now
             };
-            await _dbContext.Notifications.AddAsync(notification);
-            await _dbContext.SaveChangesAsync();
+            await _notificationRepository.AddAsync(notification);
+            await _notificationRepository.SaveChangesAsync();
 
             return MapToResponse(loaded ?? entity, currentUserId);
         }
@@ -275,8 +282,8 @@ namespace ARSPlatform.SERVICES
                         IsRead = false,
                         CreatedAt = now
                     };
-                    await _dbContext.Notifications.AddAsync(notif);
-                    await _dbContext.SaveChangesAsync();
+                    await _notificationRepository.AddAsync(notif);
+                    await _notificationRepository.SaveChangesAsync();
                 }
             }
             else if (normalized is "ACCEPTED" or "DECLINED")
@@ -292,8 +299,8 @@ namespace ARSPlatform.SERVICES
                         IsRead = false,
                         CreatedAt = now
                     };
-                    await _dbContext.Notifications.AddAsync(notif);
-                    await _dbContext.SaveChangesAsync();
+                    await _notificationRepository.AddAsync(notif);
+                    await _notificationRepository.SaveChangesAsync();
                 }
             }
 
@@ -332,7 +339,7 @@ namespace ARSPlatform.SERVICES
                     IsRead = false,
                     CreatedAt = DateTime.UtcNow
                 };
-                await _dbContext.Notifications.AddAsync(notif);
+                await _notificationRepository.AddAsync(notif);
             }
 
             _repository.Delete(item);
