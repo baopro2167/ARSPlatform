@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL;
@@ -48,5 +49,12 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await GetByReviewerIdPagedAsync(reviewerId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
+    
+        public async Task<int> CountCompletedByReviewerIdAsync(int userId)
+        {
+            return await _dbSet.CountAsync(de => de.ReviewerId == userId
+                && de.FinalDecision != null && de.FinalDecision != "");
+        }
     }
 }
+

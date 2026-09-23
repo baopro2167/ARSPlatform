@@ -112,5 +112,20 @@ namespace ARSPlatform.REPOSITORIES
                 .OrderByDescending(p => p.Seminar != null ? p.Seminar.StartTime : System.DateTime.MinValue)
                 .ToListAsync();
         }
+    
+        public async Task<int> CountAttendedByUserIdAsync(int userId)
+        {
+            return await _dbSet.CountAsync(sp =>
+                sp.UserId == userId &&
+                sp.InvitationStatus == "Attended");
+        }
+
+        public async Task<int> CountHostedByUserIdAsync(int userId)
+        {
+            // Host = seminar organizer, not participant; approximate via accepted invitations
+            return await _dbSet.CountAsync(sp =>
+                sp.UserId == userId &&
+                sp.InvitationStatus == "Accepted");
+        }
     }
-}
+}

@@ -35,8 +35,6 @@ namespace ARSPlatform.REPO.Interfaces
         Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate);
         IQueryable<T> GetQueryable();
         Task SaveChangesAsync();
-        Task<int> CountAsync(Expression<Func<T, bool>> predicate = null);
-        Task<bool> AnyAsync(Expression<Func<T, bool>> predicate = null);
-        Task<T?> FindAsync(Expression<Func<T, bool>> predicate = null);
+        Task<T?> FindAsync(Expression<Func<T, bool>> predicate);
     }
 }

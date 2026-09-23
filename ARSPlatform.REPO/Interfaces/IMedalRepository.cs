@@ -1,4 +1,5 @@
 using ARSPlatform.MODEL.Entities;
+using System.Threading.Tasks;
 
 namespace ARSPlatform.REPO.Interfaces
 {
@@ -7,5 +8,7 @@ namespace ARSPlatform.REPO.Interfaces
         Task<IEnumerable<Medal>> GetAllWithFiltersAsync(string? role, string? tier, bool? isActive, string? search);
         Task<Medal?> GetByCodeAsync(string code);
         Task<bool> ExistsByCodeAsync(string code, string? excludeId = null);
+        Task<List<Medal>> GetActiveAsync();
+        Task<int> CountActiveAsync();
     }
 }

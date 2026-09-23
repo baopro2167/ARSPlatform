@@ -56,5 +56,11 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await _dbSet.AnyAsync(m => m.Code == code && (excludeId == null || m.Id != excludeId));
         }
-    }
+    
+        public async Task<List<Medal>> GetActiveAsync() => await _context.Medals.Where(m => m.IsActive).ToListAsync();
+        public async Task<Medal?> GetActiveByIdAsync(string id) => await _context.Medals.FirstOrDefaultAsync(m => m.Id == id && m.IsActive);
+        public async Task<int> CountActiveAsync() => await _context.Medals.CountAsync(m => m.IsActive);
+        public async Task<bool> ExistsByIdAsync(string id) => await _context.Medals.AnyAsync(m => m.Id == id);
+
+}
 }

@@ -11,5 +11,7 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<ResearchGroup>> GetByTopicIdPagedAsync(int topicId, PaginationParams paginationParams);
         Task<PagedResult<ResearchGroup>> GetByTopicIdPagedAsync(int topicId, int pageNumber, int pageSize);
         Task<ResearchGroup?> GetWithMembersAsync(int groupId);
+        Task<bool> IsSupervisorAsync(int userId, int groupId);
+        Task<int> CountGuidedByLecturerIdAsync(int lecturerId);
     }
 }

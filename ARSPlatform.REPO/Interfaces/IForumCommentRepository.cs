@@ -10,5 +10,7 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<ForumComment>> GetByPostIdPagedAsync(int postId, int pageNumber, int pageSize);
         Task<PagedResult<ForumComment>> GetByUserIdPagedAsync(int userId, PaginationParams paginationParams);
         Task<PagedResult<ForumComment>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize);
+        Task<int> CountByUserIdAsync(int userId);
+        Task<int> GetMaxUpvoteCountByUserIdAsync(int userId);
     }
 }

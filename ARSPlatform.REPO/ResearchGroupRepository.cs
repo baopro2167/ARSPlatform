@@ -48,5 +48,16 @@ namespace ARSPlatform.REPOSITORIES
                 .Include(g => g.GroupMembers)
                 .FirstOrDefaultAsync(g => g.ResearchGroupId == groupId);
         }
+    
+        public async Task<bool> IsSupervisorAsync(int userId, int groupId)
+        {
+            return await _dbSet.AnyAsync(rg => rg.LecturerId == userId && rg.ResearchGroupId == groupId);
+        }
+
+        public async Task<int> CountGuidedByLecturerIdAsync(int lecturerId)
+        {
+            return await _dbSet.CountAsync(rg => rg.LecturerId == lecturerId);
+        }
     }
 }
+

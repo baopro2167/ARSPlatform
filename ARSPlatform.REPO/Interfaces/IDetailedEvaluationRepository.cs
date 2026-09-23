@@ -10,5 +10,6 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<DetailedEvaluation>> GetByReviewRequestIdPagedAsync(int reviewRequestId, int pageNumber, int pageSize);
         Task<PagedResult<DetailedEvaluation>> GetByReviewerIdPagedAsync(int reviewerId, PaginationParams paginationParams);
         Task<PagedResult<DetailedEvaluation>> GetByReviewerIdPagedAsync(int reviewerId, int pageNumber, int pageSize);
+        Task<int> CountCompletedByReviewerIdAsync(int userId);
     }
 }

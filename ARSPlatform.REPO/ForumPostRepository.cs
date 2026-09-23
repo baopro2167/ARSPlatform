@@ -211,5 +211,25 @@ namespace ARSPlatform.REPOSITORIES
                 .Select(l => l.ForumPostId)
                 .ToListAsync();
         }
+    
+        public async Task<int> CountLikesByUserIdAsync(int userId)
+        {
+            return await _context.Set<ForumPostLike>().CountAsync(fpl => fpl.UserId == userId);
+        }
+
+        public async Task<int> CountPostsByUserIdAsync(int userId)
+        {
+            return await _dbSet.CountAsync(fp => fp.UserId == userId);
+        }
+
+        public async Task<int> GetMaxLikesReceivedByUserIdAsync(int userId)
+        {
+            var max = await _dbSet
+                .Where(fp => fp.UserId == userId)
+                .Select(fp => fp.LikeCount)
+                .DefaultIfEmpty(0)
+                .MaxAsync();
+            return max;
+        }
     }
-}
+}

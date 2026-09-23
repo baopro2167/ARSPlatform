@@ -86,5 +86,8 @@ namespace ARSPlatform.REPOSITORIES
                     && s.StartTime <= reminderCutoffUtc)
                 .ToListAsync();
         }
-    }
+    
+        public async Task<int> CountHostedByUserIdAsync(int userId) => await _context.Seminars.CountAsync(s => s.OrganizerId == userId);
+
+}
 }

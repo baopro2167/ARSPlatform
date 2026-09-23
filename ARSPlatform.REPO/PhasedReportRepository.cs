@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL;
@@ -62,5 +63,15 @@ namespace ARSPlatform.REPOSITORIES
                     p.PhasedMaterialsUrl.Contains($"materialId={materialId}")
                 ));
         }
+    
+        public async Task<int> CountFlawlessByUserIdAsync(int userId)
+        {
+            // GroupMember → PhasedReport join: count reports by student where status is completed
+            return await _dbSet.CountAsync(pr =>
+                pr.GroupMember != null &&
+                pr.GroupMember.StudentId == userId &&
+                pr.Status == "Completed");
+        }
     }
 }
+

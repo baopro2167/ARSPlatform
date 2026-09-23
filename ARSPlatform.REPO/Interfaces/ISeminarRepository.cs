@@ -14,8 +14,7 @@ namespace ARSPlatform.REPO.Interfaces
         Task<PagedResult<Seminar>> GetByOrganizerIdPagedAsync(int organizerId, int pageNumber, int pageSize);
         Task<Seminar?> GetByIdWithParticipantsAsync(int id);
         Task<IEnumerable<Seminar>> GetLifecycleCandidatesAsync();
-        Task<IEnumerable<Seminar>> GetDueReminderSeminarsAsync(
-            DateTime nowUtc,
-            DateTime reminderCutoffUtc);
+        Task<IEnumerable<Seminar>> GetDueReminderSeminarsAsync(DateTime nowUtc, DateTime reminderCutoffUtc);
+        Task<int> CountHostedByUserIdAsync(int userId);
     }
 }

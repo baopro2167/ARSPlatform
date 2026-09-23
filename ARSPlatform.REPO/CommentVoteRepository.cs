@@ -106,5 +106,9 @@ namespace ARSPlatform.REPOSITORIES
                 .Select(v => v.ForumCommentId)
                 .ToListAsync();
         }
-    }
+    
+        public async Task<int> CountGivenByUserIdAsync(int userId) => await _context.CommentVotes.CountAsync(cv => cv.UserId == userId);
+        public async Task<int> GetMaxVotesOnCommentByUserAsync(int userId) => 0; // fallback
+
+}
 }

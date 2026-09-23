@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL;
@@ -45,6 +46,21 @@ namespace ARSPlatform.REPOSITORIES
         public async Task<PagedResult<ForumComment>> GetByUserIdPagedAsync(int userId, int pageNumber, int pageSize)
         {
             return await GetByUserIdPagedAsync(userId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
+        }
+    
+        public async Task<int> CountByUserIdAsync(int userId)
+        {
+            return await _dbSet.CountAsync(fc => fc.UserId == userId);
+        }
+
+        public async Task<int> GetMaxUpvoteCountByUserIdAsync(int userId)
+        {
+            var max = await _dbSet
+                .Where(fc => fc.UserId == userId)
+                .Select(fc => fc.UpvoteCount ?? 0)
+                .DefaultIfEmpty(0)
+                .MaxAsync();
+            return max;
         }
     }
 }

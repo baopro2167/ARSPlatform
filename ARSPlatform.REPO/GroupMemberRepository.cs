@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Threading.Tasks;
 using ARSPlatform.MODEL;
@@ -48,5 +49,16 @@ namespace ARSPlatform.REPOSITORIES
         {
             return await GetByStudentIdPagedAsync(studentId, new PaginationParams { PageNumber = pageNumber, PageSize = pageSize });
         }
+    
+        public async Task<bool> IsMemberOrSupervisorAsync(int userId, int groupId)
+        {
+            return await _dbSet.AnyAsync(gm => gm.StudentId == userId && gm.ResearchGroupId == groupId);
+        }
+
+        public async Task<int> CountByGroupIdAsync(int groupId)
+        {
+            return await _dbSet.CountAsync(gm => gm.ResearchGroupId == groupId);
+        }
     }
 }
+

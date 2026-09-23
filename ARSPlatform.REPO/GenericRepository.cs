@@ -149,21 +149,11 @@ namespace ARSPlatform.REPOSITORIES
             return _dbSet;
         }
 
-
-        public virtual async Task<int> CountAsync(Expression<Func<T, bool>> predicate = null)
+        public virtual async Task<T?> FindAsync(Expression<Func<T, bool>> predicate)
         {
-            return predicate == null ? await _dbSet.CountAsync() : await _dbSet.CountAsync(predicate);
+            return await _dbSet.FirstOrDefaultAsync(predicate);
         }
 
-        public virtual async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate = null)
-        {
-            return predicate == null ? await _dbSet.AnyAsync() : await _dbSet.AnyAsync(predicate);
-        }
-
-        public virtual async Task<T?> FindAsync(Expression<Func<T, bool>> predicate = null)
-        {
-            return predicate == null ? await _dbSet.FirstOrDefaultAsync() : await _dbSet.FirstOrDefaultAsync(predicate);
-        }
         public virtual async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
