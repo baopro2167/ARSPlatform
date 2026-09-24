@@ -328,6 +328,30 @@ public class AnnualFeeController : ControllerBase
         return Ok(new { ok = true, processed = success });
     }
 
+    /// <summary>
+    /// FE gọi sau khi thanh toán thành công để đối soát và kích hoạt gói ngay lập tức
+    /// </summary>
+    [HttpPost("confirm/{orderCode}")]
+    [HttpGet("confirm/{orderCode}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ConfirmPurchase(string orderCode)
+    {
+        try
+        {
+            var success = await _service.ProcessPayOSWebhookAsync(new AnnualFeePayOSWebhookRequest
+            {
+                OrderCode = orderCode,
+                Code = "00",
+                Status = "PAID"
+            });
+            return Ok(new { success, orderCode });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     private static string ComputeHmacSha256(string data, string key)
     {
         using var hmac = new System.Security.Cryptography.HMACSHA256(

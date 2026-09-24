@@ -6,6 +6,7 @@ using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.SERVICE.DTOs.Request;
 using ARSPlatform.SERVICE.DTOs.Response;
 using Microsoft.Extensions.Options;
+using ARSPlatform.SERVICE.Interfaces;
 using static ARSPlatform.SERVICE.PayOSSettings;
 
 namespace ARSPlatform.SERVICE;
@@ -16,17 +17,20 @@ public class PaymentService : IPaymentService
     private readonly ITransactionRepository _transactionRepository;
     private readonly INotificationRepository _notificationRepository;
     private readonly HttpClient _httpClient;
+    private readonly IAnnualFeeService _annualFeeService;
 
     public PaymentService(
         IOptions<PayOSSettings> payOSSettings,
         ITransactionRepository transactionRepository,
         INotificationRepository notificationRepository,
-        HttpClient httpClient)
+        HttpClient httpClient,
+        IAnnualFeeService annualFeeService)
     {
         _payOSSettings = payOSSettings.Value;
         _transactionRepository = transactionRepository;
         _notificationRepository = notificationRepository;
         _httpClient = httpClient;
+        _annualFeeService = annualFeeService;
     }
 
     public async Task<PaymentResponse> CreatePaymentLink(PaymentCreateRequest request)
@@ -110,9 +114,30 @@ public class PaymentService : IPaymentService
             };
         }
 
-        // If the transaction has already been processed successfully, do not credit the wallet again
-        if (transaction.Status == "SUCCESS")
+        // If the transaction has already been processed successfully, check if AnnualFee subscription needs activation
+        if (transaction.Status == "SUCCESS" || transaction.Status == "ACTIVE")
         {
+            if (transaction.Type == "ANNUAL_FEE" || transaction.AnnualFeeId.HasValue)
+            {
+                try
+                {
+                    await _annualFeeService.ProcessPayOSWebhookAsync(new AnnualFeePayOSWebhookRequest
+                    {
+                        OrderCode = orderCode,
+                        Status = status,
+                        Code = "00",
+                        Data = new PayOSWebhookDataDto
+                        {
+                            OrderCode = long.TryParse(orderCode, out var oc) ? oc : 0,
+                            Code = "00"
+                        }
+                    });
+                }
+                catch
+                {
+                }
+            }
+
             return new PaymentCallbackResponse
             {
                 Success = true,
@@ -125,7 +150,7 @@ public class PaymentService : IPaymentService
         // Update transaction based on status
         if (status == "PAID" || status == "SUCCESS")
         {
-            transaction.Status = "SUCCESS";
+            transaction.Status = "ACTIVE";
             transaction.PaymentResponseCode = "00"; // PayOS success code
         }
         else
@@ -136,6 +161,28 @@ public class PaymentService : IPaymentService
 
         _transactionRepository.Update(transaction);
         await _transactionRepository.SaveChangesAsync();
+
+        // Kích hoạt gói AnnualFee nếu giao dịch là mua gói thường niên
+        if ((status == "PAID" || status == "SUCCESS") && (transaction.Type == "ANNUAL_FEE" || transaction.AnnualFeeId.HasValue))
+        {
+            try
+            {
+                await _annualFeeService.ProcessPayOSWebhookAsync(new AnnualFeePayOSWebhookRequest
+                {
+                    OrderCode = orderCode,
+                    Status = status,
+                    Code = "00",
+                    Data = new PayOSWebhookDataDto
+                    {
+                        OrderCode = long.TryParse(orderCode, out var oc) ? oc : 0,
+                        Code = "00"
+                    }
+                });
+            }
+            catch
+            {
+            }
+        }
 
         if ((status == "PAID" || status == "SUCCESS") && transaction.UserId.HasValue && transaction.UserId.Value > 0)
         {

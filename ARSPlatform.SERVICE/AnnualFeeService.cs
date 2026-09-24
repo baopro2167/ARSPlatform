@@ -305,6 +305,15 @@ public class AnnualFeeService : IAnnualFeeService
                 ? await _annualFeeRepo.GetByIdAsync(tx.AnnualFeeId.Value)
                 : null;
 
+            DateTime? expiryDate = null;
+            if (tx.Status == "ACTIVE" || tx.Status == "SUCCESS")
+            {
+                if (annualFee?.BillingCycle == "SixMonth")
+                    expiryDate = tx.CreatedAt?.AddMonths(6);
+                else if (annualFee != null)
+                    expiryDate = tx.CreatedAt?.AddYears(1);
+            }
+
             responses.Add(new AnnualFeePurchaseResponse
             {
                 TransactionId = tx.TransactionId,
@@ -317,7 +326,7 @@ public class AnnualFeeService : IAnnualFeeService
                 PaymentMethod = tx.Type,
                 PaymentOrderId = tx.PaymentOrderId,
                 CreatedAt = tx.CreatedAt,
-                ExpiryDate = null,
+                ExpiryDate = expiryDate,
                 AnnualFee = annualFee == null ? null : MapToResponse(annualFee)
             });
         }
@@ -423,9 +432,21 @@ public class AnnualFeeService : IAnnualFeeService
         if (tx == null)
             return false;
 
-        // Idempotent: đã xử lý rồi thì bỏ qua
-        if (tx.Status == "ACTIVE" || tx.Status == "SUCCESS")
+        var plan = tx.AnnualFeeId.HasValue
+            ? await _annualFeeRepo.GetByIdAsync(tx.AnnualFeeId.Value)
+            : null;
+        var userRole = plan?.UserRole ?? "Researcher";
+
+        var existingSub = tx.UserId.HasValue 
+            ? await _subscriptionRepo.GetByUserAndRoleAsync(tx.UserId.Value, userRole)
+            : null;
+
+        // Idempotent: chỉ bỏ qua nếu subscription đã được kích hoạt thành công cho transaction này
+        if ((tx.Status == "ACTIVE" || tx.Status == "SUCCESS") &&
+            existingSub != null && existingSub.LatestTransactionId == tx.TransactionId && existingSub.ExpiresAt > DateTime.UtcNow)
+        {
             return true;
+        }
 
         var code = webhook.Data?.Code ?? webhook.Code ?? webhook.Status;
 
@@ -433,22 +454,16 @@ public class AnnualFeeService : IAnnualFeeService
         {
             // ── SUCCESS ──
             tx.Status = "ACTIVE";
-            tx.PaymentResponseCode = code;
+            tx.PaymentResponseCode = "00";
             _transactionRepo.Update(tx);
             await _transactionRepo.SaveChangesAsync();
 
             // Tính ExpiryDate
-            var plan = tx.AnnualFeeId.HasValue
-                ? await _annualFeeRepo.GetByIdAsync(tx.AnnualFeeId.Value)
-                : null;
-
             DateTime expiryDate;
             if (plan != null && plan.BillingCycle == "SixMonth")
                 expiryDate = tx.CreatedAt?.AddMonths(6) ?? DateTime.UtcNow.AddMonths(6);
             else
                 expiryDate = tx.CreatedAt?.AddYears(1) ?? DateTime.UtcNow.AddYears(1);
-
-            var userRole = plan?.UserRole ?? "Researcher";
 
             // Cập nhật UserSubscriptions
             await UpsertUserSubscriptionAsync(tx.UserId ?? 0, userRole, expiryDate, tx.TransactionId);
