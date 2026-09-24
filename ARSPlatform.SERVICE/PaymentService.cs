@@ -60,7 +60,10 @@ public class PaymentService : IPaymentService
             ? request.CancelUrl 
             : _payOSSettings.CancelUrl;
 
-        var description = request.Description ?? $"Thanh toan don hang {orderCode}";
+        var rawDesc = !string.IsNullOrWhiteSpace(request.Description) 
+            ? request.Description 
+            : $"Don hang {orderCode}";
+        var description = rawDesc.Length > 25 ? rawDesc[..25] : rawDesc;
 
         // Create signature (Keys must be in alphabetical order: amount, cancelUrl, description, orderCode, returnUrl)
         var signatureData = $"amount={amount}&cancelUrl={cancelUrl}&description={description}&orderCode={orderCode}&returnUrl={returnUrl}";
@@ -208,13 +211,14 @@ public class PaymentService : IPaymentService
             // PayOS API endpoint
             var apiUrl = $"{_payOSSettings.BaseUrl}/v2/payment-requests";
 
-            // PayOS requires API key in Authorization header as Bearer token
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.Add("X-Client-Id", _payOSSettings.ClientId);
-            _httpClient.DefaultRequestHeaders.Add("X-Api-Key", _payOSSettings.ApiKey);
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_payOSSettings.ApiKey}");
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, apiUrl)
+            {
+                Content = content
+            };
+            requestMessage.Headers.Add("X-Client-Id", _payOSSettings.ClientId);
+            requestMessage.Headers.Add("X-Api-Key", _payOSSettings.ApiKey);
 
-            var response = await _httpClient.PostAsync(apiUrl, content);
+            var response = await _httpClient.SendAsync(requestMessage);
             var responseContent = await response.Content.ReadAsStringAsync();
 
             if (response.IsSuccessStatusCode)

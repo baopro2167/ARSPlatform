@@ -84,26 +84,43 @@ public class AnnualFeeFilterParams
 public class AnnualFeePurchaseRequest
 {
     /// <summary>
-    /// UserId thanh toán — FE truyền xuống
+    /// UserId thanh toán — FE truyền xuống hoặc tự động lấy từ JWT
     /// </summary>
     public int? UserId { get; set; }
 
-    public string ReturnUrl { get; set; } = null!;
-    public string CancelUrl { get; set; } = null!;
+    public string? ReturnUrl { get; set; }
+    public string? CancelUrl { get; set; }
 }
 
 /// <summary>
-/// PayOS webhook payload cho AnnualFee
+/// PayOS webhook payload cho AnnualFee (hỗ trợ cả chuẩn PayOS và định dạng trực tiếp)
 /// </summary>
 public class AnnualFeePayOSWebhookRequest
 {
+    public string? Code { get; set; }
+    public string? Desc { get; set; }
+    public PayOSWebhookDataDto? Data { get; set; }
+    public string? Signature { get; set; }
+
+    // Fallback các trường trực tiếp
     public string? OrderCode { get; set; }
     public int? Amount { get; set; }
     public string? Status { get; set; }
-    public string? Code { get; set; }
-    public string? Desc { get; set; }
     public string? OrderId { get; set; }
     public DateTime? CreatedAt { get; set; }
+}
+
+public class PayOSWebhookDataDto
+{
+    public long OrderCode { get; set; }
+    public int Amount { get; set; }
+    public string? Description { get; set; }
+    public string? Reference { get; set; }
+    public string? TransactionDateTime { get; set; }
+    public string? Currency { get; set; }
+    public string? PaymentLinkId { get; set; }
+    public string? Code { get; set; }
+    public string? Desc { get; set; }
 }
 
 /// <summary>

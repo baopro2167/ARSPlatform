@@ -347,11 +347,13 @@ public class AnnualFeeService : IAnnualFeeService
         // 3. UserId từ request (FE truyền xuống) hoặc lấy từ claim
         var userId = request.UserId ?? throw new ArgumentException("UserId is required.");
 
-        // 4. Tạo orderCode
-        var orderCode = $"AF-{annualFeeId}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() % 100000000}";
+        // 4. Tạo orderCode duy nhất dạng số nguyên dương (PayOS yêu cầu orderCode phải là số nguyên dương <= 9007199254740991)
+        long orderCode = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() % 9000000000 + 1000000000;
+        var orderCodeStr = orderCode.ToString();
 
-        // 5. Mô tả thanh toán
+        // 5. Mô tả thanh toán (VietQR và PayOS yêu cầu mô tả ngắn gọn, không ký tự đặc biệt, <= 25 ký tự)
         var paymentDesc = $"{plan.UserRole} Payment {plan.BillingCycle}";
+        var payosDesc = $"ARS {orderCode}";
 
         // 6. Tạo transaction record
         var tx = new Transaction
@@ -363,26 +365,29 @@ public class AnnualFeeService : IAnnualFeeService
             Status = "PENDING_PAYMENT",
             Description = $"Annual Fee - {plan.Name}",
             PaymentDescription = paymentDesc,
-            PaymentOrderId = orderCode,
+            PaymentOrderId = orderCodeStr,
             CreatedAt = DateTime.UtcNow
         };
 
         await _transactionRepo.AddAsync(tx);
         await _transactionRepo.SaveChangesAsync();
 
+        var returnUrl = !string.IsNullOrWhiteSpace(request.ReturnUrl) ? request.ReturnUrl : _payOSSettings.ReturnUrl;
+        var cancelUrl = !string.IsNullOrWhiteSpace(request.CancelUrl) ? request.CancelUrl : _payOSSettings.CancelUrl;
+
         // 7. Gọi PayOS tạo payment link
         var checkoutUrl = await CreatePayOSPaymentLinkAsync(
             orderCode: orderCode,
             amount: (int)plan.Price,
-            description: $"ARS Platform - {plan.Name} ({paymentDesc})",
-            returnUrl: request.ReturnUrl,
-            cancelUrl: request.CancelUrl);
+            description: payosDesc,
+            returnUrl: returnUrl,
+            cancelUrl: cancelUrl);
 
         // 8. Trả về
         return new AnnualFeePurchaseResultResponse
         {
             CheckoutUrl = checkoutUrl,
-            OrderCode = orderCode,
+            OrderCode = orderCodeStr,
             Purchase = new AnnualFeePurchaseResponse
             {
                 TransactionId = tx.TransactionId,
@@ -393,7 +398,7 @@ public class AnnualFeeService : IAnnualFeeService
                 Description = tx.Description,
                 PaymentDescription = paymentDesc,
                 PaymentMethod = "PayOS",
-                PaymentOrderId = orderCode,
+                PaymentOrderId = orderCodeStr,
                 CreatedAt = tx.CreatedAt,
                 AnnualFee = MapToResponse(plan)
             }
@@ -406,8 +411,11 @@ public class AnnualFeeService : IAnnualFeeService
 
     public async Task<bool> ProcessPayOSWebhookAsync(AnnualFeePayOSWebhookRequest webhook)
     {
-        // Tìm transaction theo orderCode
-        var orderCode = webhook.OrderCode ?? webhook.OrderId?.ToString();
+        // Tìm transaction theo orderCode (hỗ trợ cả webhook chuẩn của PayOS và định dạng trực tiếp)
+        var orderCode = webhook.Data?.OrderCode.ToString()
+            ?? webhook.OrderCode
+            ?? webhook.OrderId?.ToString();
+
         if (string.IsNullOrEmpty(orderCode))
             return false;
 
@@ -416,10 +424,10 @@ public class AnnualFeeService : IAnnualFeeService
             return false;
 
         // Idempotent: đã xử lý rồi thì bỏ qua
-        if (tx.Status == "ACTIVE")
+        if (tx.Status == "ACTIVE" || tx.Status == "SUCCESS")
             return true;
 
-        var code = webhook.Code ?? webhook.Status;
+        var code = webhook.Data?.Code ?? webhook.Code ?? webhook.Status;
 
         if (code == "00" || code?.ToUpper() == "PAID" || code?.ToUpper() == "SUCCESS")
         {
@@ -572,7 +580,7 @@ public class AnnualFeeService : IAnnualFeeService
     }
 
     private async Task<string> CreatePayOSPaymentLinkAsync(
-        string orderCode, int amount, string description,
+        long orderCode, int amount, string description,
         string returnUrl, string cancelUrl)
     {
         var sigData = $"amount={amount}&cancelUrl={cancelUrl}&description={description}&orderCode={orderCode}&returnUrl={returnUrl}";
@@ -591,17 +599,18 @@ public class AnnualFeeService : IAnnualFeeService
         var json = JsonSerializer.Serialize(body);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("X-Client-Id", _payOSSettings.ClientId);
-        _httpClient.DefaultRequestHeaders.Add("X-Api-Key", _payOSSettings.ApiKey);
+        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{_payOSSettings.BaseUrl}/v2/payment-requests")
+        {
+            Content = content
+        };
+        requestMessage.Headers.Add("X-Client-Id", _payOSSettings.ClientId);
+        requestMessage.Headers.Add("X-Api-Key", _payOSSettings.ApiKey);
 
-        var response = await _httpClient.PostAsync(
-            $"{_payOSSettings.BaseUrl}/v2/payment-requests", content);
-
+        var response = await _httpClient.SendAsync(requestMessage);
         var responseContent = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-            throw new Exception($"PayOS API error: {responseContent}");
+            throw new Exception($"PayOS API error ({response.StatusCode}): {responseContent}");
 
         var doc = JsonDocument.Parse(responseContent);
         var root = doc.RootElement;
