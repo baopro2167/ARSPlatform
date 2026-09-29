@@ -109,6 +109,39 @@ var openAlexWindowSeconds =
 
 builder.Services.AddRateLimiter(options =>
 {
+    // Global Rate Limiter: Tối đa 120 requests/phút trên mỗi IP để chống tấn công DoS/Flood API
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+    {
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: clientIp,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 10,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                AutoReplenishment = true
+            });
+    });
+
+    // Auth Rate Limiter: Tối đa 20 requests/phút cho các API đăng nhập/đăng ký/OTP để chống Brute-force
+    options.AddPolicy(
+        "AuthRateLimit",
+        httpContext =>
+        {
+            var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            return RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: clientIp,
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 20,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                });
+        });
+
     options.AddPolicy(
         "OpenAlexWorkLookup",
         httpContext =>

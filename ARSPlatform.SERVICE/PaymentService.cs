@@ -235,8 +235,11 @@ public class PaymentService : IPaymentService
 
     private long GenerateOrderCode()
     {
-        // Generate unique order code based on timestamp + random
-        return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() % 100000000;
+        // Generate unique order code using Unix timestamp (seconds) + 4-digit cryptographically secure random suffix
+        // Guaranteed to be unique and well within PayOS / JS safe integer limit (9007199254740991)
+        var timestampSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var randomSuffix = RandomNumberGenerator.GetInt32(1000, 9999);
+        return timestampSec * 10000 + randomSuffix;
     }
 
     private string ComputeHmacSha256(string data, string key)

@@ -311,7 +311,7 @@ namespace ARSPlatform.API.CONTROLLER
         /// <param name="request">Dữ liệu cập nhật</param>
         /// <returns>Paper sau khi cập nhật (test only)</returns>
         [HttpPut("test-update-no-verify/{id:int}")]
-        [Authorize]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<PaperResponse>> UpdatePaperTestNoVerify(
             int id,
             [FromBody] PaperUpdateRequest request)

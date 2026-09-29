@@ -21,6 +21,7 @@ public class AnnualFeeService : IAnnualFeeService
     private readonly IUserSubscriptionRepository _subscriptionRepo;
     private readonly ITransactionRepository _transactionRepo;
     private readonly INotificationRepository _notificationRepo;
+    private readonly IUserRepository _userRepo;
     private readonly PayOSSettings _payOSSettings;
     private readonly HttpClient _httpClient;
 
@@ -29,6 +30,7 @@ public class AnnualFeeService : IAnnualFeeService
         IUserSubscriptionRepository subscriptionRepo,
         ITransactionRepository transactionRepo,
         INotificationRepository notificationRepo,
+        IUserRepository userRepo,
         IOptions<PayOSSettings> payOSSettings,
         HttpClient httpClient)
     {
@@ -36,6 +38,7 @@ public class AnnualFeeService : IAnnualFeeService
         _subscriptionRepo = subscriptionRepo;
         _transactionRepo = transactionRepo;
         _notificationRepo = notificationRepo;
+        _userRepo = userRepo;
         _payOSSettings = payOSSettings.Value;
         _httpClient = httpClient;
     }
@@ -716,20 +719,47 @@ public class AnnualFeeService : IAnnualFeeService
         if (!string.IsNullOrWhiteSpace(filter.Status) &&
             filter.Status.Trim().Equals("none", StringComparison.OrdinalIgnoreCase))
         {
-            // Lấy tất cả userId đã có ít nhất 1 subscription record
             var subscribedUserIds = _subscriptionRepo.GetQueryable()
-                .Select(s => s.UserId)
-                .Distinct();
+                .Select(s => s.UserId);
 
-            var usersWithNoSub = _subscriptionRepo.GetQueryable()
-                .Select(s => s.User)
-                .Distinct(); // placeholder — use IUserRepository nếu có
+            var query = _userRepo.GetQueryable()
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .Where(u => !subscribedUserIds.Contains(u.UserId));
 
-            // Fallback: query trực tiếp qua context (subscriptionRepo không expose Users)
-            // Trả về danh sách rỗng + ghi chú: cần IUserRepository để implement đầy đủ Status=None.
-            // Hiện tại trả về empty set vì UserSubscriptionRepository không có GetQueryable cho Users.
-            return new PagedResult<AdminUserSubscriptionResponse>(
-                new List<AdminUserSubscriptionResponse>(), 0, page, size);
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var s = filter.Search.Trim().ToLower();
+                query = query.Where(u => u.FullName.ToLower().Contains(s) || u.Email.ToLower().Contains(s));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Role))
+            {
+                query = query.Where(u => u.UserRoles.Any(ur => ur.Role != null && ur.Role.Name == filter.Role));
+            }
+
+            var total = await query.CountAsync();
+            var users = await query
+                .OrderByDescending(u => u.CreatedAt)
+                .Skip((page - 1) * size)
+                .Take(size)
+                .ToListAsync();
+
+            var noneItems = users.Select(u => new AdminUserSubscriptionResponse
+            {
+                UserId = u.UserId,
+                FullName = u.FullName ?? "(unknown)",
+                Email = u.Email ?? "(unknown)",
+                UserRole = u.UserRoles.FirstOrDefault()?.Role?.Name ?? "Guest",
+                SubscriptionStatus = "None",
+                ExpiresAt = null,
+                DaysRemaining = null,
+                AnnualFee = null,
+                LatestTransactionId = null,
+                SubscribedAt = u.CreatedAt
+            }).ToList();
+
+            return new PagedResult<AdminUserSubscriptionResponse>(noneItems, total, page, size);
         }
 
         // ── Trường hợp thông thường: Active | Expired | null ─────────────

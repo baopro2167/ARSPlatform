@@ -583,14 +583,9 @@ namespace ARSPlatform.SERVICES
 
             string? effectiveRole;
 
-            if (string.Equals(incomingRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(incomingRole))
             {
-                // FE yêu cầu role Admin → vào thẳng, không cần check UserRole
-                effectiveRole = "Admin";
-            }
-            else if (!string.IsNullOrEmpty(incomingRole))
-            {
-                // FE yêu cầu 1 role cụ thể (Reviewer, Researcher...) → check trong UserRole
+                // FE yêu cầu 1 role cụ thể (Admin, Reviewer, Researcher...) → bắt buộc check trong UserRole
                 var hasRole = await _userRoleRepository.UserHasRoleAsync(user.UserId, incomingRole);
                 if (!hasRole)
                     return null; // User không có role này
@@ -599,7 +594,7 @@ namespace ARSPlatform.SERVICES
             }
             else
             {
-                // FE không truyền role (hoặc truyền "null") → tự check Admin trong UserRole
+                // FE không truyền role (hoặc truyền "null") → ưu tiên check Admin trong UserRole
                 var isAdmin = await _userRoleRepository.UserHasRoleAsync(user.UserId, "Admin");
                 if (isAdmin)
                 {
@@ -608,7 +603,7 @@ namespace ARSPlatform.SERVICES
                 else
                 {
                     // Không có Admin → lấy role đầu tiên; nếu rỗng thì trả về Guest
-                    var firstRole = user.UserRoles.FirstOrDefault()?.Role?.Name;
+                    var firstRole = user.UserRoles?.FirstOrDefault()?.Role?.Name;
                     effectiveRole = string.IsNullOrEmpty(firstRole) ? "Guest" : firstRole;
                 }
             }

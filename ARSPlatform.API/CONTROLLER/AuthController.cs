@@ -3,6 +3,7 @@ using ARSPlatform.SERVICE.DTOs.Response;
 using ARSPlatform.SERVICE.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Security.Claims;
@@ -14,6 +15,7 @@ namespace ARSPlatform.API.CONTROLLER
 {
     [ApiController]
     [Route("api/[controller]")]
+    [EnableRateLimiting("AuthRateLimit")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
