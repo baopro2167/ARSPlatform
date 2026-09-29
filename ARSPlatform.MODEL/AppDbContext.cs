@@ -879,6 +879,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.CorrelationId).HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.Status)
+                .HasConversion<string>()
                 .HasMaxLength(20)
                 .IsUnicode(false)
                 .HasDefaultValue(MedalStatus.Active);
