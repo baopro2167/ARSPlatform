@@ -12,8 +12,6 @@ namespace ARSPlatform.SERVICE.DTOs.Request
 
         public string? Status { get; set; }
 
-        public string? GuidanceProjectsUrl { get; set; }
-
         public int? LecturerId { get; set; }
     }
 }

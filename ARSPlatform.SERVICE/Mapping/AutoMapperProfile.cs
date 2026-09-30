@@ -444,13 +444,6 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.UserRoleId, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
 
-            // UserToken
-            CreateMap<UserToken, UserTokenResponse>();
-            CreateMap<UserTokenCreateRequest, UserToken>();
-            CreateMap<UserTokenUpdateRequest, UserToken>()
-                .ForMember(dest => dest.TokenId, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore());
-
             // Medal & UserMedal
             CreateMap<Medal, MedalResponse>()
                 .ForMember(dest => dest.Roles, opt => opt.MapFrom(src =>

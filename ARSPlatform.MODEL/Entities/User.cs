@@ -146,10 +146,6 @@ public partial class User
         = new List<UserRole>();
 
     [JsonIgnore]
-    public virtual ICollection<UserToken> UserTokens { get; set; }
-        = new List<UserToken>();
-
-    [JsonIgnore]
     public virtual ICollection<UserMedal> UserMedals { get; set; }
         = new List<UserMedal>();
 

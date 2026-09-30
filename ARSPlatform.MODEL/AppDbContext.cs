@@ -84,8 +84,6 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
-    public virtual DbSet<UserToken> UserTokens { get; set; }
-
     public virtual DbSet<UserReward> UserRewards { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -575,7 +573,6 @@ public partial class AppDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.Title).HasMaxLength(255);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.GuidanceProjectsUrl).HasMaxLength(1000);
 
             entity.HasOne(d => d.Lecturer).WithMany(p => p.ResearchTopics)
                 .HasForeignKey(d => d.LecturerId)
@@ -793,22 +790,6 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__UserRole__UserId__395884C4");
-        });
-
-        modelBuilder.Entity<UserToken>(entity =>
-        {
-            entity.HasKey(e => e.TokenId);
-
-            entity.HasIndex(e => e.RefreshToken, "UQ__UserToke__DEA298DA118F54B9").IsUnique();
-
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.DeviceInfo).HasMaxLength(255);
-            entity.Property(e => e.RefreshToken).IsUnicode(false);
-
-            entity.HasOne(d => d.User).WithMany(p => p.UserTokens)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK__UserToken__UserI__3587F3E0");
         });
 
         modelBuilder.Entity<UserReward>(entity =>
