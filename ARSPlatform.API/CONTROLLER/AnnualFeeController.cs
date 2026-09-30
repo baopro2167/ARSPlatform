@@ -320,12 +320,23 @@ public class AnnualFeeController : ControllerBase
             ?.Value;
 
         if (settings == null || string.IsNullOrEmpty(settings.ChecksumKey))
-            return StatusCode(500, new { message = "PayOS not configured." });
+            return StatusCode(500, new { code = "99", desc = "PayOS not configured." });
 
-        // 3. Process webhook
+        // 3. Verify signature if webhook contains signature and data
+        if (!string.IsNullOrEmpty(signature) && webhook.Data != null)
+        {
+            var isValid = VerifyPayOSWebhookSignature(webhook.Data, signature, settings.ChecksumKey);
+            if (!isValid)
+            {
+                return BadRequest(new { code = "97", desc = "Invalid webhook signature" });
+            }
+        }
+
+        // 4. Process webhook
         var success = await _service.ProcessPayOSWebhookAsync(webhook);
 
-        return Ok(new { ok = true, processed = success });
+        // 5. PayOS standard response format
+        return Ok(new { code = "00", desc = "success", data = new { processed = success } });
     }
 
     /// <summary>
@@ -349,6 +360,32 @@ public class AnnualFeeController : ControllerBase
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static bool VerifyPayOSWebhookSignature(PayOSWebhookDataDto data, string signature, string checksumKey)
+    {
+        try
+        {
+            var dict = new SortedDictionary<string, string>();
+            if (data.Amount != 0) dict["amount"] = data.Amount.ToString();
+            if (!string.IsNullOrEmpty(data.Code)) dict["code"] = data.Code;
+            if (!string.IsNullOrEmpty(data.Currency)) dict["currency"] = data.Currency;
+            if (!string.IsNullOrEmpty(data.Desc)) dict["desc"] = data.Desc;
+            if (!string.IsNullOrEmpty(data.Description)) dict["description"] = data.Description;
+            if (data.OrderCode != 0) dict["orderCode"] = data.OrderCode.ToString();
+            if (!string.IsNullOrEmpty(data.PaymentLinkId)) dict["paymentLinkId"] = data.PaymentLinkId;
+            if (!string.IsNullOrEmpty(data.Reference)) dict["reference"] = data.Reference;
+            if (!string.IsNullOrEmpty(data.TransactionDateTime)) dict["transactionDateTime"] = data.TransactionDateTime;
+
+            var signData = string.Join("&", dict.Select(kv => $"{kv.Key}={kv.Value}"));
+            var computedSignature = ComputeHmacSha256(signData, checksumKey);
+
+            return string.Equals(computedSignature, signature, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 
