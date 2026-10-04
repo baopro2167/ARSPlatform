@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ARSPlatform.SERVICE.DTOs.Response
 {
@@ -7,6 +7,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
         public int ReportId { get; set; }
 
         public int? ReporterId { get; set; }
+
+        public string? ReporterName { get; set; }
 
         public string? TargetType { get; set; }
 

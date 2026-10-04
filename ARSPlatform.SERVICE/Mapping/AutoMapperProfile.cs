@@ -293,7 +293,9 @@ namespace ARSPlatform.SERVICE.Mapping
                         (JsonSerializerOptions?)null)));
 
             // Report
-            CreateMap<Report, ReportResponse>();
+            CreateMap<Report, ReportResponse>()
+                .ForMember(dest => dest.ReporterName, opt => opt.MapFrom(src =>
+                    src.Reporter != null ? (!string.IsNullOrEmpty(src.Reporter.FullName) ? src.Reporter.FullName : src.Reporter.Email) : null));
             CreateMap<ReportCreateRequest, Report>();
             CreateMap<ReportUpdateRequest, Report>()
                 .ForMember(dest => dest.ReportId, opt => opt.Ignore())

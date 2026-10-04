@@ -24,13 +24,13 @@ namespace ARSPlatform.SERVICES
 
         public async Task<IEnumerable<ReportResponse>> GetAllAsync()
         {
-            var items = await _repository.GetAllAsync();
+            var items = await _repository.GetAllAsync(null, x => x.Reporter!);
             return _mapper.Map<IEnumerable<ReportResponse>>(items);
         }
 
         public async Task<PagedResult<ReportResponse>> GetPagedAsync(PaginationParams paginationParams)
         {
-            var paged = await _repository.GetPagedAsync(paginationParams);
+            var paged = await _repository.GetPagedAsync(paginationParams, null, null, x => x.Reporter!);
             var dtos = _mapper.Map<List<ReportResponse>>(paged.Items);
             return new PagedResult<ReportResponse>(dtos, paged.TotalCount, paged.PageNumber, paged.PageSize);
         }
@@ -49,7 +49,8 @@ namespace ARSPlatform.SERVICES
 
         public async Task<ReportResponse?> GetByIdAsync(int id)
         {
-            var item = await _repository.GetByIdAsync(id);
+            var items = await _repository.GetAllAsync(x => x.ReportId == id, x => x.Reporter!);
+            var item = items.FirstOrDefault();
             return item == null ? null : _mapper.Map<ReportResponse>(item);
         }
 
