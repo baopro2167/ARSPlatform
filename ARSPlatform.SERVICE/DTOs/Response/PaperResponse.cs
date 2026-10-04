@@ -31,6 +31,8 @@ namespace ARSPlatform.SERVICE.DTOs.Response
 
         public string AuthorName { get; set; } = string.Empty;
 
+        public string ResearcherName { get; set; } = string.Empty;
+
         public string? AuthorOrcidId { get; set; }
 
         public string? AuthorOrcidDisplayName { get; set; }

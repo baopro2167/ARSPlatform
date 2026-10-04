@@ -56,6 +56,8 @@ namespace ARSPlatform.SERVICE.Mapping
                 .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.CreatorId))
                 .ForMember(dest => dest.AuthorName, opt => opt.MapFrom(src =>
                     src.Creator != null ? src.Creator.FullName : string.Empty))
+                .ForMember(dest => dest.ResearcherName, opt => opt.MapFrom(src =>
+                    src.Creator != null ? src.Creator.FullName : string.Empty))
                 .ForMember(dest => dest.AuthorOrcidId, opt => opt.MapFrom(src =>
                     src.Creator != null ? src.Creator.OrcidId : null))
                 .ForMember(dest => dest.AuthorOrcidDisplayName, opt => opt.MapFrom(src =>
