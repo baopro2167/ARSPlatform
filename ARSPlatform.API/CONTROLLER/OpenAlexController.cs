@@ -62,10 +62,11 @@ namespace ARSPlatform.API.CONTROLLER
                     workId,
                     cancellationToken);
 
-            await WriteLookupAuditAsync(
-                workId,
-                result,
-                cancellationToken);
+            // Avoid spamming administrative audit logs with routine read-only preview lookups
+            // await WriteLookupAuditAsync(
+            //     workId,
+            //     result,
+            //     cancellationToken);
 
             if (result.RetryAfterSeconds.HasValue &&
                 result.RetryAfterSeconds.Value > 0)

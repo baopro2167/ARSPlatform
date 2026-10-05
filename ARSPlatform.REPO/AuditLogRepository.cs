@@ -1,4 +1,4 @@
-﻿using ARSPlatform.MODEL;
+using ARSPlatform.MODEL;
 using ARSPlatform.MODEL.Entities;
 using ARSPlatform.REPO.Interfaces;
 using ARSPlatform.REPO.PAGINATION;
@@ -72,6 +72,10 @@ namespace ARSPlatform.REPOSITORIES
                     x.Target.Contains(keyword) ||
                     (x.TargetId != null && x.TargetId.Contains(keyword)) ||
                     (x.Details != null && x.Details.Contains(keyword)));
+            }
+            else
+            {
+                query = query.Where(x => x.Action != "OPENALEX_WORK_LOOKUP");
             }
 
             var fromDate = GetRangeStart(range);
