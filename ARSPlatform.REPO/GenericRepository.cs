@@ -25,7 +25,7 @@ namespace ARSPlatform.REPOSITORIES
             Expression<Func<T, bool>>? predicate = null,
             params Expression<Func<T, object>>[] includes)
         {
-            IQueryable<T> query = _dbSet;
+            IQueryable<T> query = _dbSet.AsNoTracking();
             if (includes != null)
             {
                 foreach (var include in includes)
