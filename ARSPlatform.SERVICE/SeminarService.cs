@@ -328,6 +328,11 @@ namespace ARSPlatform.SERVICES
                 else if (string.Equals(requestedStatus, "Completed", StringComparison.OrdinalIgnoreCase))
                 {
                     seminar.Status = "Completed";
+                    var nowUtc = DateTime.UtcNow;
+                    if (seminar.EndTime > nowUtc)
+                    {
+                        seminar.EndTime = nowUtc >= seminar.StartTime ? nowUtc : seminar.StartTime.AddMinutes(1);
+                    }
                 }
                 else
                 {
@@ -346,18 +351,21 @@ namespace ARSPlatform.SERVICES
             _seminarRepository.Update(seminar);
             await _seminarRepository.SaveChangesAsync();
 
-            // Notify participants if status changed to cancelled/suspended or time changed
+            // Notify participants if status changed to cancelled/suspended, completed early, or time changed
             var statusChangedToInactive = oldStatus != seminar.Status && IsInactiveOrSuspended(seminar.Status);
+            var statusChangedToCompleted = oldStatus != seminar.Status && string.Equals(seminar.Status, "Completed", StringComparison.OrdinalIgnoreCase);
             var timeChanged = request.StartTime.HasValue && oldStartTime != seminar.StartTime;
 
-            if (statusChangedToInactive || timeChanged)
+            if (statusChangedToInactive || statusChangedToCompleted || timeChanged)
             {
                 try
                 {
                     var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
                     var notifMsg = statusChangedToInactive
                         ? $"Hội thảo \"{seminarTitle}\" đã bị {(seminar.Status == "Suspended" ? "tạm hoãn" : "hủy bỏ")} bởi người tổ chức."
-                        : $"Hội thảo \"{seminarTitle}\" đã được dời lịch bắt đầu sang {seminar.StartTime:HH:mm dd/MM/yyyy}.";
+                        : statusChangedToCompleted
+                            ? $"Hội thảo \"{seminarTitle}\" đã kết thúc bởi người tổ chức. Bạn có thể gửi phản hồi và đánh giá."
+                            : $"Hội thảo \"{seminarTitle}\" đã được dời lịch bắt đầu sang {seminar.StartTime:HH:mm dd/MM/yyyy}.";
 
                     foreach (var p in seminar.SeminarParticipants)
                     {
@@ -668,8 +676,8 @@ namespace ARSPlatform.SERVICES
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Skip Inactive, Suspended, or Draft seminars
-                if (IsInactiveOrSuspended(seminar.Status) || IsDraft(seminar.Status))
+                // Skip Inactive, Suspended, Draft, or already Completed seminars
+                if (IsInactiveOrSuspended(seminar.Status) || IsDraft(seminar.Status) || string.Equals(seminar.Status, "Completed", StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 var expectedStatus = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, now);

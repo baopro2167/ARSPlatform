@@ -65,7 +65,7 @@ namespace ARSPlatform.REPOSITORIES
         public async Task<IEnumerable<Seminar>> GetLifecycleCandidatesAsync()
         {
             return await _dbSet
-                .Where(s => s.Status == null || (s.Status != "Draft" && s.Status != "Inactive" && s.Status != "Suspended"))
+                .Where(s => s.Status == null || (s.Status != "Draft" && s.Status != "Inactive" && s.Status != "Suspended" && s.Status != "Completed"))
                 .ToListAsync();
         }
 
