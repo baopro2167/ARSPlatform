@@ -175,18 +175,6 @@ docker run -d -p 5000:8080 --name ars-api ars-backend
 
 ---
 
-## 🔑 Tài Khoản Thử Nghiệm Mặc Định (Seed Accounts)
-
-| Vai trò | Email | Mật khẩu mặc định |
-| :--- | :--- | :--- |
-| **Admin** | `admin@arsplatform.com` | `Password123` |
-| **Researcher** | `researcher@arsplatform.com` | `Password123` |
-| **Lecturer** | `lecturer@arsplatform.com` | `Password123` |
-| **Reviewer** | `reviewer@arsplatform.com` | `Password123` |
-| **Graduate Student** | `student@arsplatform.com` | `Password123` |
-
----
-
 ## 🧪 Kiểm Thử (Testing)
 
 ```bash
