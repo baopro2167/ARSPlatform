@@ -371,6 +371,97 @@ namespace ARSPlatform.API.CONTROLLER
         }
 
         /// <summary>
+        /// Cập nhật riêng trạng thái (Status) của buổi Seminar (VD: chuyển sang Completed sớm, Upcoming, In Progress, Inactive, Suspended)
+        /// </summary>
+        /// <param name="id">ID Seminar cần cập nhật trạng thái</param>
+        /// <param name="request">Request chứa Status mới</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Seminar sau khi cập nhật trạng thái</returns>
+        [HttpPut("{id:int}/status")]
+        [HttpPatch("{id:int}/status")]
+        [Authorize(Roles = "Lecturer,Researcher,Admin")]
+        [ProducesResponseType(typeof(SeminarResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<SeminarResponse>> UpdateStatus(
+            int id,
+            [FromBody] SeminarStatusUpdateRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (!TryGetCurrentUserId(out var organizerId))
+            {
+                return Unauthorized();
+            }
+
+            if (request == null || string.IsNullOrWhiteSpace(request.Status))
+            {
+                return BadRequest(new { message = "Trường 'status' là bắt buộc." });
+            }
+
+            try
+            {
+                var response = await _seminarService.UpdateStatusAsync(
+                    id,
+                    organizerId,
+                    request.Status,
+                    cancellationToken,
+                    IsAdmin());
+
+                if (response == null)
+                {
+                    return NotFound(new { message = $"Không tìm thấy Seminar ID {id} hoặc bạn không có quyền cập nhật." });
+                }
+
+                return Ok(response);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Kết thúc sớm buổi Seminar (Chuyển trạng thái sang Completed)
+        /// </summary>
+        /// <param name="id">ID Seminar cần kết thúc</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Seminar với trạng thái Completed</returns>
+        [HttpPost("{id:int}/complete")]
+        [Authorize(Roles = "Lecturer,Researcher,Admin")]
+        [ProducesResponseType(typeof(SeminarResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<SeminarResponse>> Complete(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            if (!TryGetCurrentUserId(out var organizerId))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                var response = await _seminarService.UpdateStatusAsync(
+                    id,
+                    organizerId,
+                    "Completed",
+                    cancellationToken,
+                    IsAdmin());
+
+                if (response == null)
+                {
+                    return NotFound(new { message = $"Không tìm thấy Seminar ID {id} hoặc bạn không có quyền cập nhật." });
+                }
+
+                return Ok(response);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Hủy / Xóa buổi Seminar
         /// </summary>
         /// <param name="id">ID Seminar</param>

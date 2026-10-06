@@ -397,6 +397,93 @@ namespace ARSPlatform.SERVICES
             return _mapper.Map<SeminarResponse>(updated ?? seminar);
         }
 
+        public async Task<SeminarResponse?> UpdateStatusAsync(
+            int seminarId,
+            int organizerId,
+            string newStatus,
+            CancellationToken cancellationToken = default,
+            bool isAdmin = false)
+        {
+            if (string.IsNullOrWhiteSpace(newStatus))
+                throw new ArgumentException("Trạng thái (status) không được để trống.");
+
+            var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
+
+            if (seminar == null || (!isAdmin && seminar.OrganizerId != organizerId))
+                return null;
+
+            var oldStatus = seminar.Status;
+            var requestedStatus = newStatus.Trim();
+
+            if (IsInactiveOrSuspended(requestedStatus))
+            {
+                seminar.Status = string.Equals(requestedStatus, "Suspended", StringComparison.OrdinalIgnoreCase)
+                    ? "Suspended"
+                    : "Inactive";
+            }
+            else if (IsDraft(requestedStatus))
+            {
+                seminar.Status = "Draft";
+            }
+            else if (string.Equals(requestedStatus, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                seminar.Status = CalculateLifecycleStatus(seminar.StartTime, seminar.EndTime, DateTime.UtcNow);
+            }
+            else if (string.Equals(requestedStatus, "Upcoming", StringComparison.OrdinalIgnoreCase))
+            {
+                seminar.Status = "Upcoming";
+            }
+            else if (string.Equals(requestedStatus, "In Progress", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(requestedStatus, "Ongoing", StringComparison.OrdinalIgnoreCase))
+            {
+                seminar.Status = "In Progress";
+            }
+            else if (string.Equals(requestedStatus, "Completed", StringComparison.OrdinalIgnoreCase))
+            {
+                seminar.Status = "Completed";
+            }
+            else
+            {
+                seminar.Status = requestedStatus;
+            }
+
+            _seminarRepository.Update(seminar);
+            await _seminarRepository.SaveChangesAsync();
+
+            // Notify participants if status changed to cancelled/suspended
+            var statusChangedToInactive = oldStatus != seminar.Status && IsInactiveOrSuspended(seminar.Status);
+            if (statusChangedToInactive)
+            {
+                try
+                {
+                    var seminarTitle = !string.IsNullOrWhiteSpace(seminar.Content) ? seminar.Content : "Hội thảo";
+                    var notifMsg = $"Hội thảo \"{seminarTitle}\" đã bị {(seminar.Status == "Suspended" ? "tạm hoãn" : "hủy bỏ")} bởi người tổ chức.";
+
+                    foreach (var p in seminar.SeminarParticipants)
+                    {
+                        if (p.UserId.HasValue && p.UserId.Value != organizerId)
+                        {
+                            await _notificationRepository.AddAsync(new Notification
+                            {
+                                UserId = p.UserId.Value,
+                                Message = notifMsg,
+                                IsRead = false,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    await _notificationRepository.SaveChangesAsync();
+                }
+                catch
+                {
+                    // Ignore notification errors
+                }
+            }
+
+            var updated = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
+            return _mapper.Map<SeminarResponse>(updated ?? seminar);
+        }
+
         public async Task<bool> DeleteAsync(int seminarId, int organizerId)
         {
             var seminar = await _seminarRepository.GetByIdWithParticipantsAsync(seminarId);
